@@ -122,6 +122,7 @@ scaffold-hal          →  hal-architect
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
 examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+        ↓                 write-examples
         ↓
 review                →  hal-reviewer (gates every stage above)
 ```
@@ -154,8 +155,9 @@ but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
 The skills named above (`gather-documentation`, `generate-svd`,
-`generate-pac`, `scaffold-hal`) are **not yet written**. Until they exist,
-agents work from this file and from `embassy-mcxa` directly.
+`generate-pac`, `scaffold-hal`, `write-examples`) are **not yet
+written**. Until they exist, agents work from this file and from
+`embassy-mcxa` directly.
 
 ### Where the PAC comes from
 

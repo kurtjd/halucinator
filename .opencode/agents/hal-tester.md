@@ -4,17 +4,17 @@ description: >-
   black-box exercise: writing `examples/<chip>/src/bin` binaries
   per peripheral and mode, loopback and trait-flavoured variants,
   stress and soak binaries, `tests/<chip>` teleprobe HIL
-  binaries, and the `ci.sh` wiring that keeps them building. Works
-  only from an API surface supplied in the prompt and is barred
-  from reading HAL source, so its tests cannot inherit the
-  implementer's assumptions. Trigger for "write tests", "write
-  examples", "integration test", "HIL", "teleprobe", "loopback",
-  "stress test", "soak", "cancel-safety test", "exercise this
-  API", "try to break this driver", "black-box". Wrong for
+  binaries, and the `ci.sh` wiring that keeps them building. Owns the
+  `write-examples` stage. Works only from an API surface supplied in
+  the prompt and is barred from reading HAL source, so its tests
+  cannot inherit the implementer's assumptions. Trigger for "write
+  tests", "write examples", "integration test", "HIL", "teleprobe",
+  "loopback", "stress test", "soak", "cancel-safety test", "exercise
+  this API", "try to break this driver", "black-box". Wrong for
   host-side unit tests of a driver's internals, which belong to
   hal-driver, wrong for critiquing implementation code, which is
-  hal-reviewer's surface, and wrong for flashing or running
-  anything on hardware, which stays with the user.
+  hal-reviewer's surface, and wrong for flashing or running anything
+  on hardware, which stays with the user.
 mode: subagent
 permission:
   read:

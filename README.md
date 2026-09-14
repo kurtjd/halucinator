@@ -17,10 +17,11 @@ No HAL source lives here. This repository is the toolkit.
 | Agents (6) | written |
 | Skills | **not yet written** |
 
-The agents reference four skills by name — `gather-documentation`,
-`generate-svd`, `generate-pac`, `scaffold-hal`. Those are still being
-designed. Until they exist the agents work directly from `AGENTS.md`
-and from `embassy-mcxa`, which is most of the value anyway.
+The agents reference five skills by name — `gather-documentation`,
+`generate-svd`, `generate-pac`, `scaffold-hal`, `write-examples`. Those
+are still being designed. Until they exist the agents work directly
+from `AGENTS.md` and from `embassy-mcxa`, which is most of the value
+anyway.
 
 ## Prerequisite
 
@@ -107,6 +108,7 @@ scaffold-hal          →  hal-architect
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
 examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+        ↓                 write-examples
         ↓
 review                →  hal-reviewer (gates every stage above)
 ```
