@@ -14,7 +14,7 @@ No HAL source lives here. This repository is the toolkit.
 | Component | State |
 |---|---|
 | `AGENTS.md` | written |
-| Agents (5) | written |
+| Agents (6) | written |
 | Skills | **not yet written** |
 
 The agents reference four skills by name — `gather-documentation`,
@@ -106,6 +106,8 @@ scaffold-hal          →  hal-architect
         ↓
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
+examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+        ↓
 review                →  hal-reviewer (gates every stage above)
 ```
 
@@ -121,12 +123,13 @@ write a driver for a register the PAC does not expose.
 | `hal-datasheet` | subagent | Reference-manual extraction: register semantics, init sequences, clock/reset dependencies, field encodings, errata | yes |
 | `hal-svd` | subagent | SVD authoring, chiptool transforms, metapac metadata, PAC generation | yes |
 | `hal-driver` | subagent | One peripheral end to end: `Instance`/`Info`, mode type-state, interrupt handlers, DMA, `embedded-hal` impls | yes |
+| `hal-tester` | subagent | `examples/<chip>/`, `tests/<chip>/` teleprobe binaries, `ci.sh` wiring — adversarial, black-box | yes |
 | `hal-reviewer` | subagent | Adversarial audit against DEVGUIDE and the type discipline | **no** |
 
 `hal-architect` is the entry point. It sequences the work and
 dispatches the rest.
 
-Two boundaries worth knowing:
+Three boundaries worth knowing:
 
 - **`hal-svd` owns PAC generation as well as SVD.** They are one
   toolchain domain — chiptool transforms, metapac metadata, the
@@ -136,6 +139,33 @@ Two boundaries worth knowing:
   *structure*.** Offsets and bit ranges become SVD. Initialisation
   sequences, clock dependencies, legal field encodings and errata
   become notes that `hal-driver` reads.
+- **Tests split by where they run.** Host-side unit tests of a
+  driver's pure functions — baud maths, encode/decode — belong to
+  `hal-driver`, which needs them to develop. Anything that runs on
+  target belongs to `hal-tester`.
+
+### Why `hal-tester` is blindfolded
+
+`hal-tester` is denied read access to `embassy-*/src/**` in its
+frontmatter, and is given the peripheral's public API in its prompt
+instead.
+
+This is the whole point of the agent. A tester that has read the driver
+writes tests that agree with the driver — including everywhere the
+driver is wrong. Removing its ability to look makes its tests a genuine
+second opinion, and turns "I can't test this, the API doesn't expose
+it" into a design finding rather than a workaround.
+
+Two honest caveats. The deny patterns cover `read` and `grep`; `bash`
+is gated at `ask` for everything except `cargo build`/`check`/`clippy`/
+`fmt`, so a determined agent could still shell out to read a file and
+you would see the prompt. And the pattern keys on `embassy-*/src/**`,
+so a HAL crate placed somewhere else is not covered. This is a strong
+default and an explicit statement of intent, not a sandbox.
+
+`hal-tester` never flashes a board. It produces binaries plus bench
+instructions — wiring, commands, expected output, and the failure
+signature — and a human runs them.
 
 `hal-datasheet` depends on `pdftotext -layout`. Reference manuals are
 multi-column and register tables carry their meaning in the column

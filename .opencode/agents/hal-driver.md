@@ -103,7 +103,10 @@ mode variants — buffered, DMA, blocking.
 - Keep the arithmetic pure and separate. Baud divisors, timing
   parameters, FIFO thresholds and frame encode/decode are functions
   from values to values with no registers in them — testable on the
-  host, exhaustively where the domain is small.
+  host, exhaustively where the domain is small. **Host-side tests of
+  this functional core are yours.** Anything that runs on target —
+  examples, HIL binaries — belongs to `hal-tester`, which is barred
+  from reading your source on purpose.
 - Name the inhabitants. Before a public type settles, count its legal
   states and compare against what the type can express.
 - Reset module-global mutable state — descriptor rings, flags, waker

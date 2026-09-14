@@ -121,8 +121,31 @@ scaffold-hal          →  hal-architect
         ↓
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
+examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+        ↓
 review                →  hal-reviewer (gates every stage above)
 ```
+
+`hal-tester` is deliberately blinded: it is given a peripheral's public
+API in its prompt and is denied read access to `embassy-*/src/**`. A
+tester that has read the driver writes tests that agree with the
+driver, including where the driver is wrong. Whoever dispatches it must
+therefore supply the API surface in the prompt — it has no other way to
+obtain it, and that is the point.
+
+Testing splits by where the test runs:
+
+- **Host-side unit tests of the functional core** — baud divisors,
+  encode/decode, timing maths — belong to `hal-driver`. They are how it
+  develops, and the small-domain ones should be exhaustive loops rather
+  than sampled.
+- **Anything that runs on target** — `examples/<chip>/`,
+  `tests/<chip>/` teleprobe binaries, and their `ci.sh` wiring —
+  belongs to `hal-tester`.
+
+Neither `hal-tester` nor anything else in this toolkit flashes a board.
+`hal-tester` produces binaries plus bench instructions; a human runs
+them.
 
 `hal-architect` owns the roadmap and decides when a stage is complete
 enough to move on. Stages are not strictly serial — a driver may send you
