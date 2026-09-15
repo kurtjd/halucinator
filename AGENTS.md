@@ -154,10 +154,31 @@ back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
-The skills named above (`gather-documentation`, `generate-svd`,
-`generate-pac`, `scaffold-hal`, `write-examples`) are **not yet
-written**. Until they exist, agents work from this file and from
-`embassy-mcxa` directly.
+The skills `generate-svd`, `generate-pac`, `scaffold-hal`, and
+`write-examples` are **not yet written**. For those stages, agents
+work from this file and from `embassy-mcxa` directly.
+
+### Documentation handoff
+
+Keep gathered documents and research artifacts in the working repository.
+The `gather-documentation` skill defines the storage layout. Preserve
+user-supplied originals and unrelated repository files.
+
+`hal-architect` passes the repository-relative documentation directory,
+`SOURCES.md` path, exact target, relevant source IDs, and cited-note paths
+to every downstream agent that needs them. Resolve those paths from the
+repository root. Without an unambiguous handoff, ask for the location
+rather than guessing a previously used target.
+
+Keep hardware citations useful independently of local paths: document
+title/number, revision, and section/table/page still belong in findings
+and downstream code. Never copy HAL implementation into the documentation
+directory to bypass `hal-tester`'s source restrictions. Supply only its
+public API and the relevant cited hardware/board facts.
+
+This rule covers documentation intake and research, not reproducible
+build inputs. SVD/PAC generation inputs and transforms still belong to
+their versioned generation project as that workflow requires.
 
 ### Where the PAC comes from
 
