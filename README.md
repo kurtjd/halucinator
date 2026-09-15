@@ -15,13 +15,12 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | **not yet written** |
+| Skills | 1 written, 4 not yet written |
 
-The agents reference five skills by name — `gather-documentation`,
-`generate-svd`, `generate-pac`, `scaffold-hal`, `write-examples`. Those
-are still being designed. Until they exist the agents work directly
-from `AGENTS.md` and from `embassy-mcxa`, which is most of the value
-anyway.
+[gather-documentation](.opencode/skills/gather-documentation/SKILL.md)
+is implemented. `generate-svd`, `generate-pac`, `scaffold-hal`, and
+`write-examples` are still being designed. For those stages, agents
+work directly from `AGENTS.md` and from `embassy-mcxa`.
 
 ## Prerequisite
 
@@ -42,36 +41,38 @@ Two things move, and they move differently.
 **`AGENTS.md`** — copy to the root of your embassy checkout, or merge
 into the one already there.
 
-**Agents** — copy or symlink into the target repository. opencode has
-a `skills.paths` config key but **no equivalent for agents**: they are
-only discovered under `.opencode/agent(s)/` in the project or
-`~/.config/opencode/agent(s)/` globally. There is no config line that
-points at this repository.
+**Agents and skills**: copy or symlink the whole `.opencode/` directory,
+including the skills' bundled references. Merge into an existing
+`.opencode/` directory, preserving unrelated files and configuration.
+
+The commands below overwrite matching files.
 
 Per project:
 
 ```sh
 # POSIX
-cp halucinator/AGENTS.md          /path/to/embassy/AGENTS.md
-mkdir -p                          /path/to/embassy/.opencode/agents
-cp halucinator/.opencode/agents/*.md /path/to/embassy/.opencode/agents/
+cp halucinator/AGENTS.md /path/to/embassy/AGENTS.md
+mkdir -p /path/to/embassy/.opencode
+cp -R halucinator/.opencode/. /path/to/embassy/.opencode/
 ```
 
 ```powershell
 # PowerShell
 Copy-Item halucinator\AGENTS.md D:\path\to\embassy\AGENTS.md
-New-Item -ItemType Directory -Force -Path D:\path\to\embassy\.opencode\agents
-Copy-Item halucinator\.opencode\agents\*.md D:\path\to\embassy\.opencode\agents\
+New-Item -ItemType Directory -Force -Path D:\path\to\embassy\.opencode
+Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination D:\path\to\embassy\.opencode\
 ```
 
-Or install the agents globally, for every project:
+Or install the agents and skills globally, for every project:
 
 ```sh
-cp halucinator/.opencode/agents/*.md ~/.config/opencode/agents/
+mkdir -p ~/.config/opencode
+cp -R halucinator/.opencode/. ~/.config/opencode/
 ```
 
 ```powershell
-Copy-Item halucinator\.opencode\agents\*.md $HOME\.config\opencode\agents\
+New-Item -ItemType Directory -Force -Path "$HOME\.config\opencode"
+Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination "$HOME\.config\opencode\"
 ```
 
 Restart opencode afterwards. Config is read once at startup and is not
@@ -122,7 +123,7 @@ write a driver for a register the PAC does not expose.
 | Agent | Mode | Owns | Edits |
 |---|---|---|---|
 | `hal-architect` | primary | Roadmap, phase gating, crate scaffolding, `init`, feature policy, delegation | yes |
-| `hal-datasheet` | subagent | Reference-manual extraction: register semantics, init sequences, clock/reset dependencies, field encodings, errata | yes |
+| `hal-datasheet` | subagent | Documentation intake and reference-manual extraction: register semantics, init sequences, clock/reset dependencies, field encodings, errata | yes |
 | `hal-svd` | subagent | SVD authoring, chiptool transforms, metapac metadata, PAC generation | yes |
 | `hal-driver` | subagent | One peripheral end to end: `Instance`/`Info`, mode type-state, interrupt handlers, DMA, `embedded-hal` impls | yes |
 | `hal-tester` | subagent | `examples/<chip>/`, `tests/<chip>/` teleprobe binaries, `ci.sh` wiring — adversarial, black-box | yes |

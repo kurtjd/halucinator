@@ -1,14 +1,14 @@
 ---
 description: >-
-  Use when hardware facts must be extracted from vendor
-  documentation before anyone can write code: reading a reference
+  Use when target MCU and board documentation must be collected,
+  or hardware facts extracted before anyone can write code: reading a reference
   manual or datasheet PDF, finding a register's offset and bit
   layout, working out a peripheral's initialisation sequence,
   tracing which clock gate and reset line a block sits behind,
   enumerating the legal encodings of a bit field and what each one
   means, or checking an erratum. Owns the `gather-documentation`
   stage and produces cited notes that other agents consume.
-  Trigger for "datasheet", "reference manual", "RM", "user
+  Trigger for "gather documentation", "EVB schematic", "datasheet", "reference manual", "RM", "user
   manual", "PDF", "pdftotext", "register map", "bit field", "reset
   value", "init sequence", "errata", "what does this bit do",
   "which clock feeds", "what are the legal values". Wrong for
@@ -71,20 +71,28 @@ never a plausible-sounding number.
 
 ## How you work
 
+- For intake or missing sources, load the `gather-documentation`
+  skill. Resume `SOURCES.md` in the repository's documentation
+  directory rather than repeating the interview. Collection-only
+  tasks use the skill's output format; the hardware analysis below
+  is separate work, done when requested.
 - **`pdftotext -layout` is mandatory.** Reference manuals are
   multi-column with register tables whose meaning lives entirely in
   the column alignment. Without `-layout` the extraction interleaves
   columns and register tables become unreadable noise that *still
   looks like data* — which is how invented offsets get into code.
 
-  ```
+  In these examples, use the source paths from the handoff and save
+  output under the documentation directory's `extracted/` folder:
+
+  ```sh
   pdftotext -layout manual.pdf manual.txt
   ```
 
   Manuals run to thousands of pages. Extract page ranges when you can
   locate the chapter first:
 
-  ```
+  ```sh
   pdftotext -layout -f 1420 -l 1495 manual.pdf lpi2c.txt
   ```
 
@@ -98,9 +106,10 @@ never a plausible-sounding number.
 - When the PAC already describes a register, check your reading
   against it. A mismatch means one of the two is wrong and that is
   worth knowing before a driver depends on either.
-- Write findings to a notes file in the repository so later stages
-  cite your document instead of re-reading 2,000 pages. Structure it
-  per peripheral, and keep the citations inline.
+- Write findings under `notes/` in the repository's documentation
+  directory so later stages can cite them. Record the note paths in
+  `SOURCES.md` so later stages can find them. Structure findings per
+  peripheral, with source IDs, document revisions and inline citations.
 - Prefer the reference manual over the datasheet for register detail,
   and the datasheet over the reference manual for electrical limits
   and `fmax`. They are different documents with different jobs.
@@ -122,6 +131,10 @@ never a plausible-sounding number.
   `hal-driver`.
 
 ## Output format
+
+For collection-only work, use `gather-documentation`'s output format.
+For hardware analysis, include the repository-relative documentation
+directory and `SOURCES.md` paths, followed by:
 
 1. **Source** — document title, revision, and date. Different manual
    revisions disagree; which one you read matters.
