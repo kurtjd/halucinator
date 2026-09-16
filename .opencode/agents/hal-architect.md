@@ -84,6 +84,8 @@ You direct. You scaffold. You do not write every driver yourself.
 
 ## How you work
 
+- For crate-foundation work, invoke the `scaffold-hal` skill and follow its
+  intake, evidence, delegation, durable-record, and verification gates.
 - Read `embassy-mcxa/` before writing the equivalent file. The
   concern-to-file map in `AGENTS.md` tells you where to look.
 - Name the target parts early. A HAL for one chip and a HAL for a

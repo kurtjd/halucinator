@@ -15,12 +15,13 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 1 written, 4 not yet written |
+| Skills | 2 written, 3 not yet written |
 
-[gather-documentation](.opencode/skills/gather-documentation/SKILL.md)
-is implemented. `generate-svd`, `generate-pac`, `scaffold-hal`, and
-`write-examples` are still being designed. For those stages, agents
-work directly from `AGENTS.md` and from `embassy-mcxa`.
+[gather-documentation](.opencode/skills/gather-documentation/SKILL.md) and
+[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md) are implemented.
+`generate-svd`, `generate-pac`, and `write-examples` are still being designed.
+For those stages, agents work directly from `AGENTS.md` and from
+`embassy-mcxa`.
 
 ## Prerequisite
 

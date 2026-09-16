@@ -154,9 +154,10 @@ back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
-The skills `generate-svd`, `generate-pac`, `scaffold-hal`, and
-`write-examples` are **not yet written**. For those stages, agents
-work from this file and from `embassy-mcxa` directly.
+The skills `generate-svd`, `generate-pac`, and `write-examples` are **not yet
+written**. For those stages, agents work from this file and from
+`embassy-mcxa` directly. `scaffold-hal` is implemented and is invoked by
+`hal-architect` after the generated PAC and cited foundation facts are ready.
 
 ### Documentation handoff
 
