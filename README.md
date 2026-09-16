@@ -15,13 +15,13 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 2 written, 3 not yet written |
+| Skills | 3 written, 2 not yet written |
 
-[gather-documentation](.opencode/skills/gather-documentation/SKILL.md) and
+[gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
+[generate-svd](.opencode/skills/generate-svd/SKILL.md), and
 [scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md) are implemented.
-`generate-svd`, `generate-pac`, and `write-examples` are still being designed.
-For those stages, agents work directly from `AGENTS.md` and from
-`embassy-mcxa`.
+`generate-pac` and `write-examples` are still being designed.
+For those stages, agents work directly from `AGENTS.md` and from `embassy-mcxa`.
 
 ## Prerequisite
 
@@ -34,6 +34,21 @@ patterns that go stale, the agents cite live paths —
 `embassy-mcxa/DEVGUIDE.md`, `embassy-mcxa/src/i2c/controller.rs`,
 `embassy-mcxa/src/clocks/gate.rs`. Outside an embassy checkout those
 citations do not resolve and the agents are largely useless.
+
+## Working artifacts
+
+New supporting artifacts share one `halucinator/` parent in the working
+repository, normally the Embassy checkout:
+
+- `halucinator/docs/<target-id>/`: source list, collected originals,
+  extracted text, and cited research, roadmap, review, and bench notes.
+- `halucinator/svd/<target-id>/`: durable SVD inputs in `sources/`, correction
+  rules in `transforms/`, and regenerable output in
+  `derived/<run-id>/{baseline,prepared,replay}/`.
+
+See [artifact storage and handoff](AGENTS.md#artifact-storage-and-handoff)
+for defaults, overrides, and preserving existing locations. HAL source,
+examples, HIL tests, and PAC crates retain their upstream/build-system layouts.
 
 ## Install
 

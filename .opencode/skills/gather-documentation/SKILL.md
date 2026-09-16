@@ -19,9 +19,9 @@ its source documents; it does not perform that agent's later hardware analysis.
 ## Boundaries
 
 - Keep gathered documents, the source list, and later research artifacts
-  in the working repository under `halucinator-docs/<target-id>/`, or an explicitly
-  supplied documentation directory inside that repository. Do not change
-  unrelated files, configuration, or ignore rules.
+  in the working repository under the location selected using `AGENTS.md`'s
+  "Artifact storage and handoff" rule. Do not change unrelated files,
+  configuration, or ignore rules.
 - Leave PDF conversion (`pdftotext -layout`), schematic interpretation, and
   cited hardware-fact extraction to subsequent **hal-datasheet** work.
   Missing extraction tools do not prevent source collection.
@@ -51,9 +51,8 @@ them as unknown and describe which later applicability checks they prevent.
 ### 2. Select or resume the documentation directory
 
 Read [the storage rules and source-list template](./references/source-list-format.md).
-Use the supplied repository-relative documentation path, or default to
-`halucinator-docs/<target-id>/` as described there. Show the path relative to the
-repository root.
+Follow its legacy-record check before starting a new collection, and show the
+actual selected path relative to the repository root.
 
 Check that the destination stays inside the working repository, resolving
 symlinks and existing parent directories before creating anything. If access
@@ -71,6 +70,9 @@ before reuse. Keep previous source records and research notes intact.
 
 Create or update `SOURCES.md` in that directory using the template. Record
 partial progress so a missing document does not require restarting the interview.
+Preserve paths to any later SVD preparation records on reruns. Intake does not
+create SVD preparation directories; `generate-svd` selects and records them
+when that work begins.
 
 ### 3. Ask for the sources and bench context
 

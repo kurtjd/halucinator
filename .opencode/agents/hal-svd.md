@@ -68,6 +68,8 @@ places that can disagree.
 
 ## How you work
 
+- For SVD preparation, load `generate-svd`. Follow `AGENTS.md`'s
+  "Artifact storage and handoff" rule for input, output, and cited-note paths.
 - `nxp-pac` is the working model: `data/mcux-soc-svd` holds vendor
   SVDs as a submodule, `data/transforms` holds the chiptool cleanup,
   `data/metadata` holds the per-chip description, and `generator/`

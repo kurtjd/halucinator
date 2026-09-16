@@ -154,22 +154,61 @@ back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
-The skills `generate-svd`, `generate-pac`, and `write-examples` are **not yet
-written**. For those stages, agents work from this file and from
-`embassy-mcxa` directly. `scaffold-hal` is implemented and is invoked by
-`hal-architect` after the generated PAC and cited foundation facts are ready.
+The skills `generate-pac` and `write-examples` are **not yet written**.
+For those stages, agents work from this file and from `embassy-mcxa` directly.
+`scaffold-hal` is implemented and is invoked by `hal-architect` after the
+generated PAC and cited foundation facts are ready.
 
-### Documentation handoff
+### Artifact storage and handoff
 
-Keep gathered documents and research artifacts in the working repository.
-The `gather-documentation` skill defines the storage layout. Preserve
-user-supplied originals and unrelated repository files.
+Keep supporting artifacts under one `halucinator/` directory in the working
+repository, normally the Embassy checkout. New work uses this layout:
 
-`hal-architect` passes the repository-relative documentation directory,
+```text
+halucinator/
+  docs/<target-id>/
+    SOURCES.md
+    sources/
+    extracted/
+    notes/
+  svd/<target-id>/
+    sources/
+    transforms/
+    derived/<run-id>/
+      baseline/
+      prepared/
+      replay/
+```
+
+`target-id` uses the vendor and exact part naming rule in
+`gather-documentation`'s source-list reference. Documentation originals,
+extractions, and cited research/review notes belong under `docs/`. Authored
+SVDs or pristine input copies and correction rules are durable, versioned
+inputs under `svd/`; regenerable outputs are separated by run in `derived/`.
+Create directories only when needed, not an empty tree at intake.
+
+For each location, prefer an explicit user-supplied path, then a previously
+recorded path for the same target, then the default above. Reuse existing
+recorded layouts, including legacy documentation directories and authorized
+SVD/transform project layouts. Check identity before reuse; a matching folder
+name is not proof. Do not silently migrate, move, delete, or overwrite earlier
+artifacts to adopt the default. An explicit path override is not a migration
+request. Preserve source provenance, originals, and unrelated changes.
+
+Use the defaults without a location interview. Resolve paths and symlinks
+from the working repository root before writing; defaults and documentation
+must remain inside it. An existing external generation location requires
+explicit authorization and a named root, never an assumed sibling checkout.
+Ask only about conflicting records, unsafe/inaccessible paths, or missing
+target/evidence handoff details, not whether a usable default is acceptable.
+
+`hal-architect` passes the actual selected documentation directory,
 `SOURCES.md` path, exact target, relevant source IDs, and cited-note paths
-to every downstream agent that needs them. Resolve those paths from the
-repository root. Without an unambiguous handoff, ask for the location
-rather than guessing a previously used target.
+to every downstream agent that needs them, plus the selected SVD/transform
+root when relevant. Record selections in the source list/preparation note.
+Handoff paths are repository-relative, or relative to an explicitly named
+authorized generation root. Consumers use those paths rather than reconstructing
+defaults or guessing a previously used target.
 
 Keep hardware citations useful independently of local paths: document
 title/number, revision, and section/table/page still belong in findings
@@ -177,9 +216,10 @@ and downstream code. Never copy HAL implementation into the documentation
 directory to bypass `hal-tester`'s source restrictions. Supply only its
 public API and the relevant cited hardware/board facts.
 
-This rule covers documentation intake and research, not reproducible
-build inputs. SVD/PAC generation inputs and transforms still belong to
-their versioned generation project as that workflow requires.
+This is a supporting-artifact layout, not a new build layout. HAL source,
+examples, HIL tests, and PAC crates stay in their upstream/build-system
+locations. Reuse established generation-project input layouts when selected;
+the default SVD directory does not require creating a PAC project.
 
 ### Where the PAC comes from
 

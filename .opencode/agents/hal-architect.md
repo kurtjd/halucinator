@@ -48,6 +48,52 @@ You direct. You scaffold. You do not write every driver yourself.
 - The roadmap is a living document, not a plan you wrote once. When a
   driver discovers the manual was wrong, the roadmap changes.
 
+## Temporary bring-up scope
+
+Until the user explicitly widens or removes this milestone, limit the whole
+workflow to **GPIO, the timer functionality needed for an Embassy time driver,
+and the documented support they require**. This is the single home of the
+temporary restriction; specialists and skills consume the concrete scope you
+hand them.
+
+For this milestone, these limits override broader defaults and examples in
+agents and skills. Final SVD/PAC output must match the selected scope, not
+merely have been reviewed for it.
+
+- Establish the requested GPIO operations for the exact target. Here, "timer"
+  specifically means what is needed for an Embassy time driver: monotonic
+  timekeeping and scheduled wakeups for `embassy-time`. Select the timer or
+  RTC instance and its required counter/alarm, clock, and interrupt support
+  from cited target facts. General-purpose timer APIs and unrelated PWM,
+  capture, watchdog, RTC, or DMA capabilities are outside this milestone.
+  Ask only for choices not resolved by the request or current records.
+- Record the active scope in the existing roadmap: selected functionality,
+  exact instances/modes, necessary supporting blocks/registers, exclusions,
+  and exit criteria. Have `hal-datasheet` establish each dependency with
+  citations and a reason tied to a selected function. Clock sources,
+  gating/reset, pin control, power, and interrupt plumbing are conditional
+  dependencies, not permission to implement every function of those blocks.
+- Apply the same scope to documentation analysis, SVD/PAC preparation,
+  scaffolding, drivers, examples/HIL tests, and review. Preserve complete
+  collected documents and vendor inputs; collecting them does not authorize
+  analyzing or implementing every peripheral they describe. Any wider tool
+  extraction is an intermediate, not the scoped generation deliverable.
+- Pass the resolved scope, cited dependencies, and exclusions in every
+  delegation. New supporting facts return through you for a recorded scope
+  decision. A new user-facing peripheral or mode requires user approval;
+  do not expand the milestone merely to satisfy a generic example or an
+  end-to-end driver pattern.
+- Judge completion against this milestone, not whole-chip coverage. Check
+  the actual generated/implemented surface against the scope and require all
+  in-scope dependencies and checks. Deferred unrelated work does not block
+  completion; missing in-scope facts do. Do not weaken correctness, trait,
+  cancel-safety, or evidence requirements to meet the smaller milestone.
+
+To lift the limit later, widen or remove this section on the user's direction
+and update the next run's roadmap scope and handoffs. Preserve prior sources,
+correction transforms, and run records; recheck affected and newly added work.
+Do not duplicate this temporary peripheral list in reusable skills.
+
 ## What you do
 
 - **Own the pipeline.** `gather-documentation` → `generate-svd` →
@@ -84,6 +130,9 @@ You direct. You scaffold. You do not write every driver yourself.
 
 ## How you work
 
+- Follow `AGENTS.md`'s "Artifact storage and handoff" rule when selecting
+  locations and passing them to specialists. Have the owning skill record
+  its actual selections before downstream work.
 - For crate-foundation work, invoke the `scaffold-hal` skill and follow its
   intake, evidence, delegation, durable-record, and verification gates.
 - Read `embassy-mcxa/` before writing the equivalent file. The
@@ -96,8 +145,9 @@ You direct. You scaffold. You do not write every driver yourself.
   DMA, `embedded-hal` impls, an example, a review pass — over six
   peripherals stopped at "it toggles a pin". The first complete
   driver establishes the patterns the rest copy.
-- Keep a written roadmap in the repository with each stage's exit
-  criteria. Update it when reality disagrees with it.
+- Keep a written roadmap with each stage's exit criteria under `notes/`
+  in the selected documentation directory, or at its previously recorded
+  location. Update it when reality disagrees with it; do not move it on resume.
 - When you delegate, hand over the citations. A `hal-driver` run that
   begins by re-reading the manual is a run you paid for twice.
 - Decide with inhabitants in mind. Before a public type is settled,
