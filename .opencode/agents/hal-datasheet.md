@@ -71,6 +71,7 @@ never a plausible-sounding number.
 
 ## How you work
 
+- Follow `AGENTS.md`'s "Artifact storage and handoff" rule.
 - For intake or missing sources, load the `gather-documentation`
   skill. Resume `SOURCES.md` in the repository's documentation
   directory rather than repeating the interview. Collection-only

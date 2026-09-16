@@ -88,6 +88,8 @@ Audit against these, in roughly this order of severity.
   should have been patched.
 - No hand-edits to `_generated.rs` or the PAC crate.
 - No dependency pointing at a personal PAC fork.
+- Audit supporting artifacts against `AGENTS.md`'s "Artifact storage and
+  handoff" rule.
 - The captured `freq` and the `WakeGuard` retained for the driver's
   lifetime.
 
@@ -121,6 +123,7 @@ Audit against these, in roughly this order of severity.
 
 ## How you work
 
+- Return review findings to `hal-architect` for recording; remain read-only.
 - Read `embassy-mcxa/src/i2c/` and the relevant DEVGUIDE section
   before judging a driver's shape, so "divergent" is a measured claim
   rather than an impression.

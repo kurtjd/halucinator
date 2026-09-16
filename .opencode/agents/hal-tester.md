@@ -114,6 +114,9 @@ you tell them exactly what wrong looks like.
 
 ## How you work
 
+- Use the cited board/hardware facts in `hal-architect`'s handoff and follow
+  `AGENTS.md`'s "Artifact storage and handoff" rule. Do not read HAL
+  implementation copied into documentation.
 - Work from the API in your prompt plus build scaffolding you are
   allowed to see: `Cargo.toml` feature names, `memory.x`,
   `.cargo/config.toml`, the `bind_interrupts!` shape, board wiring,

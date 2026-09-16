@@ -6,9 +6,18 @@ There is no JSON schema or separate generated index to maintain.
 
 ## Location
 
-Use `halucinator-docs/<target-id>/` relative to the working repository's root, normally
-the Embassy checkout. An explicitly supplied repository-relative
-documentation directory takes precedence over this default.
+Use `AGENTS.md`'s "Artifact storage and handoff" rule to select the
+documentation directory, defaulting to `halucinator/docs/<target-id>/` for
+a new collection. Check recorded locations against the target and board setup.
+
+Load handed-off source lists and records before choosing a new location. When
+no location is recorded in the handoff, check for an existing `SOURCES.md` at
+the default and at the former `halucinator-docs/<target-id>/` location before
+creating one. Resume an unambiguous matching record where it already lives.
+If records conflict or leave the choice ambiguous, ask which to resume; do not
+merge them or choose by folder name alone. Do not scan unrelated targets for a
+replacement. An explicit override does not authorize moving or overwriting
+previous records or originals; migration requires a separate user request.
 
 - `target-id`: vendor and exact part number, lowercased, with runs of characters
   other than ASCII letters/digits replaced by `-` and edge hyphens removed.
@@ -25,7 +34,7 @@ the chosen location must remain inside that repository. If it cannot be used,
 ask for another in-repository directory rather than storing artifacts elsewhere.
 
 ```text
-halucinator-docs/<target-id>/
+halucinator/docs/<target-id>/
   SOURCES.md
   sources/
     doc-001/
@@ -39,6 +48,13 @@ and analyzes documents. Intake need not create empty directories. Use source
 IDs in derived filenames to distinguish revisions. Paths inside `SOURCES.md`
 are relative to that file, and handoff paths are relative to the repository
 root, so moving the checkout does not change the documentation location.
+
+The sibling `halucinator/svd/<target-id>/` is selected later by `generate-svd`
+for SVD inputs, transforms, and per-run derived outputs. Do not create it during
+intake or relocate collected vendor SVDs there. Preserve those originals and
+their source IDs; subsequent preparation records any input copies or explicit
+source dependencies. Actual HAL source, examples, tests, and PAC crates keep
+their established build-system locations.
 
 ## Recording Rules
 
@@ -56,9 +72,14 @@ root, so moving the checkout does not change the documentation location.
   section/table/page. Distinguish printed page labels from PDF page indexes
   where they differ. An absolute filesystem path alone is not a citation.
 - Keep later HAL code/documentation citations meaningful independently of
-  local paths. Reproducible SVD/PAC inputs still belong in their generation
-  project as that workflow requires; gathered documents are not a substitute
-  for versioned generation inputs.
+  local paths. SVDs and transforms are durable generation inputs, separate from
+  research notes: use the selected SVD root, defaulting to
+  `halucinator/svd/<target-id>/`, or an existing authorized generation layout.
+  Gathered documents are not a substitute for versioned generation inputs.
+- Preserve later preparation-note links and recorded artifact locations on
+  intake reruns. Record the selected SVD directory when known, relative to
+  `SOURCES.md` like other local paths; leave it unselected during intake.
+  Handoffs translate it to a path relative to its declared repository root.
 
 ## Source List Template
 
@@ -132,6 +153,7 @@ of inventing a board or declaring its schematic nonexistent.
 
 - Intake status: in progress
 - SVD starting point: unresolved
+- SVD artifact directory: not selected
 - Next SVD action and source IDs: unknown
 - Hardware-analysis prerequisites: unknown
 - Hardware-setup questions for hal-architect: unknown

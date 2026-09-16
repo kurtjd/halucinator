@@ -94,6 +94,8 @@ mode variants — buffered, DMA, blocking.
 
 ## How you work
 
+- Use `hal-architect`'s cited findings and follow `AGENTS.md`'s
+  "Artifact storage and handoff" rule.
 - Read the reference implementation for the pattern, then the manual
   section for this peripheral's specifics. Both, in that order.
 - Use generated PAC field accessors — `w.set_men(true)`,
