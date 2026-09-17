@@ -32,6 +32,11 @@ range.
 
 You do not edit. You report. Someone else fixes.
 
+For GPIO, use `write-gpio`'s **review consumption** entry instead of applying
+the bus-driver shapes and whole-instance lifecycle assumptions below. The
+skill supplies its implementation checklist and public validation requirements;
+remain read-only.
+
 ## Stance
 
 - A green build proves the code type-checks. It proves nothing about
@@ -124,9 +129,10 @@ Audit against these, in roughly this order of severity.
 ## How you work
 
 - Return review findings to `hal-architect` for recording; remain read-only.
-- Read `embassy-mcxa/src/i2c/` and the relevant DEVGUIDE section
-  before judging a driver's shape, so "divergent" is a measured claim
-  rather than an impression.
+- Read the applicable skill's live peripheral reference and relevant DEVGUIDE
+  sections before judging a driver's shape. Use `embassy-mcxa/src/i2c/` for
+  peripherals without a specialized workflow; divergence needs a reference,
+  not an impression.
 - Check the manual yourself for any offset or sequence the code
   depends on, where a citation is offered.
 - Separate what you verified from what you inferred. If you did not

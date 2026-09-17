@@ -15,14 +15,15 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 4 written, 1 not yet written |
+| Skills | 5 written, 1 not yet written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
 [generate-svd](.opencode/skills/generate-svd/SKILL.md),
-[generate-pac](.opencode/skills/generate-pac/SKILL.md), and
-[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md) are implemented.
+[generate-pac](.opencode/skills/generate-pac/SKILL.md),
+[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md), and
+[write-gpio](.opencode/skills/write-gpio/SKILL.md) are implemented.
 `write-examples` is still being designed. For that stage, agents work directly
-from `AGENTS.md` and from `embassy-mcxa`.
+from `AGENTS.md` and permitted `embassy-mcxa` example/build references.
 
 ## Prerequisite
 
@@ -143,7 +144,7 @@ write a driver for a register the PAC does not expose.
 | `hal-datasheet` | subagent | Documentation intake and reference-manual extraction: register semantics, init sequences, clock/reset dependencies, field encodings, errata | yes |
 | `hal-svd` | subagent | SVD authoring, chiptool transforms, metapac metadata, PAC generation | yes |
 | `hal-driver` | subagent | One peripheral end to end: `Instance`/`Info`, mode type-state, interrupt handlers, DMA, `embedded-hal` impls | yes |
-| `hal-tester` | subagent | `examples/<chip>/`, `tests/<chip>/` teleprobe binaries, `ci.sh` wiring — adversarial, black-box | yes |
+| `hal-tester` | subagent | Examples/HIL binaries, build-only CI, documented setup and authorized hardware execution; adversarial, black-box | yes |
 | `hal-reviewer` | subagent | Adversarial audit against DEVGUIDE and the type discipline | **no** |
 
 `hal-architect` is the entry point. It sequences the work and
@@ -183,9 +184,9 @@ you would see the prompt. And the pattern keys on `embassy-*/src/**`,
 so a HAL crate placed somewhere else is not covered. This is a strong
 default and an explicit statement of intent, not a sandbox.
 
-`hal-tester` never flashes a board. It produces binaries plus bench
-instructions — wiring, commands, expected output, and the failure
-signature — and a human runs them.
+The user prepares the physical setup; `hal-tester` loads and runs the authorized
+tests. [AGENTS.md](AGENTS.md), section "Hardware testing", defines confirmation,
+RAM-first execution, flash fallback, and evidence requirements.
 
 `hal-datasheet` depends on `pdftotext -layout`. Reference manuals are
 multi-column and register tables carry their meaning in the column

@@ -144,9 +144,9 @@ Testing splits by where the test runs:
   `tests/<chip>/` teleprobe binaries, and their `ci.sh` wiring —
   belongs to `hal-tester`.
 
-Neither `hal-tester` nor anything else in this toolkit flashes a board.
-`hal-tester` produces binaries plus bench instructions; a human runs
-them.
+`hal-tester` also owns hardware setup instructions and authorized test
+execution under "Hardware testing" below. The user makes the physical
+connections and confirms readiness; the agent loads, runs, and evaluates tests.
 
 `hal-architect` owns the roadmap and decides when a stage is complete
 enough to move on. Stages are not strictly serial — a driver may send you
@@ -155,7 +155,81 @@ but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
 The `write-examples` skill is **not yet written**; for that stage, agents work
-from this file and from `embassy-mcxa` directly.
+from this file and from the permitted `embassy-mcxa` example/build references.
+Its absence does not waive a driver's required validation.
+
+### Hardware testing
+
+This is the shared execution policy for **hal-tester**, dispatched by
+**hal-architect** for a stated test scope. Source blindness remains mandatory,
+including during debugging: use public contracts, permitted build/ELF metadata,
+and captured test output, not HAL bodies or disassembly to reconstruct them.
+Other agents keep their existing ownership. Documentation, generation, and an
+explicitly build-only scaffold check do not implicitly authorize hardware runs.
+
+Before a target-affecting operation, identify the exact board/MCU and revision,
+probe or named HIL device, runner, and intended operations. Use gathered MCU and
+board documentation to give the user exact physical setup instructions with
+pin/header mappings, voltage and load constraints, power/reset sequencing, and
+citations. Account for existing firmware and boot states, including safe setup
+before loading and safe teardown afterward. Missing electrical facts block the
+affected setup; never guess a connection or assume a powered pin is harmless.
+
+Obtain user confirmation of the physical setup appropriate to that step and
+authorization for the named device operations. A connected probe, build-only
+dispatch, or installed flashing tool is not consent. If the specialist cannot
+ask directly, return a setup-required handoff; the architect relays it and
+resumes the tester with the recorded confirmation. Reconfirm when hardware,
+wiring, power arrangements, operation scope, or risks change. The user performs
+physical actions, not test commands; missing tool/device access is a blocker,
+not a reason to silently replace agent-run tests with a human-run recipe.
+
+**Prefer RAM execution** when a supported path preserves the behavior under
+test. Before loading, verify from cited target facts and actual runner support:
+
+- The selected memory is executable and debug-loadable, with room for code,
+  constants, data/BSS, stack, and test/log buffers. Writable RAM alone is not
+  evidence of executable RAM.
+- The image is genuinely RAM-linked. Inspect ELF load and execution ranges and
+  the permitted linker/runtime contract, including data initialization, entry,
+  stack, interrupt vectors or trap routing, and required synchronization. Do
+  not simply copy a flash-linked image into RAM.
+- The complete loader operation avoids nonvolatile erase/program operations;
+  verify commands for the installed tool version rather than guessing flags.
+  A flash algorithm running from RAM is still flash programming.
+- A documented start/reset sequence invokes real public HAL initialization,
+  rather than inheriting clocks, pins, or interrupts from previous firmware.
+  Account for reset/power-loss behavior and any required reload.
+
+RAM loading still overwrites volatile state and operates real peripherals, so
+readiness and authorization still apply. Prefer an established loading path;
+do not expand a driver test into a custom loader project. Needed shared
+startup/linker changes return through the architect to their owning author.
+
+If RAM is unsupported, unverified, too small, or unsuitable for a required test,
+record why. Flash is allowed only when the named device and intended
+erase/program ranges are explicitly authorized; explain that existing firmware
+may be overwritten and request approval if it is not already recorded. Never
+silently turn RAM-only authorization into flash programming. A failed test is
+not proof that RAM loading is unsupported, and switching modes must not erase
+failed evidence. Ordinary testing does not authorize mass erase, security
+unlock, fuse/option-byte changes, or destructive recovery.
+
+Use bounded runners and test deadlines, explicit assertions/completion records,
+and captured logs. Record board/probe/setup, confirmation and authorization,
+code/image identity, load/execution ranges, startup/reset method, RAM/flash mode,
+tool versions, commands, observed outcomes, and any fallback reason in the
+selected stage records. Distinguish test failures, panics, timeouts, transport
+errors, and unavailable hardware. Preserve failures before bounded authorized
+retries; stop on unsafe or unexpected behavior. Teardown must leave the confirmed
+fixture safe, not blindly restart unrelated firmware while it is connected.
+
+Keep build/link evidence separate from actual hardware results, and RAM results
+separate from normal flash boot or power-cycle coverage. Missing tools, setup,
+instrumentation, or required runs leave named blockers, not inferred passes.
+Runtime claims apply only to tested hardware and cases. Keep CI build-only
+unless hardware CI is separately authorized; tool approvals and source-reading
+restrictions remain in force for every execution mode.
 
 ### Artifact storage and handoff
 

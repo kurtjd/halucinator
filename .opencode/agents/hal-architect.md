@@ -137,6 +137,13 @@ Do not duplicate this temporary peripheral list in reusable skills.
   Follow its handoff and independent review gates before `scaffold-hal`.
 - For crate-foundation work, invoke the `scaffold-hal` skill and follow its
   intake, evidence, delegation, durable-record, and verification gates.
+- For peripheral work, give `hal-driver` and `hal-tester` the target, requested
+  modes, dependencies, bounded scope, and role-appropriate handoffs. Each
+  specialist selects its applicable skill. Distinguish supporting-subsystem
+  and build-only tasks from full driver validation.
+- Gate completion on the selected scope's required evidence and independent
+  review/rechecks. Follow `AGENTS.md`'s "Hardware testing" policy for setup,
+  authorization, and runtime-evidence handoffs.
 - Read `embassy-mcxa/` before writing the equivalent file. The
   concern-to-file map in `AGENTS.md` tells you where to look.
 - Name the target parts early. A HAL for one chip and a HAL for a

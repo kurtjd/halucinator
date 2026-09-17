@@ -158,10 +158,11 @@ dependency order, with:
 - host-test expectations for pure configuration, encoding, and arithmetic.
 
 GPIO/pin mux, DMA, and a time driver are included only when the selected path
-or first planned peripheral needs them. The first peripheral itself remains a
-separate, later **hal-driver** dispatch. If a required specialist is unavailable,
-record the blocked delegation and next action; do not impersonate it or claim
-it ran.
+or first planned peripheral needs them. Link each subsystem's selected record
+from `SCAFFOLD.md`; specialists select their own applicable skills. The first
+peripheral itself remains a separate, later **hal-driver** dispatch. If a
+required specialist is unavailable, record the blocked delegation and next
+action; do not impersonate it or claim it ran.
 
 ### 7. Obtain a source-blind link check
 
@@ -174,11 +175,15 @@ Give **hal-tester** only the public API/contracts and cited build/board facts:
 - claimed feature combinations and expected build-only CI placement.
 
 Request a minimal target binary that calls real initialization and links,
-build-only CI wiring, and human bench instructions. Never send HAL source,
+build-only CI wiring, and a public setup/hardware-validation handoff for a later
+**hal-tester** task. Mark the dispatch **build-only scaffold support**.
+Never send HAL source,
 function bodies, copied implementation files, or an LSP response exposing
 bodies. Do not invent an unrelated logging driver merely to print success;
 debugger observation or an already available public facility is sufficient.
-The tester compiles and links but does not flash or run the binary.
+For this scaffold check, the tester compiles and links but does not load, flash,
+or run the binary on hardware. Separately dispatched runtime validation follows
+`AGENTS.md`'s "Hardware testing" policy; it is not implied by this link check.
 
 ### 8. Verify, review, and close
 
@@ -224,9 +229,9 @@ Use only these statuses:
 | `blocked` | A named dependency, conflict, tool, link, or required review prevents progress or closure. |
 | `software verified` | Every applicable software gate passed and required review findings were resolved and rechecked. |
 
-Deferred out-of-scope work and pending human bench validation do not prevent
-`software verified`. That status is not proof of silicon behavior or upstream
-acceptance.
+Deferred out-of-scope work and pending separately dispatched hardware validation
+do not prevent `software verified` for this scaffold scope. That status is not
+proof of silicon behavior, a complete peripheral driver, or upstream acceptance.
 
 ## Concise application example
 
@@ -263,7 +268,8 @@ review findings are resolved, even if the library already passes `cargo check`.
 - Copying MCXA register choices instead of copying its architectural pattern.
 - Adding successful no-op init or clock stubs to reach a green build.
 - Pulling the first planned peripheral into scaffold scope.
-- Giving **hal-tester** implementation source or asking it to run hardware.
+- Giving **hal-tester** implementation source or running hardware as part of
+  this build-only scaffold smoke check.
 - Treating `cargo check`, `ready with fixes`, or stale evidence as completion.
 - Requiring dirty user work to be committed or stashed before proceeding.
 - Invalidating every old hardware claim when only one source changed.
@@ -286,4 +292,5 @@ Return:
 6. **Status and handoff**: `in progress`, `blocked`, or `software verified`,
    blockers with owners/actions, and the next peripheral-driver prompt inputs.
 
-State explicitly that no hardware was flashed or run.
+Report this scaffold's verification as build-only; link any separate hardware
+results without merging the two.
