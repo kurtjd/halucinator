@@ -19,7 +19,7 @@ and bounded scope; the specialist selects this skill.
 | Role | Read and follow |
 |---|---|
 | **hal-driver** | The implementation procedure below, [implementation checklist](./references/gpio-checklist.md), [public validation specification](./references/gpio-validation.md), and [record reference](./references/gpio-record.md). |
-| **hal-tester** | Only the [public validation specification](./references/gpio-validation.md) and the supplied public API, cited hardware/board/build facts, and permitted example/build files. Follow that reference's intake, setup, execution, and output procedure. |
+| **hal-tester** | For GPIO, read only the [public validation specification](./references/gpio-validation.md) and supplied public material. Combine its cases and fixture requirements with `write-examples` for the generic build/run/retest workflow and public records. |
 | **hal-reviewer** | The [implementation checklist](./references/gpio-checklist.md) and [public validation specification](./references/gpio-validation.md) as read-only audit criteria, plus the actual review handoff and live references. Do not run a writing procedure. |
 
 **Tester entry ends here.** Do not follow the implementation procedure, load its
