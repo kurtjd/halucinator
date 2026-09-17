@@ -52,10 +52,10 @@ input identity, findings, responsible owner, disposition, and recheck.
 
 ## Public setup and hardware runs
 
-Link the tester's source-blind output defined in the public validation
-reference's "Results and handoff" section. Keep those public artifacts separate
-from this implementation record and record their actual selected paths; do not
-copy their logs or the shared hardware-policy checklist here.
+Link the tester's source-blind `write-examples` test record, with GPIO coverage
+from the public validation reference's "Results and handoff" section. Reuse
+existing public artifacts, keep them separate from this implementation record,
+and record their selected paths; do not copy logs or execution procedures here.
 
 | Public run record | Image/input identity | Requirements covered | Hardware status | Depends on |
 |---|---|---|---|---|
@@ -67,7 +67,7 @@ Record separate statuses:
 | Dimension | Values and meaning |
 |---|---|
 | Software | `in progress`, `blocked`, or `software verified`, according to `write-gpio`'s software completion gate. |
-| Hardware | Aggregate the per-case statuses defined by the public validation reference; required cases must all pass for an overall `passed` status. |
+| Hardware | Aggregate the per-case statuses in `write-examples`' public test record; required GPIO cases must all pass for an overall `passed` status. |
 
 Full GPIO validation requires `software verified` and `passed` hardware status
 for the agreed scope, with no unresolved required findings. Scaffold support
@@ -78,7 +78,7 @@ Do not change inputs during checks/review. Code, source/PAC, toolchain, features
 image, fixture, board, or execution-mode changes invalidate only dependent
 decisions, results, and review. Preserve old entries, record invalidation, and
 rerun before clearing blockers. Reconfirm setup/authorization when it no longer
-matches, as required by the shared hardware policy.
+matches, as required by `write-examples`' hardware-execution procedure.
 
 For each blocker record affected requirements/scope, owner, next action, and
 evidence needed. Missing tools/hardware never silently lower the gate. Distinguish

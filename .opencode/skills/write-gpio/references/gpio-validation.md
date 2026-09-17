@@ -20,11 +20,13 @@ source boundary. Report API ambiguity or missing observability rather than
 reading or fixing the implementation.
 
 Read and follow `AGENTS.md` at the handed-over working repository root, sections
-"Artifact storage and handoff" and "Hardware testing", before planning or
-executing tests. Do not resolve it relative to the skill installation; a missing
-policy is a blocker. That policy owns setup confirmation, RAM/flash selection,
-authorized operations, bounded execution, evidence capture, and teardown. This
-reference adds the GPIO-specific cases and fixture requirements.
+"Artifact storage and handoff" and "Hardware testing", for shared boundaries.
+Do not resolve it relative to the skill installation; a missing policy is a
+blocker. **hal-tester** also invokes `write-examples` and follows its required
+hardware-execution and public-record references. This document supplies GPIO
+cases and fixture requirements to that workflow, not a second execution loop.
+Implementation and review readers use the GPIO contracts, not the tester's
+writing or hardware-execution procedures.
 
 ## Contract sources
 
@@ -82,44 +84,32 @@ does not claim completion of the full GPIO matrix. Scope reductions return to
 1. Select accessible output/input pins from the supplied board and MCU/package
    documentation, within the public API's capabilities. Require a suitable
    interrupt-capable input for async cases. Check header-to-MCU mapping and
-   attached loads or debug/boot/oscillator conflicts under the shared electrical
-   safety policy; never invent a jumper position or resistor value.
+   attached loads or debug/boot/oscillator conflicts under `write-examples`'
+   hardware procedure; never invent a jumper position or resistor value.
 2. Provide a connection table with connector/pin, MCU pin, role, destination, and
    citation. Plan mode transitions so the jumper never joins two driven outputs,
    including while existing firmware boots or test firmware is prepared. Apply
-   the shared policy to any preparation image, power sequence, and confirmation.
+   that procedure to any preparation image, power sequence, and confirmation.
 3. Prefer one documented output connected to one documented input. A driven
    loopback cannot measure pulls; shared-interrupt isolation may need additional
    pins and independent stimuli. Request extra setup only for required coverage.
 
-Verify runner access and an available public result channel before asking for
-physical setup. Use the shared readiness gate and its setup-required handoff
-when the tester cannot ask the user directly.
+## GPIO-specific stimulus
 
-## Build and execute
+Within `write-examples`' authorized execution loop:
 
-Use **hal-tester**'s existing example/HIL workflow and the shared execution
-policy. The GPIO-specific procedure is:
-
-1. Write named cases exercising inherent methods and traits, using existing
-   public test helpers where suitable. Do not invent a logging peripheral for
-   observability. Build/link for the selected target/features and execution mode;
-   complete the policy's image and readiness checks before loading or running.
-2. For loopback, establish input mode safely before driving the output, then
+1. For loopback, establish input mode safely before driving the output, then
    check stable low/high states and patterns. Reverse roles only when supported
    and with a transition that never leaves both ends driving. Coordinate async
    stimuli through public test code so waits are actually polled/armed before
    the event where the case requires it. Merely constructing an async future
    does not arm it. Exercise initially satisfied levels separately from edges.
-3. Use bounded trials and host-side runner deadlines. For negative expectations,
+2. Use bounded trials and host-side runner deadlines. For negative expectations,
    verify that the wait remains pending during a defined no-event interval,
    then cancel or provide the required event; an intentional pending wait must
    not be confused with a hung test. Avoid reliance on an unvalidated
    `embassy-time` implementation for the deadline. Test cancellation, immediate
    reuse, captured pulses, and applicable shared-resource cases independently.
-4. Evaluate assertions against the matrix and capture the results below,
-   following the shared failure/retry and teardown rules. Successful loading,
-   empty output, or runner exit alone is not a test pass.
 
 GPIO self-loopback can hide correlated output/input mistakes. Include meaningful
 negative controls and independently documented pin mappings. Use independent
@@ -130,19 +120,13 @@ Record unavailable instrumentation as an evidence gap, not a pass.
 
 ## Results and handoff
 
-Return to **hal-architect**:
+Use `write-examples`' public test-record and output format. Include the GPIO
+requirement-to-case mapping, fixture and pin capabilities, expected/observed
+outcomes, and unresolved API or instrumentation findings. Reuse the existing
+source-blind setup/run record when supplied; do not create a duplicate GPIO
+test log or redefine its statuses here.
 
-- Public API and contract versions tested; requirement-to-case coverage with
-  applicability, expected and observed outcomes, and unresolved API findings.
-- Test files, actual linked image, build-only CI changes, and software results.
-- A separate public setup/run record with all evidence required by `AGENTS.md`'s
-   hardware policy. Identify the linked image and use the architect's supplied
-   source/build snapshot identifier; do not read HAL internals to compute it.
-- Hardware status per case: `not run`, `blocked`, `failed`, or `passed`, with
-   blockers, responsible owners, and next actions. `passed` requires observed
-   passing evidence; skipped required cases prevent an overall hardware pass.
-
-The architect links this public output from the full GPIO record; the tester
-never reads that record's implementation sections. Failures return to the
-responsible author and reviewer, with affected cases rerun against the corrected,
-identified image.
+Return that record through **hal-architect**, which links it from the full GPIO
+record without exposing implementation sections to the tester. For repairs and
+retesting, the tester follows `write-examples`' "Evaluate, repair through the
+owner, and retest" section; this matrix remains the GPIO acceptance specification.

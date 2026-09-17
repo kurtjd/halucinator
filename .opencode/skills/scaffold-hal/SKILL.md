@@ -182,8 +182,9 @@ function bodies, copied implementation files, or an LSP response exposing
 bodies. Do not invent an unrelated logging driver merely to print success;
 debugger observation or an already available public facility is sufficient.
 For this scaffold check, the tester compiles and links but does not load, flash,
-or run the binary on hardware. Separately dispatched runtime validation follows
-`AGENTS.md`'s "Hardware testing" policy; it is not implied by this link check.
+or run the binary on hardware. Separately dispatched runtime validation uses
+the tester's selected workflow under `AGENTS.md`'s "Hardware testing" boundary;
+it is not implied by this link check.
 
 ### 8. Verify, review, and close
 

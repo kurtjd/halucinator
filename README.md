@@ -15,15 +15,14 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 5 written, 1 not yet written |
+| Skills | 6 written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
 [generate-svd](.opencode/skills/generate-svd/SKILL.md),
 [generate-pac](.opencode/skills/generate-pac/SKILL.md),
-[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md), and
-[write-gpio](.opencode/skills/write-gpio/SKILL.md) are implemented.
-`write-examples` is still being designed. For that stage, agents work directly
-from `AGENTS.md` and permitted `embassy-mcxa` example/build references.
+[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md),
+[write-gpio](.opencode/skills/write-gpio/SKILL.md), and
+[write-examples](.opencode/skills/write-examples/SKILL.md) are implemented.
 
 ## Prerequisite
 
@@ -185,8 +184,10 @@ so a HAL crate placed somewhere else is not covered. This is a strong
 default and an explicit statement of intent, not a sandbox.
 
 The user prepares the physical setup; `hal-tester` loads and runs the authorized
-tests. [AGENTS.md](AGENTS.md), section "Hardware testing", defines confirmation,
-RAM-first execution, flash fallback, and evidence requirements.
+tests. It selects [write-examples](.opencode/skills/write-examples/SKILL.md) for
+binary creation and the RAM-first build/run/retest workflow, combined with the
+peripheral's public validation guidance for specific cases. [AGENTS.md](AGENTS.md)
+keeps the shared ownership and authorization boundaries.
 
 `hal-datasheet` depends on `pdftotext -layout`. Reference manuals are
 multi-column and register tables carry their meaning in the column

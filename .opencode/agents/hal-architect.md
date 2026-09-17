@@ -142,8 +142,9 @@ Do not duplicate this temporary peripheral list in reusable skills.
   specialist selects its applicable skill. Distinguish supporting-subsystem
   and build-only tasks from full driver validation.
 - Gate completion on the selected scope's required evidence and independent
-  review/rechecks. Follow `AGENTS.md`'s "Hardware testing" policy for setup,
-  authorization, and runtime-evidence handoffs.
+  review/rechecks. Follow `AGENTS.md`'s "Hardware testing" boundary when relaying
+  setup, authorization, and runtime-evidence handoffs; the tester owns the
+  execution procedure.
 - Read `embassy-mcxa/` before writing the equivalent file. The
   concern-to-file map in `AGENTS.md` tells you where to look.
 - Name the target parts early. A HAL for one chip and a HAL for a
