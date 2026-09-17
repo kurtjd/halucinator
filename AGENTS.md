@@ -154,15 +154,14 @@ back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
-The skills `generate-pac` and `write-examples` are **not yet written**.
-For those stages, agents work from this file and from `embassy-mcxa` directly.
-`scaffold-hal` is implemented and is invoked by `hal-architect` after the
-generated PAC and cited foundation facts are ready.
+The `write-examples` skill is **not yet written**; for that stage, agents work
+from this file and from `embassy-mcxa` directly.
 
 ### Artifact storage and handoff
 
-Keep supporting artifacts under one `halucinator/` directory in the working
-repository, normally the Embassy checkout. New work uses this layout:
+Keep documentation and the complete PAC project under one `halucinator/`
+directory in the working repository, normally the Embassy checkout. New work
+uses this layout:
 
 ```text
 halucinator/
@@ -171,29 +170,49 @@ halucinator/
     sources/
     extracted/
     notes/
-  svd/<target-id>/
-    sources/
-    transforms/
-    derived/<run-id>/
-      baseline/
-      prepared/
-      replay/
+  pac/<vendor>/
+    data/
+      svd/<target-id>/
+        sources/
+        transforms/
+      metadata/
+        peripherals/
+    generator/
+    <vendor>-pac/
+    derived/
+      svd/<target-id>/<run-id>/
+        baseline/
+        prepared/
+        replay/
+      pac/<target-id>/<run-id>/
+        candidate/
+        replay/
 ```
 
 `target-id` uses the vendor and exact part naming rule in
-`gather-documentation`'s source-list reference. Documentation originals,
-extractions, and cited research/review notes belong under `docs/`. Authored
-SVDs or pristine input copies and correction rules are durable, versioned
-inputs under `svd/`; regenerable outputs are separated by run in `derived/`.
-Create directories only when needed, not an empty tree at intake.
+`gather-documentation`'s source-list reference. For a new PAC project, normalize
+the exact vendor name to lowercase ASCII, replacing runs of non-alphanumeric
+characters with `-` and trimming edge hyphens. This is `<vendor>` above; reuse
+an applicable recorded PAC identity instead of deriving a second project for
+another chip. An empty identifier or a collision between distinct projects
+requires an explicit name. A shared vendor name does not prove compatibility.
+
+Documentation originals, extractions, and cited research/review notes belong
+under `docs/`. Active SVD inputs, corrections, metadata, generation tooling,
+and the consumable crate stay together in the PAC project. Preserve gathered
+originals and their source IDs when recording pristine generation-input copies;
+do not create independently maintained copies of the same input. Separate
+durable `data/` and `generator/` inputs from regenerable crate and `derived/`
+outputs. Create directories only when needed, not an empty tree at intake.
 
 For each location, prefer an explicit user-supplied path, then a previously
-recorded path for the same target, then the default above. Reuse existing
-recorded layouts, including legacy documentation directories and authorized
-SVD/transform project layouts. Check identity before reuse; a matching folder
-name is not proof. Do not silently migrate, move, delete, or overwrite earlier
-artifacts to adopt the default. An explicit path override is not a migration
-request. Preserve source provenance, originals, and unrelated changes.
+recorded path for the same target or applicable PAC project, then the default
+above. Reuse existing recorded layouts, including legacy documentation,
+`halucinator/svd/<target-id>/`, root-level PAC crates, and authorized external
+generation projects. Check identity before reuse; a matching folder name is
+not proof. Do not silently migrate, move, delete, or overwrite earlier artifacts
+to adopt the default. An explicit path override is not a migration request.
+Preserve source provenance, originals, and unrelated changes.
 
 Use the defaults without a location interview. Resolve paths and symlinks
 from the working repository root before writing; defaults and documentation
@@ -204,8 +223,12 @@ target/evidence handoff details, not whether a usable default is acceptable.
 
 `hal-architect` passes the actual selected documentation directory,
 `SOURCES.md` path, exact target, relevant source IDs, and cited-note paths
-to every downstream agent that needs them, plus the selected SVD/transform
-root when relevant. Record selections in the source list/preparation note.
+to every downstream agent that needs them. For SVD/PAC work, also pass the
+selected PAC project root, SVD input/transform root, and actual derived run
+paths; add the generator directory and generated crate path when relevant.
+Record stable artifact locations and stage-note links in the source list; keep
+exact run paths and evidence in stage notes and handoffs. Consumers share the
+selected project, not independently chosen defaults for each stage.
 Handoff paths are repository-relative, or relative to an explicitly named
 authorized generation root. Consumers use those paths rather than reconstructing
 defaults or guessing a previously used target.
@@ -216,10 +239,21 @@ and downstream code. Never copy HAL implementation into the documentation
 directory to bypass `hal-tester`'s source restrictions. Supply only its
 public API and the relevant cited hardware/board facts.
 
-This is a supporting-artifact layout, not a new build layout. HAL source,
-examples, HIL tests, and PAC crates stay in their upstream/build-system
-locations. Reuse established generation-project input layouts when selected;
-the default SVD directory does not require creating a PAC project.
+HAL source, examples, and HIL tests stay in their upstream/build-system
+locations. Co-locating SVD data with the later PAC does not require creating
+a generator, Cargo workspace, or crate during documentation intake or SVD
+preparation. Only the owning stage creates its needed files.
+
+### PAC placement
+
+The in-tree PAC does not require a separate or nested Git repository.
+Directory nesting does not determine Cargo workspace membership; follow the
+live checkout's build structure.
+
+The HAL may use a local Cargo path dependency during bring-up. From the default
+`embassy-<vendor>/` location it is `../halucinator/pac/<vendor>/<vendor>-pac`.
+This does not establish upstream acceptance or publication readiness, or relax
+the fork and generated-code rules below.
 
 ### Where the PAC comes from
 

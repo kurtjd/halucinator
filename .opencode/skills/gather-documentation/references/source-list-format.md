@@ -49,12 +49,10 @@ IDs in derived filenames to distinguish revisions. Paths inside `SOURCES.md`
 are relative to that file, and handoff paths are relative to the repository
 root, so moving the checkout does not change the documentation location.
 
-The sibling `halucinator/svd/<target-id>/` is selected later by `generate-svd`
-for SVD inputs, transforms, and per-run derived outputs. Do not create it during
-intake or relocate collected vendor SVDs there. Preserve those originals and
-their source IDs; subsequent preparation records any input copies or explicit
-source dependencies. Actual HAL source, examples, tests, and PAC crates keep
-their established build-system locations.
+`generate-svd` and `generate-pac` select their artifact locations under
+`AGENTS.md`'s shared storage policy. Intake does not create their directories
+or relocate collected SVDs; preserve originals and source IDs. Later stages
+record stable locations and link their preparation/generation notes here.
 
 ## Recording Rules
 
@@ -73,13 +71,12 @@ their established build-system locations.
   where they differ. An absolute filesystem path alone is not a citation.
 - Keep later HAL code/documentation citations meaningful independently of
   local paths. SVDs and transforms are durable generation inputs, separate from
-  research notes: use the selected SVD root, defaulting to
-  `halucinator/svd/<target-id>/`, or an existing authorized generation layout.
-  Gathered documents are not a substitute for versioned generation inputs.
-- Preserve later preparation-note links and recorded artifact locations on
-  intake reruns. Record the selected SVD directory when known, relative to
-  `SOURCES.md` like other local paths; leave it unselected during intake.
-  Handoffs translate it to a path relative to its declared repository root.
+  research notes; gathered documents do not substitute for versioned inputs.
+- Preserve later-stage records on intake reruns. The owning stage fills the
+  unselected stable-location and note fields. Exact run paths and check evidence
+  belong in stage notes and handoffs, not parallel fields in this catalog.
+  Translate catalog-relative paths to the named roots required by the shared
+  handoff policy.
 
 ## Source List Template
 
@@ -153,7 +150,12 @@ of inventing a board or declaring its schematic nonexistent.
 
 - Intake status: in progress
 - SVD starting point: unresolved
+- PAC project root: not selected
 - SVD artifact directory: not selected
+- SVD preparation note: none yet
+- PAC generator directory: not selected
+- Generated PAC crate directory: not selected
+- PAC generation note: none yet
 - Next SVD action and source IDs: unknown
 - Hardware-analysis prerequisites: unknown
 - Hardware-setup questions for hal-architect: unknown

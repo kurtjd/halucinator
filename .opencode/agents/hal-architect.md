@@ -133,6 +133,8 @@ Do not duplicate this temporary peripheral list in reusable skills.
 - Follow `AGENTS.md`'s "Artifact storage and handoff" rule when selecting
   locations and passing them to specialists. Have the owning skill record
   its actual selections before downstream work.
+- After the SVD preparation gate, dispatch `hal-svd` with `generate-pac`.
+  Follow its handoff and independent review gates before `scaffold-hal`.
 - For crate-foundation work, invoke the `scaffold-hal` skill and follow its
   intake, evidence, delegation, durable-record, and verification gates.
 - Read `embassy-mcxa/` before writing the equivalent file. The
