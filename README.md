@@ -15,13 +15,14 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 6 written |
+| Skills | 7 written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
 [generate-svd](.opencode/skills/generate-svd/SKILL.md),
 [generate-pac](.opencode/skills/generate-pac/SKILL.md),
 [scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md),
-[write-gpio](.opencode/skills/write-gpio/SKILL.md), and
+[write-gpio](.opencode/skills/write-gpio/SKILL.md),
+[write-time-driver](.opencode/skills/write-time-driver/SKILL.md), and
 [write-examples](.opencode/skills/write-examples/SKILL.md) are implemented.
 
 ## Prerequisite

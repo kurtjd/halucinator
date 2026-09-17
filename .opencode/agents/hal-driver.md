@@ -31,9 +31,10 @@ modes have been thought about** — lost wakeups, futures that hang,
 transfers that outlive the future that started them — not one that
 passes a single happy-path example on one board.
 
-For GPIO, invoke `write-gpio`'s **implementation entry**. Its GPIO-specific
-architecture and owned-state rules take precedence over the bus-driver
-templates below.
+For GPIO, select `write-gpio`; for Embassy time drivers, select
+`write-time-driver`. Follow its **implementation entry**: the selected skill's
+subsystem architecture, lifecycle, and scheduling rules take precedence over
+the bus-driver templates below.
 
 For other peripherals, `embassy-mcxa/src/i2c/` is the reference implementation.
 Read it before you write. `embassy-mcxa/src/lpuart/` is the reference for
