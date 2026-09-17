@@ -26,13 +26,15 @@ decides whether the declared scope is ready for `generate-pac`.
   input; extracted YAML is derived output and is not hand-edited.
 - Use chiptool only for extraction, transforms, and structural checks here.
   Leave Rust emission, PAC crate setup, Cargo features, dependency pins,
-  family-wide metapac assembly, and publication to `generate-pac` and
-  **hal-architect**. Do not invoke that stage as a validation shortcut.
+  and metapac assembly to `generate-pac` under **hal-architect**'s scope policy.
+  Publication is a separate decision. Do not invoke the next stage as a
+  validation shortcut.
 - Do not install tools, extract PDFs, configure hardware, flash, or run target
   code. Missing hardware facts go through **hal-architect** to **hal-datasheet**;
   do not attempt direct subagent delegation from **hal-svd**.
-- Follow `AGENTS.md`'s "Artifact storage and handoff" rule. An existing PAC
-  project is not a prerequisite for this skill, and creating one is not its job.
+- Follow `AGENTS.md`'s "Artifact storage and handoff" rule. Select the shared
+  PAC project but create only the SVD data and run directories needed here.
+  Neither a generator nor a Cargo crate is a prerequisite or deliverable.
 
 ## Procedure
 
@@ -74,9 +76,9 @@ fact in the requested scope depends on them.
 Read [Preparation and Checks](./references/preparation-and-checks.md) before
 choosing commands. Apply the shared storage rule and the reference's SVD-specific
 artifact details. Inspect existing changes, select fresh run outputs, and record
-the actual roots and selected SVD directory in `SOURCES.md`. A supplied SVD is
-an input, not permission to write beside it. Use file-edit tools for authored
-XML, transforms, and Markdown records.
+their locations as specified there. A supplied SVD is an input, not permission
+to write beside it. Use file-edit tools for authored XML, transforms, and
+Markdown records.
 
 Check the available XML/schema validator and the selected chiptool revision,
 provenance, and command help. Reuse an existing tool pin; a version banner alone
@@ -149,7 +151,7 @@ changes invalidate affected earlier checks.
 
 Write or update a clearly scoped preparation note using the reference's
 [record and handoff fields](./references/preparation-and-checks.md#preparation-record-and-handoff).
-Register its path and the selected SVD directory in `SOURCES.md` without erasing
+Register its path and stable artifact locations in `SOURCES.md` without erasing
 prior records.
 
 Hand off the original or authored SVD, ordered transforms and included files,
@@ -158,8 +160,8 @@ YAML is not a corrected XML SVD and is not a complete substitute for those
 inputs. Do not claim unsupported facts were retained or corrected by chiptool.
 
 Return to **hal-architect** for the stage gate and any review or further
-**hal-datasheet** work. Do not invoke `generate-pac`. If that skill is still
-unimplemented, identify the workflow gap without claiming it ran.
+**hal-datasheet** work. Do not invoke `generate-pac`; the architect dispatches
+it only after accepting the preparation handoff.
 
 ## Completion and output
 

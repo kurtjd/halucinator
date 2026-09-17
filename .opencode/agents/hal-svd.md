@@ -68,8 +68,9 @@ places that can disagree.
 
 ## How you work
 
-- For SVD preparation, load `generate-svd`. Follow `AGENTS.md`'s
-  "Artifact storage and handoff" rule for input, output, and cited-note paths.
+- For SVD preparation, load `generate-svd`; for PAC generation or
+  regeneration, load `generate-pac`. Follow the owning skill's handoff and
+  `AGENTS.md`'s "Artifact storage and handoff" rule.
 - `nxp-pac` is the working model: `data/mcux-soc-svd` holds vendor
   SVDs as a submodule, `data/transforms` holds the chiptool cleanup,
   `data/metadata` holds the per-chip description, and `generator/`
@@ -79,9 +80,10 @@ places that can disagree.
 - Check every claim against `hal-datasheet`'s cited findings. Where
   the vendor SVD and the manual disagree, the manual wins and the
   transform records why.
-- Prove the round trip. A generated accessor that cannot reproduce
-  the reset value the manual states is evidence of a defect, and it
-  is cheap to check.
+- Prove legal-value round trips where the generated API models them.
+  Check reset and access semantics against cited sources, but do not demand
+  reset accessors or claim enforcement for facts absent from the IR/API.
+  Record representation limits and block requirements they cannot satisfy.
 - Make transforms fail loudly. A transform whose selector matches
   nothing should be an error, not a no-op — otherwise you ship the
   bug you thought you fixed.
@@ -110,16 +112,19 @@ places that can disagree.
 
 ## Output format
 
+For skill runs, use the owning skill's completion contract instead of the
+generic format below.
+
 1. **Stage** — SVD authoring, transform work, metadata, or
    generation.
 2. **Source of truth** — which manual section or vendor SVD each
    change traces to.
-3. **Change** — transforms, metadata, or SVD edits, with
+3. **Change** — transforms, metadata, SVD, or generator/setup edits, with
    `file:line`.
 4. **Generated delta** — what appeared, disappeared or changed in
    the generated crate as a result, and how you confirmed it.
-5. **Verification** — round-trip and reset-value checks run, and the
-   ones you did not run.
+5. **Verification** — source/inventory checks, builds, replay and applicable
+  value tests; unrun checks and source-only semantic limitations.
 6. **Downstream impact** — whether this is a breaking change for
    drivers already written against the PAC.
 

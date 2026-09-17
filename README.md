@@ -15,13 +15,14 @@ No HAL source lives here. This repository is the toolkit.
 |---|---|
 | `AGENTS.md` | written |
 | Agents (6) | written |
-| Skills | 3 written, 2 not yet written |
+| Skills | 4 written, 1 not yet written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
-[generate-svd](.opencode/skills/generate-svd/SKILL.md), and
+[generate-svd](.opencode/skills/generate-svd/SKILL.md),
+[generate-pac](.opencode/skills/generate-pac/SKILL.md), and
 [scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md) are implemented.
-`generate-pac` and `write-examples` are still being designed.
-For those stages, agents work directly from `AGENTS.md` and from `embassy-mcxa`.
+`write-examples` is still being designed. For that stage, agents work directly
+from `AGENTS.md` and from `embassy-mcxa`.
 
 ## Prerequisite
 
@@ -37,18 +38,18 @@ citations do not resolve and the agents are largely useless.
 
 ## Working artifacts
 
-New supporting artifacts share one `halucinator/` parent in the working
-repository, normally the Embassy checkout:
+Documentation and the complete PAC project share one `halucinator/` parent in
+the working repository, normally the Embassy checkout:
 
 - `halucinator/docs/<target-id>/`: source list, collected originals,
   extracted text, and cited research, roadmap, review, and bench notes.
-- `halucinator/svd/<target-id>/`: durable SVD inputs in `sources/`, correction
-  rules in `transforms/`, and regenerable output in
-  `derived/<run-id>/{baseline,prepared,replay}/`.
+- `halucinator/pac/<vendor>/`: SVDs, transforms, metadata, generator, and the
+  consumable `<vendor>-pac/` crate, with separate derived runs.
 
 See [artifact storage and handoff](AGENTS.md#artifact-storage-and-handoff)
-for defaults, overrides, and preserving existing locations. HAL source,
-examples, HIL tests, and PAC crates retain their upstream/build-system layouts.
+for defaults, overrides, and preserving existing locations, and
+[PAC placement](AGENTS.md#pac-placement) for local dependency setup. HAL source,
+examples, and HIL tests retain their upstream/build-system layouts.
 
 ## Install
 

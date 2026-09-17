@@ -7,33 +7,31 @@ the extracted YAML is neither a rewritten XML SVD nor a lossless hardware record
 
 ## Artifact locations
 
-Select the SVD root using `AGENTS.md`'s "Artifact storage and handoff" rule.
-Find recorded locations in `SOURCES.md` and its linked preparation notes.
-Reuse the vendor-and-part `target-id` normalization from the
-[source-list storage rules](../../gather-documentation/references/source-list-format.md),
-not the basename of a custom documentation directory. Verify the exact part,
-core/revision and declared scope before reusing artifacts; names alone do not
-establish compatibility.
+Select the PAC project and SVD input roots using `AGENTS.md`'s "Artifact storage
+and handoff" policy and recorded `SOURCES.md`/preparation-note locations. That
+policy governs naming, overrides, legacy reuse and path safety. Confirm the
+exact part, core/revision and declared scope before reusing artifacts.
 
-`sources/` under the SVD root contains authored SVDs or pristine vendor input
-copies; `transforms/` contains the ordered correction rules and includes. Treat
-these as durable, version-controlled inputs, subject to source-sharing rights,
-not disposable output. Preserve gathered originals and source IDs under the
-selected documentation root. If an input is referenced rather than copied,
-record its provenance and continued-availability dependency explicitly.
+In the new layout, `data/svd/<target-id>/` is the input root within the selected
+project. Its `sources/` contains authored SVDs or pristine vendor copies, and
+`transforms/` contains ordered corrections and includes. These are durable,
+version-controlled inputs subject to source-sharing rights, not disposable
+output. Preserve gathered originals and source IDs in the documentation root;
+record provenance and continued-availability dependencies for referenced inputs.
 
-For derived output, choose the next unused run label such as `run-001` without
-asking, and use its separate `baseline/`, `prepared/`, and `replay/` directories.
-Do not reuse a populated run directory or delete files to free one. Create
-directories only when needed; do not change ignore rules or automatically stage
-files. Existing recorded layouts keep their actual paths and subdirectory names.
+New derived output defaults to `derived/svd/<target-id>/<run-id>/` under the
+selected PAC project, not under its durable `data/` tree. Choose the next unused
+run label such as `run-001` without asking, and use its separate `baseline/`,
+`prepared/`, and `replay/` directories. Do not reuse a populated run directory
+or delete files to free one. Create directories only when needed; do not change
+ignore rules or automatically stage files.
 
 Keep review records and citations under `notes/` in the actual documentation
-directory from the handoff, which may be a legacy or custom location. Record
-the selected SVD root in `SOURCES.md` relative to that source list; in the default
-layout that is `../../svd/<target-id>/`. Record any separately authorized
-generation repository root explicitly rather than resolving its paths against
-the documentation repository. Handoffs name roots and repository-relative paths.
+directory from the handoff. Index the [preparation record](#preparation-record-and-handoff)
+and stable project/SVD locations in `SOURCES.md`. From the default documentation
+directory, those locations are `../../pac/<vendor>/` and
+`../../pac/<vendor>/data/svd/<target-id>/`. Apply the shared root-naming policy
+to custom locations and downstream handoffs.
 
 ## Reference toolchain
 
@@ -235,16 +233,18 @@ unrun replay as reproducible.
 
 ## Preparation record and handoff
 
-Keep the record in the documentation directory's `notes/` and register its path
-and the selected SVD artifact directory in `SOURCES.md`. Reuse an existing record
-for the same scope and location, preserving earlier results when inputs change.
-No second source catalog or new machine-readable schema is required. Include:
+Keep the record in the documentation directory's `notes/` and register its path,
+the PAC project root, and SVD artifact directory in `SOURCES.md`. Exact run paths
+and evidence belong in this record and its handoff, not the source catalog.
+Reuse an existing same-scope record, preserving earlier results when inputs
+change. No second source catalog or new machine-readable schema is required.
+Include:
 
 1. **Scope and roots:** target/core/revision, reviewed and excluded peripherals,
-  source repository root, actual documentation and SVD roots, and the run's
-  baseline/prepared/replay paths. Record whether each root was explicitly
-  supplied, reused, or defaulted. Resolve each relative path against its named
-  root, not the agent's working directory.
+  source repository root, actual documentation and PAC project roots, SVD input
+  root, derived run root, and baseline/prepared/replay paths. Record whether each
+  root was explicitly supplied, reused, or defaulted. Resolve each relative path
+  against its named root, not the agent's working directory.
 2. **Inputs:** source IDs/revisions/hashes, original or authored SVD path,
    ordered transforms and includes with hashes, and cited findings. Record
    unknown hashes/revisions as unchecked, never fabricated.
@@ -278,7 +278,8 @@ were actually executed. A procedural fixture is not evidence about real silicon.
 | Source hash/revision changes on resume | Preserve old source IDs; invalidate and rerun affected checks from the new input |
 | Tool, schema, or permission unavailable | Review may continue, but required executable checks remain unrun and readiness is partial/blocked |
 | Missing source/target/scope handoff | Request only the missing evidence through hal-architect; an absent SVD root alone is not a blocker |
-| New target, no supplied or recorded SVD root | Use `halucinator/svd/<target-id>/` and a fresh derived run without asking; no PAC/Cargo setup |
+| New target, no supplied or recorded locations | Select `halucinator/pac/<vendor>/`; use `data/svd/<target-id>/` for inputs and a fresh `derived/svd/<target-id>/<run-id>/` within it; no generator/Cargo setup |
+| Another chip sharing a recorded PAC project | Reuse that project and select only the new target's input/run paths; no duplicate generator or crate |
 | Recorded custom or legacy roots | Reuse their actual paths and subdirectory names; no silent move to defaults |
 | Explicit override with existing artifacts | Select the override for new work, preserving old records and inputs; migration requires a separate request |
 | Conflicting records or unsafe/inaccessible destination | Ask about that specific conflict; no overwrite, permission workaround, or guessed external root |
