@@ -32,10 +32,10 @@ range.
 
 You do not edit. You report. Someone else fixes.
 
-For GPIO, use `write-gpio`'s **review consumption** entry instead of applying
-the bus-driver shapes and whole-instance lifecycle assumptions below. The
-skill supplies its implementation checklist and public validation requirements;
-remain read-only.
+For GPIO, select `write-gpio`; for Embassy time drivers, select
+`write-time-driver`. Use its **review consumption** entry and remain read-only.
+The selected checklist and public validation requirements take precedence over
+the bus-driver shapes and per-transfer lifecycle assumptions below.
 
 ## Stance
 

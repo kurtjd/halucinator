@@ -77,8 +77,9 @@ in the right order.
 
 - Invoke `write-examples` for the generic build-only and hardware-validation
   workflow and its required references. Combine it with the applicable
-  peripheral's public validation guidance. For GPIO, select `write-gpio`'s
-  **validation entry**, not its implementation procedure, checklist, or full
+  peripheral's public validation guidance: `write-gpio` for GPIO and
+  `write-time-driver` for Embassy time drivers. Take only the **validation
+  entry**, not the implementation procedure, private checklist, or full
   driver record.
 - Use the cited board/hardware facts in `hal-architect`'s handoff and follow
   `AGENTS.md`'s "Artifact storage and handoff" rule. Return questions and
