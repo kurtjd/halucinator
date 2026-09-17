@@ -93,7 +93,8 @@ entries, then use fresh evidence to clear blockers.
 
 - Status: `in progress`, `blocked`, or `software verified`
 - Each blocker, affected scope, owner, next action, and evidence needed
-- Pending human bench validation; state that no hardware was flashed or run
+- Pending hardware-validation handoffs and links to subsystem setup/run records.
+  This scaffold's own checks remain build-only.
 - First peripheral handoff: exact MCU, modes, public foundation API/contracts,
   PAC identity, source IDs, cited notes, live MCXA references, and host-test
   expectations
