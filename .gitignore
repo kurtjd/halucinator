@@ -1,0 +1,3 @@
+# Python bytecode produced by running the toolkit's own checks.
+__pycache__/
+*.pyc
