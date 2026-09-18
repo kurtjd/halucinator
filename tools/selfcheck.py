@@ -47,6 +47,7 @@ If the baseline file is absent, check 4 fails with TERMINOLOGY_BASELINE_MISSING.
 from __future__ import annotations
 
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -92,7 +93,9 @@ SKIP_DIRS = {
     "build",
 }
 
-MANDATED_FIXTURES = 29
+# M4: 29 (M1) + 30-tests-bound-to-blocked-driver + 31-tests-api-handoff-wrong-kind
+# + 32-noncanonical-singleton-filename.
+MANDATED_FIXTURES = 32
 
 LINK_RE = re.compile(r"(?<!!)\[(?:[^\]\[]|\[[^\]]*\])*\]\(\s*<?([^)<>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 
@@ -495,6 +498,26 @@ def check_links(root: Path, report: Report) -> None:
 # ---------------------------------------------------------------------------
 
 CODE_RE = re.compile(r"Expected diagnostic code:\s*`?([A-Z][A-Z0-9_]+)`?")
+FIXTURE_FILE_RE = re.compile(r"Expected file:\s*`([^`]+)`")
+FIXTURE_FIELD_RE = re.compile(r"Expected field:\s*`([^`]+)`")
+FIXTURE_EXACT_RE = re.compile(r"Expected diagnostics:\s*exact\b")
+
+# `ERROR <where>:<field> [<CODE>] expected ...` (validate.py Reporter.emit).
+# `where` is a repository-relative path or '-', neither of which contains a
+# colon, so the FIRST colon separates path from field. The field may itself
+# contain colons (canonical stage IDs do), hence the non-greedy path group.
+DIAG_RE = re.compile(r"^ERROR ([^:\s]+):(\S*) \[([A-Z][A-Z0-9_]*)\] ")
+
+
+def parse_diagnostics(out: str) -> list[tuple[str, str, str]]:
+    """(file, field, code) for every diagnostic line the validator printed."""
+    found = []
+    for line in out.splitlines():
+        m = DIAG_RE.match(line.strip())
+        if m:
+            found.append((m.group(1), m.group(2), m.group(3)))
+    return found
+
 
 
 def run_validator(root: Path, validator: Path, fixture: Path) -> tuple[int | None, str]:
@@ -521,23 +544,64 @@ def run_validator(root: Path, validator: Path, fixture: Path) -> tuple[int | Non
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
+def diagnostic_parser_failures() -> list[str]:
+    """Self-test parse_diagnostics against the validator's exact line shape.
+
+    Exact mode is only as good as this parser: a parser that silently matched
+    nothing would turn every exact assertion into 'got none parsed'. These
+    cases pin the shapes that actually occur, including a field that itself
+    contains a colon (canonical stage IDs do).
+    """
+    sample = (
+        "ERROR halucinator/handoff/04-pac.toml:handoff.inputs [DEPENDENCY_NOT_READY] expected x; found y; action: z\n"
+        "ERROR halucinator/state.toml:stages.write-driver:beta.status [DEPENDENCY_NOT_READY] expected x; found y; action: z\n"
+        "ERROR halucinator/handoff/05-platform-extra.toml:- [UNKNOWN_FIELD] expected x; found y; action: z\n"
+        "ERROR -:- [PATH_ESCAPE] expected x; found y; action: z\n"
+        "this is not a diagnostic line\n"
+    )
+    want = [
+        ("halucinator/handoff/04-pac.toml", "handoff.inputs", "DEPENDENCY_NOT_READY"),
+        ("halucinator/state.toml", "stages.write-driver:beta.status", "DEPENDENCY_NOT_READY"),
+        ("halucinator/handoff/05-platform-extra.toml", "-", "UNKNOWN_FIELD"),
+        ("-", "-", "PATH_ESCAPE"),
+    ]
+    got = parse_diagnostics(sample)
+    return [] if got == want else [f"parse_diagnostics returned {got}, expected {want}"]
+
+
 def check_fixtures(root: Path, report: Report) -> None:
     mark = report.mark()
+    for problem in diagnostic_parser_failures():
+        report.bad("tools/selfcheck.py", "parse_diagnostics", "FIXTURE_PARSER",
+                   f"the exact-mode diagnostic parser failed its self-test: {problem}")
     validator = root / ".opencode" / "schema" / "validate.py"
     fixtures = root / ".opencode" / "schema" / "fixtures"
     if not validator.is_file():
         report.bad(rel(root, validator), "0", "VALIDATOR_MISSING", "validator script not found; check 3 cannot run")
         return
+    # Every accepted root, not just `valid/`. A second coherent root is how a
+    # binding rule is proved to be independent of driver count; hardcoding one
+    # directory here is what let that gap exist.
+    valid_roots = sorted(
+        p for p in fixtures.iterdir()
+        if p.is_dir() and (p.name == "valid" or p.name.startswith("valid-"))
+        and (p / "root").is_dir()
+    ) if fixtures.is_dir() else []
     valid = fixtures / "valid"
     if not valid.is_dir():
         report.bad(rel(root, valid), "0", "FIXTURE_MISSING", "valid fixture directory not found")
         return
+    if len(valid_roots) < 2:
+        report.bad(rel(root, fixtures), "0", "FIXTURE_VALID_ROOTS",
+                   f"expected at least 2 accepted fixture roots (valid/ plus a multi-driver root), found {len(valid_roots)}: "
+                   f"{[p.name for p in valid_roots]}")
 
-    rc, out = run_validator(root, validator, valid)
-    if rc != 0:
-        report.bad(rel(root, valid), "0", "FIXTURE_VALID_REJECTED", f"valid fixture must exit 0, got {rc}: {_one_line(out)}")
-    elif out.strip():
-        report.bad(rel(root, valid), "0", "FIXTURE_VALID_NOISY", f"valid fixture must emit no diagnostics: {_one_line(out)}")
+    for vr in valid_roots:
+        rc, out = run_validator(root, validator, vr)
+        if rc != 0:
+            report.bad(rel(root, vr), "0", "FIXTURE_VALID_REJECTED", f"valid fixture must exit 0, got {rc}: {_one_line(out)}")
+        elif out.strip():
+            report.bad(rel(root, vr), "0", "FIXTURE_VALID_NOISY", f"valid fixture must emit no diagnostics: {_one_line(out)}")
 
     invalid_dir = fixtures / "invalid"
     cases = sorted(p for p in invalid_dir.glob("[0-9][0-9]-*") if p.is_dir()) if invalid_dir.is_dir() else []
@@ -556,6 +620,7 @@ def check_fixtures(root: Path, report: Report) -> None:
             report.bad(rel(root, readme), "0", "FIXTURE_CODE_UNDECLARED", "README.md does not state 'Expected diagnostic code: `CODE`'")
             continue
         expected = m.group(1)
+        readme_text = read_text(readme)
         rc, out = run_validator(root, validator, case)
         if rc is None:
             report.bad(r, "0", "FIXTURE_TIMEOUT", f"validator {out}; a hang is a failure")
@@ -566,9 +631,28 @@ def check_fixtures(root: Path, report: Report) -> None:
         if expected not in out:
             report.bad(r, "0", "FIXTURE_WRONG_CODE", f"expected diagnostic code {expected} not emitted; output: {_one_line(out)}")
             continue
+        # Opt-in exact mode. The legacy "the code appears somewhere" assertion
+        # lets a fixture pass for the wrong reason - a different file, a
+        # different field, or a pile of unrelated diagnostics. Fixtures 01-29
+        # keep it because EXPECTATIONS.md documents genuinely multi-code cases;
+        # a fixture that declares "Expected diagnostics: exact" is held to the
+        # single diagnostic it names and nothing else.
+        if FIXTURE_EXACT_RE.search(readme_text):
+            fm = FIXTURE_FILE_RE.search(readme_text)
+            fld = FIXTURE_FIELD_RE.search(readme_text)
+            if not fm or not fld:
+                report.bad(rel(root, readme), "0", "FIXTURE_EXACT_UNDECLARED",
+                           "README declares 'Expected diagnostics: exact' but omits 'Expected file:' or 'Expected field:'")
+                continue
+            want = (fm.group(1), fld.group(1), expected)
+            got = parse_diagnostics(out)
+            if got != [want]:
+                report.bad(r, "0", "FIXTURE_EXACT_MISMATCH",
+                           f"exact mode: expected exactly one diagnostic {want}, got {got or 'none parsed'}")
+                continue
         passed += 1
 
-    report.ok("fixtures", f"valid fixture accepted and {passed} of {len(cases)} invalid fixtures rejected with exit 1 and their declared code", mark)
+    report.ok("fixtures", f"{len(valid_roots)} accepted fixture roots exit 0 silently and {passed} of {len(cases)} invalid fixtures rejected with exit 1 and their declared code", mark)
 
 
 def _one_line(s: str, limit: int = 300) -> str:
@@ -3260,6 +3344,242 @@ def check_selfcheck_doc_parity(root: Path, report: Report, excluded: frozenset[s
         report.ok("selfcheck-doc-parity", f"all {len(names)} AST-derived invoked check names are documented with the eight-agent, allowlist and honor-system wording", mark)
 
 
+# --- M4 check: validation-guidance-isolation --------------------------------
+#
+# B8. After M4 the tester loads `write-examples` and nothing else: the
+# implementation procedure lives in `write-driver`, which hal-tester must never
+# read. This check proves the tree the tester actually loads carries no
+# implementation guidance - neither inline (register-poking prose) nor by
+# reference (a relative link into write-driver/).
+#
+# Scope is the WHOLE write-examples Markdown tree, SKILL.md and every
+# reference including references/profiles/, because the tester loads all of it.
+
+VALIDATION_SCAN_ROOT = ".opencode/skills/write-examples"
+IMPLEMENTATION_SKILL_DIR = ".opencode/skills/write-driver"
+VALIDATION_PROFILE_DIR = ".opencode/skills/write-examples/references/profiles"
+
+# Deliberately NOT included: any `(private|internal)\s+(field|state|...)` rule.
+# It matches the legitimate, load-bearing sentence "not the target HAL's
+# implementation or private state" in the real validation references, so it
+# would forbid the very disclaimer that makes a profile tester-safe.
+IMPLEMENTATION_TOKENS: tuple[str, ...] = (
+    r"pac::",
+    r"unsafe\s*\{",
+    r"embassy-[A-Za-z0-9_-]+/src/",
+    r"(?:^|[\s`(])src/[A-Za-z0-9_./-]+\.rs\b",
+    r"\bread_volatile\b",
+    r"\bwrite_volatile\b",
+    r"\.read\s*\(\s*\|",
+    r"\.write\s*\(\s*\|",
+    r"\.modify\s*\(\s*\|",
+    r"\bOnDrop\b",
+    r"\bWaitCell\b",
+    r"\benable_and_reset\b",
+    r"\bwaker\.register\b",
+    r"\bregister_waker\b",
+)
+
+_IMPL_RE = tuple((p, re.compile(p, re.MULTILINE)) for p in IMPLEMENTATION_TOKENS)
+
+
+def analyze_validation_guidance(relpath: str, text: str) -> list[tuple[str, str]]:
+    """Pure analyzer: [(code, message)] for implementation guidance in one file.
+
+    Pure function of (repository-relative path, raw markdown) so the in-memory
+    non-vacuity fixtures below can drive it without touching the filesystem.
+
+    Two independent failure modes:
+      (a) a relative Markdown link that RESOLVES beneath write-driver/, and
+      (b) prose matching the implementation token set.
+    """
+    out: list[tuple[str, str]] = []
+    base = posixpath.dirname(relpath)
+    for m in LINK_RE.finditer(text):
+        target = m.group(1).split("#", 1)[0].strip()
+        if not target or "://" in target or target.startswith("#"):
+            continue
+        if target.startswith("/"):
+            resolved = posixpath.normpath(target.lstrip("/"))
+        else:
+            resolved = posixpath.normpath(posixpath.join(base, target))
+        if resolved == IMPLEMENTATION_SKILL_DIR or resolved.startswith(IMPLEMENTATION_SKILL_DIR + "/"):
+            out.append((
+                "VALIDATION_GUIDANCE_LEAK",
+                f"link {target!r} resolves to {resolved!r}, beneath the implementation skill "
+                f"{IMPLEMENTATION_SKILL_DIR!r}; hal-tester must never be routed into implementation guidance",
+            ))
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        for pattern, rx in _IMPL_RE:
+            if rx.search(line):
+                out.append((
+                    "VALIDATION_GUIDANCE_LEAK",
+                    f"line {lineno} matches implementation token /{pattern}/: {line.strip()[:120]!r}; "
+                    "tester-facing guidance describes observable behavior, not register access",
+                ))
+                break
+    return out
+
+
+_VALIDATION_NEAR_MISSES: tuple[tuple[str, str, str], ...] = (
+    ("inline PAC path",
+     ".opencode/skills/write-examples/references/profiles/x.md",
+     "Use `pac::uart0::RegisterBlock` to derive the expected result.\n"),
+    ("link into the implementation skill",
+     ".opencode/skills/write-examples/references/x.md",
+     "See the [implementation checklist](../../write-driver/references/driver-checklist.md).\n"),
+    ("link into the implementation skill from a profile",
+     ".opencode/skills/write-examples/references/profiles/x.md",
+     "See the [implementation checklist](../../../write-driver/references/driver-checklist.md).\n"),
+    ("unsafe block",
+     ".opencode/skills/write-examples/SKILL.md",
+     "Wrap the access in `unsafe { ... }` first.\n"),
+    ("crate source path",
+     ".opencode/skills/write-examples/SKILL.md",
+     "Edit embassy-unobtainium/src/uart/mod.rs before running.\n"),
+    ("waker registration",
+     ".opencode/skills/write-examples/SKILL.md",
+     "Call register_waker before checking the condition.\n"),
+    ("drop guard",
+     ".opencode/skills/write-examples/SKILL.md",
+     "Guard the armed region with OnDrop and defuse on success.\n"),
+)
+
+_VALIDATION_SAFE = (
+    "Observe the pin level through the public API and record the result.\n"
+    "This describes observable behavior, not the target HAL's implementation or private state.\n"
+    "See the [test record](test-record.md) for the evidence layout.\n"
+)
+
+
+def validation_analyzer_failures(root: Path) -> list[str]:
+    """Self-test the analyzer. Empty when it discriminates; problems otherwise."""
+    problems: list[str] = []
+    clean = analyze_validation_guidance(
+        ".opencode/skills/write-examples/references/profiles/x.md", _VALIDATION_SAFE)
+    if clean:
+        problems.append(
+            f"the conforming in-memory profile was rejected with {[c for c, _ in clean]}; "
+            "the analyzer rejects everything and proves nothing")
+    for name, relpath, text in _VALIDATION_NEAR_MISSES:
+        codes = [c for c, _ in analyze_validation_guidance(relpath, text)]
+        if "VALIDATION_GUIDANCE_LEAK" not in codes:
+            problems.append(f"near-miss {name!r} was not caught (got {codes or 'no findings'})")
+    # The REAL tester-facing validation references must survive the token set.
+    # These are the files whose content migrates into the scan target; if one
+    # of them trips a token the check is unimplementable as specified and the
+    # token set - not the prose - is what must change.
+    for probe in (".opencode/skills/write-gpio/references/gpio-validation.md",
+                  ".opencode/skills/write-time-driver/references/time-validation.md",
+                  ".opencode/skills/write-examples/references/profiles/gpio-validation.md",
+                  ".opencode/skills/write-examples/references/profiles/time-validation.md"):
+        p = root / probe
+        if not p.is_file():
+            continue
+        findings = analyze_validation_guidance(probe, read_text(p))
+        if findings:
+            problems.append(
+                f"the real tester-facing reference {probe!r} trips the token set "
+                f"({findings[0][1]}); the token set must be corrected, not the prose")
+    return problems
+
+
+def check_validation_guidance_isolation(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, VALIDATION_SCAN_ROOT, "VALIDATION_GUIDANCE_ABORT"):
+        for problem in validation_analyzer_failures(root):
+            report.bad("tools/selfcheck.py", "analyze_validation_guidance",
+                       "VALIDATION_GUIDANCE_FIXTURE",
+                       f"the validation-guidance analyzer failed its in-memory fixtures: {problem}")
+        scan_dir = root / VALIDATION_SCAN_ROOT
+        if not scan_dir.is_dir():
+            report.bad(VALIDATION_SCAN_ROOT, "0", "VALIDATION_GUIDANCE_NO_SCAN_ROOT",
+                       "the tester-facing skill tree is absent; the isolation check has nothing to scan")
+            return
+        files = sorted(p for p in scan_dir.rglob("*.md") if p.is_file())
+        if not files:
+            report.bad(VALIDATION_SCAN_ROOT, "0", "VALIDATION_GUIDANCE_NO_TARGETS",
+                       "no Markdown found under the tester-facing skill tree; a scanner with no targets must not pass vacuously")
+            return
+        # A tester-safe validation profile must actually exist. Without one the
+        # scan is technically green and substantively meaningless: it would be
+        # asserting that guidance that does not exist contains no leak.
+        profiles = sorted(p for p in (root / VALIDATION_PROFILE_DIR).rglob("*.md")
+                          if p.is_file()) if (root / VALIDATION_PROFILE_DIR).is_dir() else []
+        if not profiles:
+            report.bad(VALIDATION_PROFILE_DIR, "0", "VALIDATION_GUIDANCE_NO_PROFILE",
+                       "no tester-safe validation profile exists under "
+                       f"{VALIDATION_PROFILE_DIR}; hal-tester has nothing to load in place of the "
+                       "implementation skill, so the isolation guarantee is vacuous")
+        for p in files:
+            r = rel(root, p)
+            for code, message in analyze_validation_guidance(r, read_text(p)):
+                report.bad(r, "0", code, message)
+        report.ok("validation-guidance-isolation",
+                  f"{len(files)} tester-facing Markdown files ({len(profiles)} validation profiles) carry no "
+                  f"implementation guidance under {len(IMPLEMENTATION_TOKENS)} tokens and no link into "
+                  f"{IMPLEMENTATION_SKILL_DIR} (analyzer self-tested against {len(_VALIDATION_NEAR_MISSES)} near-misses)",
+                  mark)
+
+
+# --- M4 check: skill-discovery-closure --------------------------------------
+#
+# Part 8. The template checks bind on whatever skill_paths() discovers, and
+# discovery globs `*/SKILL.md` - so a skill directory with no SKILL.md is
+# simply invisible and silently exempt. That is a fail-OPEN discovery, and it
+# is exactly the hole the retiring allowlist used to make visible.
+#
+# Deliberately independent of check_skill_generation_allowlist: it reads no
+# allowlist, takes no `excluded` set, and is not registered in M3_CHECKS, so it
+# keeps asserting after the allowlist and its parser are deleted.
+
+M4_SKILLS: tuple[str, ...] = (
+    "gather-documentation",
+    "generate-pac",
+    "generate-svd",
+    "scaffold-hal",
+    "write-driver",
+    "write-examples",
+)
+
+
+def check_skill_discovery_closure(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, ".opencode/skills", "SKILL_DISCOVERY_ABORT"):
+        d = root / ".opencode" / "skills"
+        if not d.is_dir():
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_NO_DIR", "the skills directory is absent")
+            return
+        dirs = sorted(p for p in d.iterdir() if p.is_dir())
+        for p in dirs:
+            r = f".opencode/skills/{p.name}"
+            entry = p / "SKILL.md"
+            matches = sorted(x for x in p.glob("SKILL.md") if x.is_file())
+            if not matches:
+                report.bad(r, "0", "SKILL_DISCOVERY_NO_ENTRY",
+                           "skill directory contains no regular SKILL.md; discovery globs */SKILL.md, so this "
+                           "directory is invisible to every template check - a silent, undeclared exemption")
+            elif not entry.is_file():
+                report.bad(r, "0", "SKILL_DISCOVERY_NOT_REGULAR",
+                           "SKILL.md is not a regular file")
+        discovered = sorted(skill_paths(root))
+        if discovered != sorted(M4_SKILLS):
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_SET",
+                       f"discovered skills are {discovered}; after M4 there must be exactly "
+                       f"{len(M4_SKILLS)}: {sorted(M4_SKILLS)}. Implementation guidance is consolidated "
+                       "into write-driver and tester-safe validation profiles live under "
+                       f"{VALIDATION_PROFILE_DIR}")
+        # Every discovered skill must be in scope for the template checks with
+        # no exclusion set applied at all.
+        unbound = sorted(set(discovered) - set(in_scope_skills(root, frozenset())))
+        if unbound:
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_UNBOUND",
+                       f"skills {unbound} are discovered but not in scope for the template checks")
+        report.ok("skill-discovery-closure",
+                  f"{len(discovered)} skill directories each carry exactly one regular SKILL.md and the "
+                  f"discovered set is the exact M4 set of {len(M4_SKILLS)}", mark)
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -3301,6 +3621,11 @@ def main(argv: list[str]) -> int:
     check_candidate_convention(root, report)
     check_workflow_markers(root, report)
     check_skill_references(root, report)
+    # M4: deliberately NOT registered in M3_CHECKS. Both must keep asserting
+    # after tools/skill-template-allowlist.tsv and its parser are deleted, so
+    # neither takes an `excluded` set and neither reads the allowlist.
+    check_validation_guidance_isolation(root, report)
+    check_skill_discovery_closure(root, report)
 
     # M3: one parsed exclusion set, threaded into every registered M3 check.
     # Dispatching through the registry rather than by name is what makes a
