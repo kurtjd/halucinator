@@ -109,6 +109,10 @@ references agree, the rule is not negotiable.
 ## The pipeline
 
 New-HAL work runs in this order. Each stage has an owning agent.
+`hal-coordinator` is the hub: it establishes the target and scope, dispatches
+every stage below, and applies the admission and acceptance gates. Specialists
+never dispatch peers; work that belongs to another agent returns to
+`hal-coordinator`.
 
 ```
 gather-documentation  →  hal-datasheet
@@ -117,22 +121,35 @@ generate-svd          →  hal-svd
         ↓
 generate-pac          →  hal-svd
         ↓
-scaffold-hal          →  hal-architect
+scaffold-hal          →  hal-architect  (design specification)
+                         hal-driver     (clocks and startup semantics)
+                         hal-integrator (shared files, manifests, wiring)
         ↓
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
-examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+examples & HIL tests  →  hal-tester   (black-box logic and evidence)
+        ↓                 hal-integrator (placement, manifests, CI)
         ↓                 write-examples
         ↓
-review                →  hal-reviewer (gates every stage above)
+review                →  hal-reviewer (typed verdict on a frozen candidate)
 ```
+
+`hal-integrator` is the sole writer of shared and crate-level files —
+manifests, `build.rs`, `_generated.rs`, `src/lib.rs`, `src/chips/**`, linker
+scripts, `examples/`, `tests/`, `ci.sh` and the durable records — and the sole
+committer. Clocks are not a shared file in that sense: `embassy-*/src/clocks/**`
+stays with `hal-driver`, which implements it against the contract
+`hal-architect` specified.
 
 `hal-tester` is deliberately blinded: it is given a peripheral's public
 API in its prompt and is denied read access to `embassy-*/src/**`. A
 tester that has read the driver writes tests that agree with the
-driver, including where the driver is wrong. Whoever dispatches it must
-therefore supply the API surface in the prompt — it has no other way to
-obtain it, and that is the point.
+driver, including where the driver is wrong. `hal-coordinator` must
+therefore supply the API surface in the prompt — the tester has no other way
+to obtain it, and that is the point. Perfect blindness is impossible:
+`bash` is gated at `ask`, `grep` is matched against the query rather than the
+path, and compiler, macro and build-script diagnostics quote source. This is a
+strong default and a statement of intent, not a sandbox.
 
 Testing splits by where the test runs:
 
@@ -142,11 +159,15 @@ Testing splits by where the test runs:
   than sampled.
 - **Anything that runs on target** — `examples/<chip>/`,
   `tests/<chip>/` teleprobe binaries, and their `ci.sh` wiring —
-  belongs to `hal-tester`.
+  runs for `hal-tester`. The tester owns the *test logic and the
+  evidence*; `hal-integrator` owns *where the files land*, their manifests,
+  and the CI wiring. The tester writes its revision under
+  `halucinator/test-candidates/<name>/` and never a canonical path.
 
-`hal-architect` owns the roadmap and decides when a stage is complete
-enough to move on. Stages are not strictly serial — a driver may send you
-back to `gather-documentation` for a register the manual described badly —
+`hal-coordinator` owns the roadmap at
+`halucinator/docs/<target-id>/notes/ROADMAP.md` and decides when a stage is
+complete enough to move on. Stages are not strictly serial — a driver may send
+you back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
@@ -156,16 +177,17 @@ the applicable peripheral's public validation guidance for specific cases.
 ### Hardware testing
 
 **hal-tester** owns documented physical setup guidance and hardware execution
-for the scope dispatched by **hal-architect**. The user performs physical setup;
-the agent runs tests. Target-affecting operations require confirmed readiness
-and authorization for the named device and operations. The architect relays
-setup-required handoffs when needed; dispatch alone is not authorization.
+for the scope dispatched by **hal-coordinator**. The user performs physical
+setup; the agent runs tests. Target-affecting operations require confirmed
+readiness and authorization for the named device and operations. The
+coordinator relays setup-required handoffs when needed; dispatch alone is not
+authorization.
 
 The tester must follow `write-examples`' hardware-execution and public-record
 references for loading, running, retries, teardown, and evidence. Source
 blindness and tool approvals remain mandatory, including during debugging.
 Other agents keep their existing ownership; driver and shared-startup fixes
-return through the architect to their owners. Documentation, generation, and
+return through the coordinator to their owners. Documentation, generation, and
 build-only scaffold checks do not authorize hardware operations. Required
 runtime evidence cannot be replaced by a successful build or unavailable setup.
 
@@ -233,7 +255,7 @@ explicit authorization and a named root, never an assumed sibling checkout.
 Ask only about conflicting records, unsafe/inaccessible paths, or missing
 target/evidence handoff details, not whether a usable default is acceptable.
 
-`hal-architect` passes the actual selected documentation directory,
+`hal-coordinator` passes the actual selected documentation directory,
 `SOURCES.md` path, exact target, relevant source IDs, and cited-note paths
 to every downstream agent that needs them. For SVD/PAC work, also pass the
 selected PAC project root, SVD input/transform root, and actual derived run
