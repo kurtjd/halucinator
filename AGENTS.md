@@ -286,56 +286,56 @@ That repository is the model for `generate-svd` and `generate-pac`:
 
 ## Hard rules
 
-These are failure conditions, not preferences.
+These are failure conditions, not preferences. The `HAL-RULE-01` through `HAL-RULE-12` identifiers are stable and may be cited by skills, handoffs, and review findings.
 
-1. **No invented hardware facts.** Register offsets, bit positions, reset
+1. **[HAL-RULE-01] No invented hardware facts.** Register offsets, bit positions, reset
    values, clock topology, and errata come from the reference manual or
    the PAC. If you do not have the citation, say "I need the manual
    section for X" and stop. A plausible-looking offset is worse than no
    offset, because it compiles.
 
-2. **Cite the source for hardware claims.** Manual section number, table
+2. **[HAL-RULE-02] Cite the source for hardware claims.** Manual section number, table
    number, or the PAC path. "The datasheet says" without a number is not
    a citation.
 
-3. **No `u8`/`u32` in a public signature where an enum fits.** If the
+3. **[HAL-RULE-03] No `u8`/`u32` in a public signature where an enum fits.** If the
    field has four legal values, the type has four inhabitants. See the
    design discipline above.
 
-4. **Never hand-roll clock gating or reset in a driver.** That policy
+4. **[HAL-RULE-04] Never hand-roll clock gating or reset in a driver.** That policy
    lives in the `clocks` subsystem and is reached through the `Gate` trait
    and `enable_and_reset`. A driver poking `MRCC`/`SPC`/`SCG` directly
    means the policy is now configured in two places that can disagree.
    DEVGUIDE §"Bringing Up Clocks and Resets".
 
-5. **Never vendor a forked PAC.** A `Cargo.toml` pointing a dependency at
+5. **[HAL-RULE-05] Never vendor a forked PAC.** A `Cargo.toml` pointing a dependency at
    a personal fork must not merge. Fix the PAC upstream and pin the
    released revision. A fork pin is acceptable only as a local, temporary
    aid while the upstream PAC PR is in review.
 
-6. **Never hand-edit generated code.** `_generated.rs` and the PAC crate
+6. **[HAL-RULE-06] Never hand-edit generated code.** `_generated.rs` and the PAC crate
    are outputs. Fix the generator or the metadata.
 
-7. **Clear all error flags before returning.** An early return on the
+7. **[HAL-RULE-07] Clear all error flags before returning.** An early return on the
    first error leaves the others latched and the peripheral wedged.
    DEVGUIDE §"Checking Errors".
 
-8. **Register the waker before checking the condition.** Check-then-
+8. **[HAL-RULE-08] Register the waker before checking the condition.** Check-then-
    register loses any completion that lands in the window, and the future
    sleeps forever. DEVGUIDE §"Asynchronous (Interrupt-Driven) Drivers".
 
-9. **A dropped future must not leave hardware running.** Guard any armed
+9. **[HAL-RULE-09] A dropped future must not leave hardware running.** Guard any armed
    region with `OnDrop` and `defuse` on the success path.
 
-10. **No busy-wait on an async path.** On a single-threaded executor it
+10. **[HAL-RULE-10] No busy-wait on an async path.** On a single-threaded executor it
     stalls every task, watchdog included, and a bit that never changes
     hangs the system.
 
-11. **Do not claim behaviour you have not observed.** "This should work on
+11. **[HAL-RULE-11] Do not claim behaviour you have not observed.** "This should work on
     hardware" is not a result. Name what you ran, what you did not run,
     and what needs a bench.
 
-12. **No wildcard imports.** They cause surprising semver breakage and
+12. **[HAL-RULE-12] No wildcard imports.** They cause surprising semver breakage and
     make provenance unreadable.
 
 ---
