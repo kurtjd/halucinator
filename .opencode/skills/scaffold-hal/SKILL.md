@@ -1,297 +1,496 @@
 ---
 name: scaffold-hal
 description: >-
-  Use when starting or resuming the crate-level foundation for one exact MCU in
-  a new Embassy HAL, after documentation and generated PAC work are available
-  and before implementing the first planned peripheral driver.
+  Use when hal-coordinator dispatches the crate-level platform foundation for
+  one exact MCU against a ready `04-pac` handoff, or when a previous
+  `05-platform` stopped at partial or blocked. Dispatch and search terms:
+  scaffold the HAL crate, Cargo chip feature, Rust compilation target, crate
+  manifest, build.rs code generation and generated mappings, `peripherals!` and
+  `interrupt_mod!` plumbing, `init` and startup policy, clocks and reset gating
+  assigned to hal-driver, `memory.x` and linker and runtime wiring materialized
+  by hal-integrator, ARCHITECTURE.md startup/clock/API contracts assigned to
+  hal-architect, roadmap and dispatch owned by hal-coordinator, 05-platform
+  handoff. Wrong for implementing the first peripheral driver, preparing SVDs
+  or generating the PAC, authoring or running examples and hardware-in-the-loop
+  tests, or claiming silicon results.
 compatibility: opencode
 ---
 
 # Scaffold HAL
 
-The owning agent is **hal-architect**. This stage produces a driver-ready,
-software-verified foundation for one exact MCU. It does not produce a complete
-HAL, implement the first planned peripheral, or prove behavior on silicon.
+```halucinator-skill-contract
+stage: scaffold-hal
+participants: hal-architect,hal-coordinator,hal-driver,hal-integrator,hal-tester
+emitter: hal-integrator
+emits: 05-platform|halucinator/handoff/05-platform.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
+checks: advertised-builds,build-only-ci,format-lint,foundation-coverage,generated-mappings,independent-review,live-reference-read,negative-chip-selection,pure-host-tests,target-link
+consumes: 04-pac|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,pac.crate_manifest,pac.package,pac.revision.kind,pac.revision.value,pac.cargo_chip_feature,pac.runtime_features,pac.metadata_features,pac.rust_compilation_target,pac.source_ids,pac.cited_notes,pac.temporary_fork,pac.foundation.id,pac.foundation.kind,pac.foundation.location,pac.foundation.status,pac.foundation.evidence
+writes: hal-architect|architecture-spec
+writes: hal-coordinator|roadmap
+writes: hal-driver|clock-modules
+writes: hal-integrator|build-generation
+writes: hal-integrator|chip-modules
+writes: hal-integrator|ci
+writes: hal-integrator|crate-manifest
+writes: hal-integrator|example-binaries
+writes: hal-integrator|example-manifest
+writes: hal-integrator|example-support
+writes: hal-integrator|integration-candidates
+writes: hal-integrator|linker
+writes: hal-integrator|platform-handoff
+writes: hal-integrator|platform-lib
+writes: hal-integrator|platform-notes
+writes: hal-integrator|runtime-wiring
+supplies-delta: hal-architect|platform-notes
+supplies-delta: hal-driver|platform-notes
+supplies-delta: hal-tester|example-binaries
+supplies-delta: hal-tester|example-manifest
+supplies-delta: hal-tester|example-support
+```
 
-Read [the scaffold record reference](./references/scaffold-record.md) before
-changing the HAL. Keep `SCAFFOLD.md` beside the explicitly handed-over
-`SOURCES.md`; reuse an existing supplied scaffold record.
+This stage produces a driver-ready, reviewed, software-verified platform
+foundation for one exact MCU inside a frozen integration candidate. It does not
+produce a complete HAL, implement the first planned peripheral, or establish
+anything about silicon.
 
-## Boundaries
+## When to use
 
-- Start with one exact MCU and advertise only implemented chip features.
-- Choose the first planned peripheral and its modes during intake. That driver
-  is the next stage, not part of scaffolding.
-- Implement one cited startup clock path. Do not expand into hypothetical PLL,
-  dynamic-switching, low-power, or family-wide support.
-- Include only supporting GPIO/pin mux, DMA, time-driver, or other subsystems
-  required by that path and the first peripheral. Delegate them to
-  **hal-driver** in dependency order.
-- Keep clock/reset policy central: real `Gate`, `enable_and_reset`, and
-  frequency plumbing are required. A no-op implementation or successful stub
-  is not a scaffold.
-- Do not change SVD/PAC schemas, hand-edit generated output, copy an MCXA
-  hardware assumption, make automatic commits, publish, flash a board, or run
-  hardware.
+Use this skill when **hal-coordinator** dispatches `scaffold-hal` against a
+`04-pac` handoff that validates and is `ready`, or when a previous run left
+`05-platform` at `partial` or `blocked` and the recorded next action is now
+possible.
+
+Start from one exact MCU and core, one Cargo chip feature, one Rust compilation
+target, one documented startup clock path, and one first planned peripheral with
+its exact modes. All of those are **hal-coordinator** decisions carried in state,
+not decisions taken here.
+
+Read [the scaffold record reference](./references/scaffold-record.md) before any
+file is authored. Scoping pressure to "finish the UART end to end" does not move
+the first peripheral into this stage: record its modes, scaffold only the
+foundations it needs, and leave the driver to the next dispatch.
+
+## Ownership and boundaries
+
+This stage is three jobs — decision, design, implementation — that were once one
+procedure. They are now cut along the agent boundaries the registry already
+records, and **every cross-owner transition returns to hal-coordinator**.
+Specialists never dispatch peers.
+
+| Owner | Materializes here | Never here |
+|---|---|---|
+| **hal-coordinator** | class `roadmap`, the exact path `halucinator/docs/<target-id>/notes/ROADMAP.md`; the target, bounded scope, Cargo chip feature, Rust compilation target, destination crate, first peripheral and its modes, foundation requirements; and every dispatch | implementation or shared files |
+| **hal-architect** | class `architecture-spec`, exactly `halucinator/docs/*/notes/ARCHITECTURE.md`, carrying the startup, clock and public API **contracts** | any code, any manifest, any decision, any dispatch |
+| **hal-driver** | class `clock-modules`, `embassy-*/src/clocks/**`, and the host-side unit tests of its functional core | shared files, manifests, CI, commits |
+| **hal-integrator** | every shared file: `integration-candidates`, `crate-manifest`, `build-generation`, `platform-lib`, `chip-modules`, `linker`, `runtime-wiring`, `example-binaries`, `example-manifest`, `example-support`, `ci`, `platform-notes` and `platform-handoff`; and it is the **sole committer** | test logic, design contracts, scope decisions |
+| **hal-tester** | nothing canonical; it authors the source-blind link-check binary, its manifest and its support files as deltas | canonical example, test or CI files |
+| **hal-reviewer** | the `08-review` verdict only | any file this stage produces |
+
+The clock subsystem is **hal-driver**'s. It is implemented against the contract
+**hal-architect** specified in `ARCHITECTURE.md`; the architect does not
+implement it, and no driver hand-rolls gating or reset outside `clocks`.
+
+`SCAFFOLD.md` and `STARTUP.md` are class `platform-notes`, owned and materialized
+by **hal-integrator**. **hal-architect** and **hal-driver** author semantic
+deltas into them; **hal-coordinator** dispatches the integrator to materialize
+each delta and returns its FileRef. The tester's example binary, example manifest
+and example support files are deltas of integrator-owned classes on the same
+route.
+
+Nothing is edited in place. Shared work happens in one disposable integration
+candidate under `halucinator/candidates/integration-*/`, driver work under
+`halucinator/candidates/driver-*/` while an upstream handoff is still `partial`,
+and tester work under `halucinator/test-candidates/<name>/`. **hal-integrator**
+holds a `kind="stage"` lock whose resources contain `stage:scaffold-hal`, the
+exact string `global:hal-integration`, and one `path:` entry per touched file,
+across baseline verification, shared edits, final checks, staging and the commit.
+
+`global:hal-integration` is a cooperative convention. Lock resources are
+unrestricted sorted strings, so nothing mechanically fences a process that
+ignores it. A durable integration journal, owner fencing and a cross-clone crash
+marker are **deferred**; today this stage has discipline and hashes, and no
+document here may claim otherwise.
+
+Do not change SVD or PAC schemas, hand-edit generated output, copy an MCXA
+hardware assumption, publish, flash a board, or run target code. A missing
+hardware meaning returns through **hal-coordinator** to **hal-datasheet**; a
+missing register or metadata item returns to **hal-svd**.
+
+## Inputs
+
+Consume the validated, `ready` `04-pac` leaves declared in the contract. The
+admission vocabulary is exactly the producer's field names:
+
+| Admission concern | Consumed field |
+|---|---|
+| Crate under test | `pac.crate_manifest`, `pac.package`, `pac.revision.kind`, `pac.revision.value` |
+| Build contract | `pac.cargo_chip_feature`, `pac.runtime_features`, `pac.metadata_features`, `pac.rust_compilation_target` |
+| Foundation partition | `pac.foundation.id`, `pac.foundation.kind`, `pac.foundation.location`, `pac.foundation.status`, `pac.foundation.evidence` |
+| Provenance | `pac.source_ids`, `pac.cited_notes` |
+| Fork state | `pac.temporary_fork` |
+| Lineage | `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`, `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete` |
+
+Read separately from coordinator-owned state: `decisions.cargo_chip_feature`,
+`decisions.rust_compilation_target`, `decisions.destination_crate`,
+`decisions.foundation_requirements`, the next-driver selection and its modes, the
+`target.*` identity, `scope.current_revision`, `scope.current_decision`, and the
+`roots.documentation`, `roots.pac_crate` and destination-crate paths. Read the
+hashed `ARCHITECTURE.md` as the design input.
+
+A `blocked` predecessor permits no consumption. A `partial` one permits
+read-only inspection and disposable candidate work only: no canonical placement
+and no downstream `ready`. A `pac.temporary_fork` of `true` permits candidate
+work and prevents `ready`. One missing foundation register, accessor, interrupt
+or metadata item blocks **all** scaffold implementation, including the manifest,
+the build wiring, the crate root and the chip module; intake, records,
+inspection and analysis may continue. Never bridge either gap with raw register
+access or an invented constant.
+
+## Outputs
+
+- `ARCHITECTURE.md` from **hal-architect**, carrying the startup, clock and
+  public API contracts.
+- `halucinator/docs/<target-id>/notes/ROADMAP.md` from **hal-coordinator**,
+  linked and never duplicated.
+- Clock modules and their host-side unit tests from **hal-driver**.
+- One disposable integration candidate under
+  `halucinator/candidates/integration-*/`, and, only after an accepting review,
+  the canonical shared files, examples and CI wiring from **hal-integrator**.
+- `SCAFFOLD.md` and `STARTUP.md`, materialized by **hal-integrator** from
+  architect and driver deltas.
+- `halucinator/handoff/05-platform.toml`, carrying `platform.crate_manifest`,
+  `platform.pac_manifest`, `platform.roadmap`, `platform.startup_clock_contract`,
+  `platform.foundation_api`, the ordered `platform.supporting_subsystems`,
+  `platform.first_driver` and its nonempty `platform.first_driver_modes`,
+  `platform.dependencies`, `platform.source_ids`, `platform.cited_notes`, the
+  ten canonical checks, coverage and scope.
 
 ## Procedure
 
-### 1. Inspect and resume safely
+1. **Inspect and classify entry state.** Inspect every lock covering this stage
+   and the `global:hal-integration`, candidate and note resources, and classify
+   each as live, interrupted or ambiguous. Live means concurrency: do not
+   interfere. Ambiguous means wait one 30-second refresh interval, reread, and
+   fail closed if it is still ambiguous. Interrupted, or ambiguous still
+   unresolved, means recovery: do not mutate the suspect output, inventory and
+   hash it into a recovery Markdown FileRef under `notes/recovery/`, compare it
+   against the last valid handoff, and publish `partial` with empty blockers when
+   unaffected fresh candidate work remains or `blocked` with an
+   `interrupted:scaffold-hal` blocker when it does not. Record the comparison,
+   the disposition and the new candidate location before an authorized actor
+   removes the lock. Resume only in a fresh integration candidate, never in
+   place.
+2. **Validate before consuming the predecessor.** Run
+   `python .opencode/schema/validate.py <repository-root> --kind all` with every
+   required named-root binding **before** semantically reading `04-pac`. Exit 0
+   with silent output is necessary; a missing interpreter, a timeout, a nonzero
+   exit, or not running it is not a pass and blocks consumption. Report an
+   unrelated stale artifact or ambiguous lock as a named blocker.
+3. **Load the predecessor and the coordinator-owned decisions.** Load the exact
+   `04-pac` leaves through the admission mapping above, and separately load the
+   coordinator-owned target, bounded scope, Cargo chip feature, Rust compilation
+   target, destination crate, first peripheral and modes, and foundation
+   requirements. Preserve dirty and unrelated worktree edits; never require a
+   commit or a stash.
+4. **Record the coordinator-owned scope and roadmap.** Record the bounded scope,
+   the included supporting subsystems and the deferred work, and let
+   **hal-coordinator** maintain the single authoritative roadmap at
+   `halucinator/docs/<target-id>/notes/ROADMAP.md`. Link it; never copy the
+   pipeline into `SCAFFOLD.md`.
+5. **Author the architecture specification against live references.**
+   **hal-architect** authors `ARCHITECTURE.md` with the startup, clock and public
+   API contracts, citing the live `embassy-mcxa/DEVGUIDE.md` sections and the
+   concern-specific files named by `AGENTS.md` in the actual checkout, plus the
+   source IDs and hardware citations for every hardware-specific decision.
+   Discharge `live-reference-read` from that citation set; a remembered pattern
+   from this toolkit is not a live reference.
+6. **Compare the foundation requirements against PAC coverage.** Compare each
+   coordinator-owned foundation requirement with the `[[pac.foundation]]`
+   partition and the generated crate, and discharge `foundation-coverage` before
+   any implementation begins. Unrelated peripheral omissions do not block;
+   one missing in-scope item blocks all implementation and returns to
+   **hal-svd**.
+7. **Select the integration candidate and acquire the lock.** Select an unused
+   `halucinator/candidates/integration-*/` root, check the complete write and
+   delete footprint, and let **hal-integrator** acquire the `kind="stage"` lock
+   carrying `stage:scaffold-hal`, `global:hal-integration` and one `path:` entry
+   per touched file. Candidate, canonical and recovery locations must not
+   overlap.
+8. **Author the clock and reset implementation.** **hal-driver** authors
+   `embassy-*/src/clocks/**` against the architect's contract — a real `Gate`,
+   `enable_and_reset`, the usable frequency result and any required lifetime
+   guard — and authors the host-side unit tests of its pure configuration,
+   encoding and arithmetic logic, exhaustive over small legal domains. Discharge
+   `pure-host-tests` from those runs, or record it `not-applicable` with a reason
+   the reviewer audits. A no-op that returns success is not a scaffold.
+9. **Author the shared platform files in the candidate.** **hal-integrator**
+   authors the crate manifest and Embassy docs metadata, the build and
+   code-generation integration, the crate root with `peripherals!` and
+   `interrupt_mod!` plumbing, the chip module, the `init` and configuration
+   policy, and `memory.x` with the linker and runtime wiring — all inside the
+   candidate, never at a canonical path. Compare the generated singleton,
+   interrupt and build mappings against the PAC metadata and discharge
+   `generated-mappings` without editing generated output.
+10. **Run the formatting, lint and build matrix.** Run the repository-required
+    formatting and lint checks for every touched surface and discharge
+    `format-lint`; build the candidate for the advertised MCU and every in-scope
+    feature combination and discharge `advertised-builds`; run the missing and
+    incompatible chip-selection cases against the live feature policy and
+    discharge `negative-chip-selection`, without an indiscriminate
+    `--all-features` and without a fabricated future chip feature. A missing tool
+    leaves a check `unrun`; it does not make it inapplicable.
+11. **Request the source-blind target link.** Request through
+    **hal-coordinator** that **hal-tester** author a minimal binary that calls
+    the real public initialization and links for the cited memory and runtime
+    facts, supplying only the public signatures and contracts, the chip feature
+    and compilation target, the cited memory/runtime and board facts, and the
+    claimed feature combinations. Send no bodies, no implementation files and no
+    LSP response exposing one. The tester authors that binary and nothing else:
+    it runs no build, because compiler, macro and build-script diagnostics quote
+    implementation source and would defeat its blinding. **hal-coordinator** then
+    dispatches **hal-integrator** to compile and link the authored binary inside
+    the candidate and to return sanitized results carrying no HAL-source excerpt.
+    Discharge `target-link` from that actual linked artifact; `cargo check` is
+    not a link. The dispatch is **build-only**: no device operation is performed.
+12. **Build the build-only CI path.** Build the repository's build-only CI entry
+    for the new surfaces in the candidate and discharge `build-only-ci`, with no
+    hardware runner invoked and no separately authorized hardware gate enabled.
+13. **Publish the preliminary handoff, validate it, and obtain the review.**
+    Author the `SCAFFOLD.md` and `STARTUP.md` deltas, let **hal-coordinator**
+    dispatch **hal-integrator** to materialize them and return their FileRefs,
+    preserve a hashed snapshot and recovery record of any deterministic handoff
+    `state.toml` currently pins before replacing it, publish the preliminary
+    `05-platform`, run
+    `python .opencode/schema/validate.py <repository-root> --kind all` again,
+    then request through **hal-coordinator** the independent **hal-reviewer**
+    review over `platform.crate_manifest` and the frozen candidate, and discharge
+    `independent-review` from the accepting verdict. Only review.verdict=ready
+    accepts; ready-with-fixes and not-ready do not.
+14. **Re-attest, publish the final handoff, and run the final gate.** Re-attest
+    where referenced bytes changed — preserve the superseded evidence and review
+    records, create replacement evidence at a new path rather than overwriting
+    one, rerun only the affected checks, and obtain a new review where the
+    reviewed bytes changed — then let **hal-integrator** copy the reviewed bytes
+    verbatim to their canonical paths and commit, publish the final
+    `halucinator/handoff/05-platform.toml`, validate it, let **hal-coordinator**
+    update `state.toml` through the compare-and-swap sequence, run the final
+    `--kind all` gate, and return the record paths, status and next action. State
+    that no peripheral driver, publication or hardware operation was performed.
 
-Inspect the Embassy repository root, worktree, destination crate, roadmap,
-documentation handoff, PAC, and any partial scaffold before asking questions.
-Read existing records first and reuse supplied answers. Ask short questions
-only for missing or conflicting decisions.
+## Validation
 
-Do not require a clean worktree, prerequisite commit, or stash. Preserve dirty
-and unrelated edits. Reconcile overlapping changes explicitly; if ownership or
-intent cannot be resolved, stop on that conflict rather than overwriting it.
-Resolve repository-relative paths, symlinks, and existing parents before
-writing, and confirm their resolved locations remain inside the actual working
-repository. If a required record path is unavailable or escapes it, ask for
-another in-repository path. Never fall back to a remembered target or another
-repository.
+| Check ID | Discharging action | Evidence artifact |
+|---|---|---|
+| `advertised-builds` | Build the candidate for the advertised MCU and every in-scope feature combination | `halucinator/candidates/integration-<id>/evidence/advertised-builds.log` |
+| `build-only-ci` | Build the repository's build-only CI entry for the new surfaces | `halucinator/candidates/integration-<id>/evidence/build-only-ci.log` |
+| `format-lint` | Run the repository-required formatting and lint checks for every touched surface | `halucinator/candidates/integration-<id>/evidence/format-lint.log` |
+| `foundation-coverage` | Compare each coordinator-owned foundation requirement with the `[[pac.foundation]]` partition and the generated crate | `halucinator/candidates/integration-<id>/evidence/foundation-coverage.log` |
+| `generated-mappings` | Compare the generated singleton, interrupt and build mappings against the PAC metadata | `halucinator/candidates/integration-<id>/evidence/generated-mappings.log` |
+| `independent-review` | Request the coordinator-dispatched review over `platform.crate_manifest` and record its accepting verdict | `halucinator/handoff/08-review-platform.toml` |
+| `live-reference-read` | Record the live DEVGUIDE sections, MCXA files, source IDs and hardware citations actually read | `halucinator/docs/<target-id>/notes/ARCHITECTURE.md` citation section, captured as a FileRef |
+| `negative-chip-selection` | Run the missing and incompatible chip-selection cases against the live feature policy | `halucinator/candidates/integration-<id>/evidence/negative-chip-selection.log`, or `reason (no evidence FileRef)` when the live policy documents no negative combination |
+| `pure-host-tests` | Run the host tests over the pure clock, configuration and encoding logic | `halucinator/candidates/integration-<id>/evidence/pure-host-tests.log`, or `reason (no evidence FileRef)` when no such logic was authored |
+| `target-link` | Build the source-blind smoke binary to an actual linked image using the cited memory and runtime facts | `halucinator/candidates/integration-<id>/evidence/target-link.log` |
 
-On resume, compare the exact target, source revisions, PAC identity, bounded
-scope, code/build inputs, toolchain, and features with `SCAFFOLD.md`. Changes
-invalidate only dependent decisions and evidence. Preserve unaffected facts,
-prior evidence, and blocker history; do not erase the record wholesale.
+The validator wiring above is an **honor system**. The self-check can prove this
+skill contains the instruction; it cannot prove an agent ran it, and
+`validate.py` cannot attest to its own earlier invocation. Locks, the
+compare-and-swap sequence and the review gate are the same kind of discipline:
+`global:hal-integration` fences nothing mechanically. Typed evidence hashes
+freshness, not relevance — a reviewer still judges whether an artifact discharges
+the check it is attached to.
 
-### 2. Fix the bounded scope
+## Exit criteria
 
-Record these decisions before implementation:
+### ready
 
-1. Embassy root, destination `embassy-<vendor>` crate, and exact MCU.
-2. Package and board context, including unknowns.
-3. One chip feature and compilation target for the initial MCU.
-4. First planned peripheral and exact intended modes.
-5. One documented startup clock path.
-6. Only the supporting subsystems required by items 4 and 5.
-7. Included and deferred work, exit criteria, and the roadmap path.
+Predicate: `coverage.incomplete` is empty, `coverage.complete` equals the
+included scope, `handoff.can_progress` is absent, `handoff.blockers` is empty,
+the consumed `04-pac` is `ready` against the current `scope.revision` and
+`scope.decision` with `pac.temporary_fork` false, every applicable check is
+`passed`, `platform.dependencies` identities and features are current, the
+reviewed bytes are the frozen candidate that was placed canonically, and the
+independent review accepted. Only review.verdict=ready accepts; ready-with-fixes
+and not-ready do not. Ready here means frozen-candidate **software** readiness
+for the first driver dispatch; it establishes nothing about silicon, a complete
+peripheral driver, or upstream acceptance.
 
-A board-specific clock or pin value is not a universal HAL default. An unknown
-identifier blocks only decisions that depend on it. Keep one roadmap
-authoritative; link it instead of copying the pipeline into `SCAFFOLD.md`. If
-none exists, **hal-architect** establishes one repository-local roadmap and
-records its location.
+### partial
 
-**Scope counter:** pressure to "finish the UART end to end" does not move UART
-into this stage. Record blocking/async/DMA as its planned modes, scaffold only
-their necessary foundations, and hand the UART driver to the next stage.
+Predicate: `handoff.can_progress=true`, `handoff.blockers` is empty, and either
+`coverage.incomplete` is nonempty or at least one applicable check is `unrun` or
+`failed`. Only disposable candidate work continues; a candidate that has not
+passed every gate and an accepting review never reaches a canonical path, and
+partial output is not a narrower completed scope.
 
-### 3. Gate implementation on evidence
+### blocked
 
-Require all of the following before changing scaffold code:
+Predicate: `handoff.can_progress=false`, `handoff.blockers` is nonempty, and
+either `coverage.incomplete` is nonempty or at least one applicable check is
+`unrun` or `failed`. A blocker names a missing foundation item, hardware
+meaning, tool, access, dispatch or decision that only somebody outside this
+stage can supply.
 
-- The live `embassy-mcxa/DEVGUIDE.md` and the concern-specific MCXA files named
-  by `AGENTS.md` in this Embassy checkout. Read the corresponding files for the
-  actual run and cite relevant DEVGUIDE sections; do not use this toolkit as a
-  frozen substitute.
-- The explicitly handed-over repository-relative documentation directory,
-  `SOURCES.md`, applicable source IDs, and cited hardware-note paths. Hardware
-  citations retain title/document number, revision, and section/table/page.
-- A generated PAC whose provenance, version or revision, chip feature,
-  interrupt/peripheral metadata, and foundation coverage have been checked.
-- Cited facts for the selected clock/init path and memory/link requirements,
-  plus pin and board facts when the bounded scope uses them.
+## Application example
 
-Verify coverage, not mere PAC availability. Unrelated peripheral omissions do
-not block scaffolding. However, one missing register, accessor, interrupt, or
-metadata item required by clocks, reset, init, generated singleton/interrupt
-mapping, memory, or a required supporting subsystem blocks **all scaffold code
-implementation**, including the manifest, codegen wiring, crate root, and chip
-module. Until **hal-svd** supplies verified complete foundation coverage, only
-intake, record maintenance, inspection, and analysis may continue. Missing
-hardware meaning returns to **hal-datasheet**. Do not bridge either gap with raw
-register access or invented constants.
+For exact MCU `AX100`, `SOURCES.md` and the cited notes cover reset, the
+internal-oscillator startup path, the SRAM layout, UART0 pins and its DMA
+request, while the generated PAC covers those foundation registers but lacks ADC
+metadata. The coordinator selects UART0 in blocking and DMA modes as the first
+driver. Scaffold only `AX100`, the documented internal-oscillator path, the
+central gate, reset and frequency plumbing, pin mux and DMA support; the ADC gap
+does not block. The emitted handoff:
 
-A personal PAC fork permitted by `AGENTS.md` may support local work in
-progress. It cannot support status `software verified` or a completed handoff.
-Replacing it with a permitted upstream released version or revision, rechecking
-foundation coverage, and rerunning affected evidence clears this current
-blocker; preserve the fork history without treating it as permanent taint.
+```toml
+[handoff]
+schema = 1
+stage = "scaffold-hal"
+status = "ready"
+inputs = [
+  { path = "halucinator/handoff/04-pac.toml", sha256 = "4c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
+]
+notes = [
+  { path = "halucinator/docs/acme-ax100/notes/SCAFFOLD.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
+  { path = "halucinator/docs/acme-ax100/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" },
+]
+blockers = []
 
-### 4. Read the live patterns and record decisions
+[scope]
+revision = "scope-0123abcd"
+decision = { path = "halucinator/scope/scope-0123abcd.toml", sha256 = "8f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e" }
 
-Use the concern map in `AGENTS.md`. At minimum, inspect the live MCXA DEVGUIDE,
-manifest, build integration, crate root, selected chip structure, clocks gate
-and helper implementation, the relevant init/time/supporting subsystem files,
-examples, CI, toolchain, and contribution rules. Follow documented intent over
-a local accident.
+[coverage]
+complete = ["foundation:init-api", "foundation:clock-gate", "subsystem:pin-mux", "subsystem:dma"]
+incomplete = []
 
-Record architectural decisions with live MCXA file or DEVGUIDE citations and
-hardware decisions with source IDs plus hardware citations. Apply the type
-discipline from `AGENTS.md`: keep calculations pure, reject invalid public
-inputs, use meaningful finite types at call boundaries, test small domains
-exhaustively, and avoid typestate or newtypes that encode no plausible caller
-mistake.
+[platform]
+crate_manifest = { path = "embassy-acme/Cargo.toml", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
+pac_manifest = { path = "halucinator/pac/acme/acme-pac/Cargo.toml", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
+roadmap = { path = "halucinator/docs/acme-ax100/notes/ROADMAP.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+startup_clock_contract = { path = "halucinator/docs/acme-ax100/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+foundation_api = [
+  "pub fn init(config: Config) -> Peripherals",
+  "pub trait Gate { fn enable_and_reset(&self) -> Hertz; }",
+]
+supporting_subsystems = ["subsystem:pin-mux", "subsystem:dma"]
+first_driver = "uart"
+first_driver_modes = ["blocking", "dma"]
+source_ids = ["doc-001", "doc-002"]
+cited_notes = [
+  { path = "halucinator/docs/acme-ax100/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" },
+]
 
-### 5. Implement the architect-owned foundation
+[[platform.dependencies]]
+crate = "acme-pac"
+identity = "0.1.0"
+features = ["ax100", "rt"]
 
-**hal-architect** owns:
+[[checks]]
+id = "live-reference-read"
+status = "passed"
+evidence = { path = "halucinator/docs/acme-ax100/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" }
 
-- `Cargo.toml`, Embassy package/docs metadata, and the single-MCU feature
-  policy;
-- build/code-generation integration without editing generated output;
-- crate-root modules, singleton `peripherals!`, and `interrupt_mod!` plumbing;
-- chip-specific structure needed by the selected MCU;
-- top-level configuration and `init` policy; and
-- the public clocks boundary and dependency order.
+[[checks]]
+id = "foundation-coverage"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/foundation-coverage.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 
-Implement initialization against cited hardware. `init` must select and apply
-the agreed clock path and return real peripheral tokens. Required drivers must
-reach clock/reset through the central `Gate` and `enable_and_reset` contract,
-including the usable frequency result and any lifetime guard required by the
-live pattern. Do not make incomplete initialization compile by returning
-success from no-op clock, reset, GPIO, DMA, or time functions.
+[[checks]]
+id = "format-lint"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/format-lint.log", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
 
-### 6. Delegate supporting subsystems
+[[checks]]
+id = "advertised-builds"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/advertised-builds.log", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
 
-Dispatch one **hal-driver** task per required supporting subsystem, in
-dependency order, with:
+[[checks]]
+id = "negative-chip-selection"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/negative-chip-selection.log", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
 
-- exact MCU, file ownership, and bounded behavior;
-- applicable source IDs and cited-note paths;
-- relevant live MCXA files and DEVGUIDE sections;
-- PAC identity and required registers/interrupt metadata;
-- the public contract it must satisfy; and
-- host-test expectations for pure configuration, encoding, and arithmetic.
+[[checks]]
+id = "pure-host-tests"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/pure-host-tests.log", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
 
-GPIO/pin mux, DMA, and a time driver are included only when the selected path
-or first planned peripheral needs them. Link each subsystem's selected record
-from `SCAFFOLD.md`; specialists select their own applicable skills. The first
-peripheral itself remains a separate, later **hal-driver** dispatch. If a
-required specialist is unavailable, record the blocked delegation and next
-action; do not impersonate it or claim it ran.
+[[checks]]
+id = "generated-mappings"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/generated-mappings.log", sha256 = "2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70819" }
 
-### 7. Obtain a source-blind link check
+[[checks]]
+id = "target-link"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/target-link.log", sha256 = "3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a" }
 
-Give **hal-tester** only the public API/contracts and cited build/board facts:
+[[checks]]
+id = "build-only-ci"
+status = "passed"
+evidence = { path = "halucinator/candidates/integration-001/evidence/build-only-ci.log", sha256 = "4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b" }
 
-- exact chip feature, compilation target, and public initialization calls;
-- public configuration and peripheral-token signatures, without bodies;
-- cited memory/runtime/link information and any public observation facility;
-- applicable board facts and source IDs; and
-- claimed feature combinations and expected build-only CI placement.
+[[checks]]
+id = "independent-review"
+status = "passed"
+evidence = { path = "halucinator/handoff/08-review-platform.toml", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
+```
 
-Request a minimal target binary that calls real initialization and links,
-build-only CI wiring, and a public setup/hardware-validation handoff for a later
-**hal-tester** task. Mark the dispatch **build-only scaffold support**.
-Never send HAL source,
-function bodies, copied implementation files, or an LSP response exposing
-bodies. Do not invent an unrelated logging driver merely to print success;
-debugger observation or an already available public facility is sufficient.
-For this scaffold check, the tester compiles and links but does not load, flash,
-or run the binary on hardware. Separately dispatched runtime validation uses
-the tester's selected workflow under `AGENTS.md`'s "Hardware testing" boundary;
-it is not implied by this link check.
-
-### 8. Verify, review, and close
-
-Derive commands, working directories, targets, and feature combinations from
-the live checkout. Record every run's time, command, cwd, features, observed
-outcome, and tested-state identity. Use the commit plus tool-computed hashes of
-relevant dirty and untracked inputs, or an equivalent content snapshot; HEAD
-alone is insufficient in a dirty tree, and `SCAFFOLD.md` itself is not an input
-unless it affects the check. Do not require a commit or stash. If identity
-cannot be established, mark the evidence unverified and rerun before closure;
-never invent a timestamp or hash.
-
-Do not change inputs during a check or review. If code, build inputs, toolchain,
-or features change, invalidate dependent evidence and review findings, preserve
-their history, and rerun before clearing blockers.
-All applicable checks below are required for `software verified`:
-
-- formatting and lint for touched code under repository policy;
-- builds for the advertised MCU and every in-scope option;
-- negative chip-selection checks for missing or incompatible selection where
-  applicable, without indiscriminate mutually-exclusive `--all-features` or
-  fake future chip features;
-- host tests for pure clock/configuration/encoding logic, exhaustive for small
-  legal domains and covering invalid boundaries and arithmetic limits;
-- generated singleton, interrupt, and build mappings checked against PAC
-  metadata, without editing generated output;
-- an actual target link of the source-blind smoke binary using cited
-  memory/runtime facts (`cargo check` alone is insufficient);
-- relevant build-only CI coverage, with no hardware runner invoked; and
-- independent **hal-reviewer** review of the full agreed foundation.
-
-Resolve every required blocking review finding through its owner, then rerun
-checks affected by the change and obtain reviewer recheck where needed.
-`ready with fixes`, an unresolved required finding, or an unreviewed required
-surface is not acceptance. Missing tools, link evidence, live references, or
-required dispatches leave a named blocker; they do not lower the gate.
-
-Use only these statuses:
-
-| Status | Meaning |
-|---|---|
-| `in progress` | Work or applicable software evidence remains. |
-| `blocked` | A named dependency, conflict, tool, link, or required review prevents progress or closure. |
-| `software verified` | Every applicable software gate passed and required review findings were resolved and rechecked. |
-
-Deferred out-of-scope work and pending separately dispatched hardware validation
-do not prevent `software verified` for this scaffold scope. That status is not
-proof of silicon behavior, a complete peripheral driver, or upstream acceptance.
-
-## Concise application example
-
-For exact MCU `VND1234`, suppose `SOURCES.md` and cited notes cover its reset,
-internal-oscillator startup, SRAM layout, UART0 pins, and DMA request, while the
-generated PAC covers those foundation registers but lacks ADC metadata. Plan
-UART0 in blocking and DMA modes. Scaffold only `VND1234`, the documented
-internal-oscillator path, central gate/reset/frequency plumbing, pin mux, and
-DMA support; the ADC gap does not block. Hand the UART0 driver to the next
-stage. The stage remains `blocked` until the smoke binary links and independent
-review findings are resolved, even if the library already passes `cargo check`.
+A fact nobody established is an absent key or an empty collection, never a
+sentinel word.
 
 ## Quick reference
 
-| Question | Answer |
+| Element | Value |
 |---|---|
-| PAC has unrelated gaps? | Continue if verified foundation coverage is complete. |
-| Required foundation PAC item missing? | Block all scaffold code; only intake, records, inspection, and analysis continue until **hal-svd** closes it. |
-| Hardware fact or citation missing? | Block affected decision and return to **hal-datasheet**. |
-| Dirty worktree? | Preserve it; reconcile actual overlaps without commit/stash demands. |
-| Source or PAC revision changed? | Invalidate and rerun only dependent evidence. |
-| First peripheral requested now? | Record its modes and dependencies; driver remains next stage. |
-| Tester needs context? | Send public signatures/contracts and cited facts, never bodies. |
-| Clean check but no link/tests/review? | Not `software verified`. |
-| Required agent/reference unavailable? | Record `blocked`; never fabricate completion. |
+| Stage | `scaffold-hal` |
+| Emitter | `hal-integrator`, the sole committer |
+| Emitted handoff | `halucinator/handoff/05-platform.toml`, kind `05-platform` |
+| Consumes | `04-pac` only; decisions and roots come from coordinator-owned state |
+| Checks | `advertised-builds`, `build-only-ci`, `format-lint`, `foundation-coverage`, `generated-mappings`, `independent-review`, `live-reference-read`, `negative-chip-selection`, `pure-host-tests`, `target-link` |
+| Decisions and roadmap | `hal-coordinator`; roadmap is exactly `halucinator/docs/<target-id>/notes/ROADMAP.md` |
+| Design contracts | `hal-architect`, only `halucinator/docs/*/notes/ARCHITECTURE.md` |
+| Clocks | `hal-driver`, `embassy-*/src/clocks/**`, plus host-side unit tests |
+| Shared files | `hal-integrator`, in `halucinator/candidates/integration-*/` first |
+| Candidate roots | `halucinator/candidates/integration-*/`, `halucinator/candidates/driver-*/`, `halucinator/test-candidates/<name>/` |
+| Lock | `kind="stage"` with `stage:scaffold-hal` and `global:hal-integration`, cooperative only |
+| Routing | every question, delta, review request, scope change and dispatch returns to `hal-coordinator` |
+| Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write |
+| Review gate | Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
+| Ready | empty incomplete, complete equals included scope, `can_progress` absent, empty blockers, fork false, applicable checks `passed`, accepting review over the frozen candidate |
+| Deferred | durable integration journal, owner fencing, cross-clone crash markers |
 
 ## Common mistakes
 
-- Advertising a chip family because the crate layout anticipates one. Support
+- **Routing target, scope or the roadmap to `hal-architect`.** Those are
+  `hal-coordinator` decisions. The architect writes `ARCHITECTURE.md` and
+  nothing else.
+- **Assigning clocks to the architect.** `clock-modules` is `hal-driver`'s, and
+  a clock implementation written by the designer of its own contract is reviewed
+  by nobody.
+- **Editing a canonical shared file in place.** It destroys the frozen-candidate
+  order and makes recovery from an interrupted integration guesswork.
+- **Having a specialist dispatch a peer.** Every cross-owner transition returns
+  to `hal-coordinator`; a direct dispatch leaves the coordinator's state wrong.
+- **Declaring `writes` for a class another agent owns.** `SCAFFOLD.md` is
+  `platform-notes` and belongs to `hal-integrator`; the architect and driver
+  supply deltas.
+- **Advertising a chip family because the layout anticipates one.** Support
   starts with the one implemented feature.
-- Treating PAC presence as proof that foundation registers and metadata exist.
-- Continuing manifest or structural scaffold code after any required foundation
-  PAC item is found missing.
-- Copying MCXA register choices instead of copying its architectural pattern.
-- Adding successful no-op init or clock stubs to reach a green build.
-- Pulling the first planned peripheral into scaffold scope.
-- Giving **hal-tester** implementation source or running hardware as part of
-  this build-only scaffold smoke check.
-- Treating `cargo check`, `ready with fixes`, or stale evidence as completion.
-- Requiring dirty user work to be committed or stashed before proceeding.
-- Invalidating every old hardware claim when only one source changed.
-- Duplicating the roadmap inside `SCAFFOLD.md`.
-
-## Completion output
-
-Return:
-
-1. **Target and bounded scope**: exact MCU, chip feature/target, clock path,
-   supporting subsystems, and first peripheral/modes reserved for next stage.
-2. **Files and decisions**: changed files plus live MCXA/DEVGUIDE and hardware
-   citations.
-3. **Delegation**: each specialist result, including blocked or unavailable
-   dispatches.
-4. **Verification**: commands, cwd, features, outcomes, link artifact, CI, and
-   independent review disposition.
-5. **Records**: repository-relative `SOURCES.md`, `SCAFFOLD.md`, and roadmap
-   paths.
-6. **Status and handoff**: `in progress`, `blocked`, or `software verified`,
-   blockers with owners/actions, and the next peripheral-driver prompt inputs.
-
-Report this scaffold's verification as build-only; link any separate hardware
-results without merging the two.
+- **Treating PAC presence as foundation coverage.** Verify the partition; one
+  missing in-scope item blocks every implementation file.
+- **Adding a no-op `init` or clock stub to reach a green build.** A successful
+  stub is the most expensive kind of false evidence in this stage.
+- **Giving `hal-tester` implementation source, or running hardware, for the
+  build-only link check.** The link check compiles and links; it operates no
+  device.
+- **Quoting only the rejecting verdict.** Stating what does not accept, without
+  stating what does, turns the gate into advice. Use the exact sentence.
+- **Calling a missing tool an inapplicable check.** It is `unrun`, which blocks
+  readiness.
+- **Treating `cargo check` as a target link, or a checkbox as an exit
+  predicate.** The exit predicates are the three above; a checklist is an
+  operator aid.
+- **Describing `global:hal-integration` or the validator wiring as
+  enforcement.** Both are honor systems, and saying otherwise makes every reader
+  trust an attestation nobody made.

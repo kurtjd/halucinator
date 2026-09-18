@@ -7,10 +7,38 @@ halucinator/
   state.toml
   scope/scope-<8hex>.toml
   handoff/01-sources.toml ... 08-review-<artifact>.toml
+  test-candidates/<name>/
+    src/**
+    <manifest>.toml
+    INVENTORY.md
+    evidence/**
   .run/<lock-id>.lock
 ```
 
 Handoffs are mutable current records at deterministic paths. Their bytes become immutable only when another artifact pins them by FileRef hash: replacement makes the pin stale. Scope decisions remain immutable append-only records. `state.toml` is committed mutable coordination. Add `/halucinator/.run/` to the destination root `.gitignore` in M3.
+
+## Committed test-candidate revisions
+
+`halucinator/test-candidates/<name>/` is ratified here as a committed, reviewable location, not scratch. Its members are exactly:
+
+- `src/**` - the black-box test and example sources of one test revision, ownership class `test-candidate-source`;
+- the candidate manifests and `INVENTORY.md`, ownership class `test-candidate-manifests`;
+- `evidence/**` - raw captured run output, ownership class `test-candidate-evidence`.
+
+All three classes are owned by `hal-tester` (`.opencode/ownership.toml:241-254`). This tree is **never** placed under `.run` and is **never** ignored: a gitignored tree is neither reviewable by an independent reviewer nor durable across clones, which is exactly the property typed evidence FileRefs depend on. The destination root `.gitignore` therefore adds only `/halucinator/.run/` and carries no pattern that matches any test-candidate path.
+
+The destination `.gitattributes` records the byte policy for this tree as exactly these four lines:
+
+```gitattributes
+halucinator/test-candidates/*/src/** text eol=lf
+halucinator/test-candidates/*/*.toml text eol=lf
+halucinator/test-candidates/*/INVENTORY.md text eol=lf
+halucinator/test-candidates/*/evidence/** -text
+```
+
+Source, manifests and the inventory are normalized text so that a hash is stable across platforms; captured evidence is binary-safe so that a run capture is preserved byte for byte and its FileRef hash means what it claims.
+
+`hal-integrator` materializes both the ignore entry and the attribute lines when `hal-coordinator` dispatches it. Two limitations remain open and are **not** closed by this ratification. H9 is open: the byte policy above is specified here but is not installed in any destination by this schema, so a clone without those lines has no policy at all. E10 is open: the validator checks the four mandated lines literally as text and never invokes `git check-attr`, so the *effective* Git attributes of a working tree remain unverified (`validate.md:83`).
 
 ## Named roots and paths
 

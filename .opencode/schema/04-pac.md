@@ -4,7 +4,7 @@ Stage `generate-pac`; first note is deterministic `<documentation>/notes/PAC.md`
 
 Required: `pac.crate_manifest` ArtifactRef; `pac.package`; tagged `pac.revision` (`revision` value or `workspace`); `pac.cargo_chip_feature`; `pac.runtime_features` and `metadata_features` sorted string[]; `pac.rust_compilation_target`; `pac.source_ids` sorted string[]; `pac.cited_notes` FileRef[]; `pac.temporary_fork` boolean; and `[[pac.foundation]]`. Produced by `generation-and-checks.md:322-365`, consumed by `scaffold-hal/SKILL.md:90-112`. `pac.api_locations` is deleted because exact foundation requirements own required API/metadata locations.
 
-Each foundation entry is exact `{id,kind,location,status,evidence}`. ID/kind/location equals one architect-owned foundation requirement. Status is `covered|missing`; evidence FileRef is required only for covered. Entries exactly partition all requirements. Ready permits only covered.
+Each foundation entry is exact `{id,kind,location,status,evidence}`. ID/kind/location equals one coordinator-owned foundation requirement. Status is `covered|missing`; evidence FileRef is required only for covered. Entries exactly partition all requirements. Ready permits only covered.
 
 Canonical checks:
 
@@ -22,4 +22,4 @@ Canonical checks:
 | `final-path-build` | mandatory | `generation-and-checks.md:215,301-320`. |
 | `independent-review` | mandatory; accepting 08 review over crate manifest | `generate-pac/SKILL.md:93-105`. |
 
-Ready requires core/architect decisions, all requirements covered, fork false, and applicable checks passed.
+Ready requires core/coordinator decisions, all requirements covered, fork false, and applicable checks passed.

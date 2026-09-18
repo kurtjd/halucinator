@@ -3,7 +3,10 @@
 This is **hal-tester**'s generic setup and execution procedure for
 `write-examples`. Peripheral validation references supply the specific fixtures,
 stimuli, and expected behavior; they do not replace these execution gates.
-Use the test-record reference loaded by the skill for evidence fields.
+Use the test-record reference loaded by the skill for evidence fields. Sections
+1 and 2 discharge the `hardware-admission` check; sections 4 and 5 discharge
+`hardware-execution`. Every setup question, repair and review request returns
+through **hal-coordinator**; this procedure dispatches nobody.
 
 An explicitly build-only task does not enter this procedure or require hardware
 readiness. For runtime work, source blindness remains mandatory throughout:
@@ -30,7 +33,9 @@ memory address, or loader flag to complete a recipe.
 If preparation firmware is needed before wiring, treat it as its own authorized
 device operation. Plan each intermediate power, reset, and connection state;
 the final fixture being safe does not establish that the preparation is safe.
-Shared linker/startup changes return through **hal-architect** to their owner.
+Shared linker/startup changes return through **hal-coordinator** to their owner,
+which is **hal-integrator** for linker, runtime and CI wiring and **hal-driver**
+for clock and reset implementation.
 Do not turn a test into a custom loader or instrumentation project.
 
 ## 2. Confirm readiness and authorization
@@ -42,8 +47,8 @@ The user performs physical actions, not test commands. Missing tool/device
 access is a blocker, not a reason to substitute a human-run recipe.
 
 If the specialist cannot ask directly, return a **setup-required** handoff to
-**hal-architect**: cited instructions, exact outstanding questions, named device,
-and requested operations. Resume with the recorded confirmation. Reconfirm when
+**hal-coordinator**: cited instructions, exact outstanding questions, named
+device, and requested operations. Resume with the recorded confirmation. Reconfirm when
 hardware, wiring, power arrangements, operation scope, or risks change; do not
 reuse confirmation for a different fixture or more destructive loading mode.
 
@@ -75,8 +80,9 @@ Flash is allowed only when the named device and intended erase/program ranges
 are explicitly authorized. Explain that existing firmware may be overwritten
 and request approval if it is not already recorded. Never silently turn RAM-only
 authorization into flash programming or discard failed evidence when switching
-modes. Ordinary testing does not authorize mass erase, security unlock,
-fuse/option-byte changes, or destructive recovery.
+modes. This workflow never performs mass erase, security unlock, fuse or
+option-byte operations, or destructive recovery. No authorization obtained
+within this workflow makes any of them permissible.
 
 A RAM run does not validate normal flash boot, bootloader handoff, or power-cycle
 behavior. If those are required, arrange separately authorized coverage and keep

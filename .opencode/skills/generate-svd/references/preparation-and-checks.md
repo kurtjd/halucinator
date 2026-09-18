@@ -233,12 +233,36 @@ unrun replay as reproducible.
 
 ## Preparation record and handoff
 
-Keep the record in the documentation directory's `notes/` and register its path,
-the PAC project root, and SVD artifact directory in `SOURCES.md`. Exact run paths
-and evidence belong in this record and its handoff, not the source catalog.
-Reuse an existing same-scope record, preserving earlier results when inputs
-change. No second source catalog or new machine-readable schema is required.
-Include:
+The preparation record is not a soft convention. Its path is the exact
+deterministic `<documentation>/notes/SVD.md`, resolved against the documentation
+root recorded in state, and it is the **first** entry of `handoff.notes` in
+`halucinator/handoff/03-svd.toml`. The schema fixes it at
+[`03-svd.md`](../../../schema/03-svd.md); the ownership class is
+`svd-pac-notes`, owned by `hal-svd`. Reuse the same-scope record on a rerun,
+preserving earlier results when inputs change.
+
+Register that path, the PAC project root and the SVD artifact directory in
+`SOURCES.md` through the catalog delta that `hal-coordinator` has
+`hal-integrator` materialize. Exact run paths and check evidence belong in the
+record and the typed handoff, not in the source catalog. No second source
+catalog is created.
+
+The record carries the human-readable detail; the typed handoff carries the
+machine-readable contract. Keep the two consistent:
+
+| Handoff field | What the record must support |
+|---|---|
+| `svd.route` | the selected route and the evidence that it is the upstream route |
+| `svd.source` | the original or authored SVD, with its source ID and hash |
+| `svd.transforms`, `svd.includes` | ordered corrections and their includes, with hashes and cited justifications |
+| `svd.prepared_manifest` | the prepared-output inventory, when prepared YAML is carried forward |
+| `svd.extraction_mode`, `svd.namespace_mode` | the exact modes used in baseline, prepared and replay |
+| `svd.representation_limits` | every fact the IR cannot carry, with consumer impact |
+| `svd.unresolved_facts` | every required fact still unestablished |
+| `checks.*` | one entry per canonical check, with its evidence FileRef or its `not-applicable` reason |
+| `coverage.*`, `scope.*`, `handoff.inputs` | the declared scope and the exact predecessor bytes consumed |
+
+Include in the record:
 
 1. **Scope and roots:** target/core/revision, reviewed and excluded peripherals,
   source repository root, actual documentation and PAC project roots, SVD input
@@ -246,18 +270,18 @@ Include:
   root was explicitly supplied, reused, or defaulted. Resolve each relative path
   against its named root, not the agent's working directory.
 2. **Inputs:** source IDs/revisions/hashes, original or authored SVD path,
-   ordered transforms and includes with hashes, and cited findings. Record
-   unknown hashes/revisions as unchecked, never fabricated.
+   ordered transforms and includes with hashes, and cited findings. An
+   unestablished hash is recorded as an `unrun` check, never fabricated.
 3. **Review and corrections:** per-item source citation, baseline value or
    structure, expected correction, selector context/matches, observed result,
    and unresolved facts. Distinguish source-verified from vendor-only entries.
 4. **Checks:** schema origin/version, exact tools/revisions, working directory,
    commands/options, output inventory, results and warnings, replay comparison,
    and unrun checks. Separate XML, source-fact, and IR validation evidence.
-5. **Handoff:** reproducible input paths, optional prepared YAML paths,
-   facts absent from IR, downstream impact, coverage gaps, readiness for the
-   declared scope, and next action through **hal-architect**. No Rust PAC or
-   hardware behavior has been verified by this stage.
+5. **Handoff:** reproducible input paths, prepared YAML paths where they are
+   carried, facts absent from IR, downstream impact, coverage gaps, readiness for
+   the declared scope, and the next action through **hal-coordinator**. No Rust
+   PAC or hardware behavior has been verified by this stage.
 
 ## Skill acceptance scenarios
 
@@ -270,14 +294,14 @@ were actually executed. A procedural fixture is not evidence about real silicon.
 | Applicable supplied SVD, no defect in reviewed scope | No gratuitous correction; preserved original; scoped checks and handoff |
 | Supplied SVD with a documented correction | Cited transform matches the intended input, changes the intended items, and preserves unrelated items |
 | No suitable SVD, complete cited findings | Authored XML for only the declared scope; schema and fact checks; no guessed required properties |
-| Missing citation, conflicting sources, or wrong part | Explicit affected scope and return to hal-architect; no invented hardware value |
+| Missing citation, conflicting sources, or wrong part | Explicit affected scope and return to hal-coordinator; no invented hardware value |
 | Malformed XML or unsupported correction | Blocker before the unsupported operation; no vendor overwrite or fabricated transform |
 | Required transform matches nothing or too much | Failed effect check even if the tool exits successfully |
 | Empty/missing output or skipped expected item | Failed inventory check; no vacuous success from checking zero files |
 | Reset/access fact absent from IR | Source comparison and explicit limitation; no claim the IR preserved or verified it |
 | Source hash/revision changes on resume | Preserve old source IDs; invalidate and rerun affected checks from the new input |
 | Tool, schema, or permission unavailable | Review may continue, but required executable checks remain unrun and readiness is partial/blocked |
-| Missing source/target/scope handoff | Request only the missing evidence through hal-architect; an absent SVD root alone is not a blocker |
+| Missing source/target/scope handoff | Request only the missing evidence through hal-coordinator; an absent SVD root alone is not a blocker |
 | New target, no supplied or recorded locations | Select `halucinator/pac/<vendor>/`; use `data/svd/<target-id>/` for inputs and a fresh `derived/svd/<target-id>/<run-id>/` within it; no generator/Cargo setup |
 | Another chip sharing a recorded PAC project | Reuse that project and select only the new target's input/run paths; no duplicate generator or crate |
 | Recorded custom or legacy roots | Reuse their actual paths and subdirectory names; no silent move to defaults |

@@ -7,10 +7,10 @@ Every row names an actual producer or classifies an execution-time condition. Ch
 | `generate-svd/SKILL.md:43-50` | docs, source list, target, scope, part/core/revision | state + 01 + scope decision | roots/target; `sources.catalog`; `scope.*` | typed producer |
 | `generate-svd/SKILL.md:52-56` | current input hashes/revisions | 01/common | FileRefs, `input-identity` | typed producer |
 | `generate-svd/SKILL.md:58-67` | producer-evaluable route; facts for author route | 01 + 02 | `sources.route`; facts/citations/checks | typed producer |
-| `generation-and-checks.md:98-112` | architect-approved scope, core, dependencies, exclusions, consumer requirements | architect before PAC dispatch | state current scope/target/decisions/foundation requirements | typed architect decision; removed from 03 writer |
+| `generation-and-checks.md:98-112` | accepted scope, core, dependencies, exclusions, consumer requirements | `hal-coordinator` before PAC dispatch | state current scope/target/decisions/foundation requirements | typed coordinator decision; removed from 03 writer |
 | `generation-and-checks.md:108-110` | source/SVD/recipe/check evidence | 03 | source/transforms/modes and closed checks | typed producer |
 | `generation-and-checks.md:111` | representation-limit assessment | 03 | `information-limits` check evidence plus `svd.representation_limits` | typed producer |
-| `generation-and-checks.md:112` | chip/runtime/metadata needs | architect | state decisions/foundation requirements | typed producer |
+| `generation-and-checks.md:112` | chip/runtime/metadata needs | `hal-coordinator` | state decisions/foundation requirements | typed producer |
 | `scaffold-hal/SKILL.md:55-70` | target, package/board, PAC, immutable scope, feature/target, first peripheral/modes, roadmap | state + 04 | tagged package; decisions; roots; PAC fields | typed producer; modes co-required |
 | `scaffold-hal/SKILL.md:84-89` | live DEVGUIDE/MCXA references available/read | executing scaffold agent | `live-reference-read` | execution-time external condition |
 | `scaffold-hal/SKILL.md:90-96` | sources/citations/PAC provenance and exact foundation facts | 04 + state + 02 | PAC refs and exact foundation partition | typed producer; no broad categories |
@@ -37,14 +37,14 @@ Every row names an actual producer or classifies an execution-time condition. Ch
 
 ## Field writer audit
 
-- Architect alone writes target, immutable scope decisions, Cargo/target/first-driver decisions, and foundation requirements before dispatch.
+- `hal-coordinator` alone writes target identity, immutable scope decisions, Cargo chip feature, Rust compilation target, first-driver decisions, and foundation requirements before dispatch (`.opencode/ownership.toml:207-219,282-284`). `hal-architect` writes only the architecture specification.
 - Each specialist writes only its own handoff after possessing its result.
 - Reviewer writes only 08; producer handoffs reference completed reviews as check evidence when closing.
-- Tester writes only 07 and public records.
+- `hal-tester` authors test content, test evidence, and the 07 handoff in its own committed test-candidate tree; `hal-integrator` materializes durable records, including the canonical test record (`.opencode/ownership.toml:257-264`). The integrator materializes durable records; the tester never writes them.
 - M6-only lock fields are listed centrally in `layout.md`; no other field lacks a current named reader.
 
 Deleted for lack of a concrete reader: `sources.coverage`, `facts.suggested_public_types_note`, free PAC representation-limits field, bare platform public-contract note. Review recheck was retained only as tagged lineage because resumption/recheck gates read it.
 
 ## Result
 
-This revision walks 30 grouped rows, including all eleven previously omitted execution-time preconditions. The previously overstated rows were re-derived: consumer requirements now come from state; preparation tool details are evidenced by closed checks/notes; first-driver choice is explicitly architect-owned; foundation coverage is exact; dependency versions are structured; tester/API and reviewer claims now name concrete fields rather than broad note categories.
+This revision walks 30 grouped rows, including all eleven previously omitted execution-time preconditions. The previously overstated rows were re-derived: consumer requirements now come from state; preparation tool details are evidenced by closed checks/notes; first-driver choice is explicitly coordinator-owned; foundation coverage is exact; dependency versions are structured; tester/API and reviewer claims now name concrete fields rather than broad note categories.

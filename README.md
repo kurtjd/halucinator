@@ -59,7 +59,8 @@ the working repository, normally the Embassy checkout:
 - `halucinator/test-candidates/<name>/`: the tester's black-box test revisions —
   source, manifests, and raw run evidence. These are **committed**, not hidden
   scratch: a gitignored directory is neither reviewable nor durable across
-  clones. Ratifying this layout in the schema is deferred; see `TODO.md`.
+  clones. The schema ratifies this layout in
+  [`.opencode/schema/layout.md`](.opencode/schema/layout.md).
 
 See [artifact storage and handoff](AGENTS.md#artifact-storage-and-handoff)
 for defaults, overrides, and preserving existing locations, and
@@ -283,8 +284,17 @@ therefore still assign ownership, dispatch or verdict vocabulary to the wrong
 agent. **The agent contract and `.opencode/ownership.toml` win; the skill's
 domain procedure applies only inside the dispatched agent's ownership
 boundary.** Every agent carries that precedence sentence and the IDs of the
-conflicts that affect it. Reconciling the skills is a later milestone — see
-`TODO.md`.
+conflicts that affect it.
+
+The skill retrofit has since resolved conflicts 1–5, 7, 8, 10 and 11 in the
+skill layer: those five skills — `gather-documentation`, `generate-svd`,
+`generate-pac`, `scaffold-hal`, `write-examples` — now state ownership,
+dispatch and verdict vocabulary consistent with the agents, so the cited line
+ranges below record what was wrong rather than what a reader will find today.
+Conflicts 6 and 9 remain, because `write-gpio` and `write-time-driver` are
+replaced by a later milestone — see `TODO.md`. The precedence rule stays stated
+in every agent, both for that remainder and because an installed agent may meet
+an unreconciled or third-party skill.
 
 The verified conflicts, defined here once so no agent file copies a
 citation that can drift:
