@@ -1,0 +1,70 @@
+schema = 1
+generation = 9
+
+[target]
+vendor = "Unobtainium Circuits"
+mcu_part_number = "UC-NOT-A-REAL-MCU-0001"
+target_id = "unobtainium-circuits-uc-not-a-real-mcu-0001"
+vendor_id = "unobtainium-circuits"
+package = { kind = "unknown" }
+core = "fictional-core"
+
+[scope]
+current_revision = "scope-0123abcd"
+current_decision = { path = "halucinator/scope/scope-0123abcd.toml", sha256 = "75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b" }
+
+[decisions]
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
+rust_compilation_target = "thumbv7em-none-eabi"
+destination_crate = { path = "embassy-unobtainium" }
+first_peripheral = "schema-demo"
+first_peripheral_modes = ["blocking"]
+foundation_requirements = [
+  { id = "foundation:init-api", kind = "api", location = "embassy_unobtainium::init" },
+  { id = "foundation:interrupt-metadata", kind = "metadata", location = "metadata.interrupts" },
+]
+
+[roots]
+documentation = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001" }
+sources = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md" }
+pac_project = { root = "generation:fictional-pac", path = "." }
+svd_inputs = { root = "generation:fictional-pac", path = "data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001" }
+generator = { root = "generation:fictional-pac", path = "generator" }
+pac_crate = { root = "generation:fictional-pac", path = "unobtainium-pac" }
+roadmap = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md" }
+generation = [
+  { name = "fictional-pac", authorization = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md", sha256 = "6911e660958ba28d36d0b66eb8280a38393c7c0aad35227e7dbf21f22e3e9c0d" } },
+]
+
+[[stages]]
+id = "gather-documentation"
+status = "ready"
+handoff = { path = "halucinator/handoff/01-sources.toml", sha256 = "91ab78d4c762cf5009b01e87d9334ea662c2fa1b594cbbffc1ae9041a7e34cf7" }
+[[stages]]
+id = "extract-facts"
+status = "ready"
+handoff = { path = "halucinator/handoff/02-facts.toml", sha256 = "082514af5e3e7a4da351731533a83a6dbf9d8fc10896b51e4ef2fd258bfb9c16" }
+[[stages]]
+id = "generate-svd"
+status = "ready"
+handoff = { path = "halucinator/handoff/03-svd.toml", sha256 = "2e829e623de0702cdae8bfcf556aa6b98f7ca0aae122bc67d09b266228ecbbd9" }
+[[stages]]
+id = "generate-pac"
+status = "ready"
+handoff = { path = "halucinator/handoff/04-pac.toml", sha256 = "b31efc122f30c7d4780ef77b563b739cf97afc924c7f8f5dd924bd025371ab27" }
+[[stages]]
+id = "scaffold-hal"
+status = "partial"
+handoff = { path = "halucinator/handoff/05-platform.toml", sha256 = "d008d533f86ec59f6300196551ddb2da18ddb85ad3ff20e70e4f25addc1cf44e" }
+[[stages]]
+id = "write-driver:schema-demo"
+status = "partial"
+handoff = { path = "halucinator/handoff/06-driver-schema-demo.toml", sha256 = "ce52fe56b2c9bfc788dc47f5d77e5af641a663ec04c09968870c8425ea3e2ef7" }
+[[stages]]
+id = "write-tests:schema-demo"
+status = "partial"
+handoff = { path = "halucinator/handoff/07-tests-schema-demo.toml", sha256 = "fcdacb8bc47821376b983990bd58a89d1fd07303d97400f0a6d8c03ae1a2367c" }
+[[stages]]
+id = "review:pac"
+status = "ready"
+handoff = { path = "halucinator/handoff/08-review-pac.toml", sha256 = "593ec9e540d1a85372dfc8b13691b401684ca976a19907a492a98b15b8d3895a" }

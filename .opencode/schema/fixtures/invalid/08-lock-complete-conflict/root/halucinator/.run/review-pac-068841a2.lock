@@ -1,0 +1,10 @@
+schema = 1
+stage = "review:pac"
+status = "in-progress"
+kind = "stage"
+owner = "fixture-owner-a1b2c3"
+host = "fixture-host"
+pid = 4242
+acquired_at = "2026-01-02T03:04:05Z"
+heartbeat_at = "2026-01-02T03:04:35Z"
+resources = ["stage:review:pac"]

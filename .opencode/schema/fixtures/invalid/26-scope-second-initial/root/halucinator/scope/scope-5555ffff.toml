@@ -1,0 +1,6 @@
+schema = 1
+revision = "scope-5555ffff"
+previous = { kind = "initial" }
+included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+excluded = ["peripheral:adc"]
+reason = "Second initial decision"

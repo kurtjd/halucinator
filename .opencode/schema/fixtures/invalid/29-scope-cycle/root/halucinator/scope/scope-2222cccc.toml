@@ -1,0 +1,6 @@
+schema = 1
+revision = "scope-2222cccc"
+previous = { kind = "revision", revision = "scope-1111bbbb", decision = { path = "halucinator/scope/scope-1111bbbb.toml", sha256 = "a1428b4c9c844d771ed77f9a8fd413f50dcf452d45dd63161910001b18af9928" } }
+included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+excluded = ["peripheral:adc"]
+reason = "Cycle node two"
