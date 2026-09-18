@@ -70,7 +70,10 @@ tokens and loses fields.
   with soft defaults, discoverable only via a free-text bullet the
   consumer never quotes. The same file pins external GitHub deps to
   40-hex SHAs (`generation-and-checks.md:33-49`). *(Closed by deterministic
-  handoff filenames plus pinned `notes/SVD.md` and `notes/PAC.md`.)*
+  handoff filenames plus pinned `notes/SVD.md` and `notes/PAC.md`; M3 also
+  names the exact `<documentation>/notes/SVD.md` and
+  `<documentation>/notes/PAC.md` paths in both skills and references and
+  deletes the soft alternatives.)*
 - [x] **A8** Write-only fields that nothing reads:
   `Next SVD action and source IDs` (`source-list-format.md:159`),
   `Hardware-analysis prerequisites`,
@@ -82,7 +85,10 @@ tokens and loses fields.
   headings. `generation-and-checks.md:105-112` substitutes a 6-row table
   for the note's 5 headings; `Representation limits` and `Consumers` have
   no upstream heading, and `Handoff` has no admission row. *(Closed: PAC
-  admission vocabulary now maps directly to SVD field names.)*
+  admission now maps one-to-one onto `svd.route`, `svd.source`, the recipe
+  quad, `svd.prepared_manifest`, `svd.representation_limits`,
+  `svd.unresolved_facts`, `checks.*`, `handoff.inputs` and `scope.*`; the
+  `Consumers` and `Representation limits` pseudo-fields are deleted.)*
 - [x] **A10** Nine null sentinels coexist with no mapping (`unknown`,
   `not provided`, `none`, `not checked`, `none recorded`, `not selected`,
   `none yet`, `unverified`, `in progress`). `source-list-format.md` never
@@ -101,11 +107,11 @@ tokens and loses fields.
   `write-time-driver/SKILL.md:118`, `scaffold-hal/SKILL.md:221`,
   `scaffold-record.md:86`). The value that *is* acceptance is unwritten.
   *(Closed by the `ready|ready-with-fixes|not-ready` verdict enum; only
-  `ready` accepts. M2 additionally makes `hal-coordinator` and
-  `hal-reviewer` state the accepting token in prose, and selfcheck rejects
-  the legacy spaced spelling in both. The five `SKILL.md` call sites are
-  untouched and still quote only the rejected value; reconciling them is
-  M3 — see D18.)*
+  `ready` accepts. M2 made `hal-coordinator` and `hal-reviewer` state the
+  accepting token in prose. M3 makes all call sites in the five retrofitted
+  skills state the accepting sentence, and a case-insensitive scan finds no
+  `not ready` or `ready with fixes` survivor in them. `write-gpio` and
+  `write-time-driver` still carry the legacy spelling and are M4's.)*
 - [x] **A13** Path-base ambiguity. The catalog-to-root translation clause
   lives only in the producer's reference (`source-list-format.md:78-79`);
   `generate-svd` never mentions it. Two normalization rules coexist:
@@ -113,36 +119,83 @@ tokens and loses fields.
   repository-root path base with named authorized roots, and distinct
   target and vendor normalization rules.)*
 - [ ] **A14** The typed schema is defined, validated and fixture-tested.
-  *Progress: M2 retrofits the eight agent contracts to emit and consume it —
-  every agent declares its kind and the complete structural leaf set for it
-  (`.opencode/agents/*.md` contract fences), and selfcheck derives that leaf
-  set from `validate.py`'s AST so the declaration cannot drift from the
-  validator. What M2 did **not** do: it modified no `SKILL.md`, so no skill
-  emits or reads a handoff, no skill invokes the validator, and the prose
-  procedures still exchange Markdown. The retrofit of the skills is M3.*
-  *Owner: M3.*
-- [ ] **A15** `halucinator/test-candidates/` is an M2-local convention. The
+  *Progress: the typed chain `01-sources → 03-svd → 04-pac → 05-platform`
+  now flows on the `review-supplied` route. Each producer writes a
+  deterministic handoff — `halucinator/handoff/01-sources.toml`,
+  `03-svd.toml`, `04-pac.toml`, `05-platform.toml` — and each consumer's
+  declared admission matches the producer's declared emission field for
+  field, verified against the AST-derived registry from
+  `.opencode/schema/validate.py`. The `unresolved` source route correctly
+  admits nothing. The chain still stalls in two places. At `01 → 02`, on
+  the `author-from-docs` route, `generate-svd` cannot reach `ready` without
+  a ready `02-facts`. At `05 → 06`, no retrofitted procedure produces a
+  typed `06-driver`, so `write-examples` must not be invoked as a
+  typed-ready continuation from `05`. It is not that no typed producer
+  exists: M2 already made `hal-datasheet` a typed `02-facts` emitter and
+  `hal-driver` a typed `06-driver` emitter in their agent contracts. What
+  is missing at both boundaries is a template-conforming skill procedure —
+  one carrying the validator wiring, deterministic publication sequence,
+  canonical check discharge and typed exit predicates. M5 owns the facts
+  procedure; M4 owns the driver procedure. Given a valid ready `06-driver`,
+  `write-examples`'s `06 → 07` admission is already field-correct. Owner:
+  M4 and M5 for the two missing procedures.*
+- [x] **A15** `halucinator/test-candidates/` is an M2-local convention. The
   tester's committed test revisions live there because `.run/` is gitignored
   and therefore neither reviewable nor durable across clones, but M2 may not
   edit `.opencode/schema/*`, so `layout.md` does not know the root exists.
   Ratify it in layout policy, and settle the `.gitattributes`/`.gitignore`
-  consequences of committing test source, manifests and raw logs.
-  *Owner: M3.*
-- [ ] **A16** Schema prose still attributes decisions to the architect.
+  consequences of committing test source, manifests and raw logs. *(Closed
+  in `.opencode/schema/layout.md`: the committed root, `src/**`, manifests,
+  `INVENTORY.md` and `evidence/**` are ratified with three ownership classes;
+  the root is never `.run` and never ignored, and the destination
+  `.gitignore` and four `.gitattributes` lines are specified. This does not
+  close H9 or E10.)*
+- [x] **A16** Schema prose still attributes decisions to the architect.
   `.opencode/schema/state.md` and `.opencode/schema/04-pac.md` call scope,
   the Cargo chip feature, the first peripheral and the foundation
   requirements architect-owned; under the eight-agent topology they are
   `hal-coordinator`'s. Only the attribution is wrong — no field shape
-  changes. *Owner: M3.*
-- [ ] **A17** `.opencode/schema/selfcheck.md` is stale. It documents five
+  changes. *(Closed in `.opencode/schema/state.md`, `04-pac.md`,
+  `traceability.md` and `03-svd.md`: attribution now belongs to
+  `hal-coordinator`, and stale tester-record ownership in `traceability.md`
+  is corrected. Residual architect terminology in
+  `.opencode/schema/validate.py:1049-1066` is A20; M3 was forbidden from
+  editing the validator.)*
+- [x] **A17** `.opencode/schema/selfcheck.md` is stale. It documents five
   agents and the old tester-only permission keys, and describes none of the
-  thirteen topology checks M2 added to `tools/selfcheck.py`. *Owner: M3.*
+  thirteen topology checks M2 added to `tools/selfcheck.py`. *(Closed by the
+  rewritten self-check reference: eight agents with one primary, generic
+  heterogeneous permission parsing, all 32 invoked checks, the AST-derived
+  registry, raw-fence parsing, bounds and timeouts, the uniform allowlist,
+  and the honour-system limitation.)*
 - [ ] **A18** An arbitrary `state.decisions.destination_crate` defeats the
   static permission globs. The tester's blinding denies `embassy-*/**` and
   the driver and integrator are bounded by `embassy-*/` patterns; a HAL crate
   placed anywhere else is outside all of them, and agent frontmatter cannot
   interpolate a runtime path. Investigate destination-aware policy without
   claiming dynamic frontmatter generation. *Owner: M3 to investigate.*
+- [ ] **A19** **ESCALATED — validator soundness defect.**
+  `.opencode/schema/validate.py:1525-1527` stores only the first discovered
+  handoff per stage in `world.by_stage`, so multiple `06-driver-<name>`
+  handoffs collapse into one entry. Ready dependency admission at
+  `.opencode/schema/validate.py:1068-1091` then looks up only that first
+  entry, and no rule proves `tests.api_handoff` names the
+  `06-driver-<name>.toml` matching `tests.name`. With multiple drivers, a
+  `07-tests-<name>` handoff can therefore become `ready` against the wrong
+  driver's API handoff. This was found by exercising the M1 schema against
+  a real M3 consumer, exactly what this milestone's sequencing was designed
+  to surface. Reviewer assessment: repair needs no field name, diagnostic
+  code, wire-format or schema-version change. Validator matching logic
+  should resolve `tests.api_handoff` to the exact named and hash-matching
+  `06`, with multi-driver fixtures proving correct and incorrect pairings.
+  M3 was forbidden from editing the validator, so it remains untouched and
+  is disclosed in `write-examples/SKILL.md`. *Recommended owner: M4, which
+  authors the generic typed `06` producer and must make that boundary
+  operational.*
+- [ ] **A20** Architect terminology remains in
+  `.opencode/schema/validate.py:1049-1066` after A16 corrected the prose.
+  This is attribution only, with no field change. M3 could not edit the
+  validator. *Owner: M4, with A19, since both are validator edits.*
 
 ---
 
@@ -201,10 +254,11 @@ tokens and loses fields.
   gap is tracked as A18.)*
 - [ ] **B8** Loading `write-gpio` or `write-time-driver` loads the full
   implementation procedure into the tester's context before the "stop
-  reading here" row can take effect (`write-gpio/SKILL.md:17-32`). *M2 may
-  not edit a `SKILL.md`, so this is untouched: the leak is in the skill
-  body, not in the agent contract, and no permission rule can prevent it.
-  Owner: M3 (skill restructuring) or M4.*
+  reading here" row can take effect (`write-gpio/SKILL.md:17-32`). Heading
+  order cannot fix this because loading a skill exposes the whole body
+  before any stop-reading row takes effect. *Owner: M4, which must make
+  implementation and validation role-safe so the tester loads validation
+  only.*
 - [x] **B9** No `hal-integrator`. Nothing owns wiring tester-authored
   test modules into the crate, nor the serialized commit point. *(Closed by
   `.opencode/agents/hal-integrator.md`: sole writer of 21 shared file
@@ -221,17 +275,15 @@ tokens and loses fields.
   *(Closed: every specialist declares `dispatched-by: hal-coordinator`,
   `may-dispatch: none` and `task: deny`. There is one hub and no
   peer-to-peer route.)*
-- [ ] **B12** `clocks` is claimed three ways
+- [x] **B12** `clocks` is claimed three ways
   (`hal-architect.md:110-114`, `hal-driver.md:132-134`,
   `scaffold-hal/SKILL.md:30-32,139`) and is absent from scaffold's own
   delegation list (`scaffold-hal/SKILL.md:160`). No spec, trait shape or
   signature exists anywhere. `PreEnableParts` has zero hits in any skill.
-  *Progress: resolved across the agents — the registry gives
-  `clock-modules` to `hal-driver` alone, and `hal-architect` writes the
-  clock **contract** into `ARCHITECTURE.md` without implementing it.
-  `scaffold-hal/SKILL.md:129-146` still assigns clocks to the architect
-  (README conflict 1), so the contradiction is closed only on the agent
-  side. Owner: M3, with D18.*
+  *(Closed across agents and skills: the registry and the re-cut
+  `scaffold-hal/SKILL.md:129-146` give `embassy-*/src/clocks/**` to
+  `hal-driver`, implemented against the architect's contract, and name the
+  old architect assignment as a common mistake.)*
 - [x] **B13** Interrupt table claimed by both `hal-svd.md:67` and
   `hal-architect.md:136`. *(Closed: interrupt metadata is `hal-svd`'s;
   `hal-architect` no longer mentions it, and the generated mapping file
@@ -324,19 +376,30 @@ Verified as grep-absences across all agents and skills.
   the work and forbids falling back to a remembered procedure. Read
   literally, a UART tester is blocked by its own skill — and
   `scaffold-hal/SKILL.md:78-80` uses UART as its worked example.
-- [ ] **D3** No common skill template. Only `scaffold-hal` has an example,
+- [x] **D3** No common skill template. Only `scaffold-hal` has an example,
   quick reference, and common-mistakes section (`:237-277`). Checklists
   are checkboxes in one place (`scaffold-record.md:107-131`) and prose in
-  another (`gpio-checklist.md:16-115`).
-- [ ] **D4** `scaffold-hal` is three skills in one 297-line procedure:
+  another (`gpio-checklist.md:16-115`). *(Closed by the canonical
+  `docs/skill-template.md`, mechanically enforced by `skill-structure`,
+  `skill-contracts`, `skill-trigger-frontmatter`, `skill-status-vocabulary`
+  and `skill-validator-wiring`.)*
+- [x] **D4** `scaffold-hal` is three skills in one 297-line procedure:
   architectural decisions, platform implementation, and delegation
-  orchestration.
-- [ ] **D5** `scaffold-hal` frontmatter is not dispatchable — it never
+  orchestration. *(Closed by re-cutting `scaffold-hal` along M2's agent
+  boundaries: the coordinator decides and dispatches; the architect writes
+  only `ARCHITECTURE.md`; the driver owns clocks; the integrator owns every
+  shared file and is sole committer; the tester supplies deltas only; and
+  the reviewer supplies the verdict only.)*
+- [x] **D5** `scaffold-hal` frontmatter is not dispatchable — it never
   surfaces its major terms (clocks, `init`, `interrupt_mod!`, `memory.x`,
-  linker, generated mappings).
-- [ ] **D6** `gather-documentation`, `generate-svd` and `generate-pac`
+  linker, generated mappings). *(Closed: the trigger-form frontmatter names
+  clocks, `init`, `interrupt_mod!`, generated mappings, `memory.x` and
+  linker/runtime wiring while assigning rather than claiming each.)*
+- [x] **D6** `gather-documentation`, `generate-svd` and `generate-pac`
   frontmatter lead with capability summaries rather than "Use when"
   triggers, inviting description-only execution without loading the body.
+  *(Closed: all three descriptions now lead with `Use when` and state what
+  each skill is `Wrong for`.)*
 - [ ] **D7** Missing skill: hardware-fact extraction (see B4).
 - [ ] **D8** Missing skill: clock tree bring-up.
 - [ ] **D9** Missing skill: interrupts / NVIC / `interrupt_mod!`.
@@ -353,7 +416,13 @@ Verified as grep-absences across all agents and skills.
   production artifacts, raw-colon lock filenames (unmaterializable on
   NTFS), live-lock PID/clock classification, and `state.toml` CAS races.
   All four are recorded as limitations in `.opencode/schema/validate.md`.
-  *Owner: M3.*
+  *Deferred out of M3: `validate_locks()` validates lock structure and
+  resources but never inspects PID or heartbeat, and no state publisher
+  implementing compare-and-swap exists. Operational tests written now would
+  embed the algorithms under test and prove only the test code. The Windows
+  raw-colon lock filename case is individually safe but not worth a separate
+  mechanism before the operational tooling exists. Owner: M6, with F10/F11,
+  which introduce that tooling.*
 - [ ] **D18** Skill ownership text contradicts the agent contracts. M2 could
   not edit a `SKILL.md`, so nine verified conflicts remain, enumerated once
   in `README.md` and referenced by ID from each affected agent: skills still
@@ -362,9 +431,29 @@ Verified as grep-absences across all agents and skills.
   records to `hal-driver`/`hal-architect`, `SCAFFOLD.md` and the roadmap to
   `hal-architect`, dispatch to `hal-architect` rather than
   `hal-coordinator`, and the legacy spaced rejection spelling rather than
-  the typed verdict tokens. Until they are reconciled, the agent contract and
-  `.opencode/ownership.toml` take precedence — which is a documented override,
-  not a fix. *Owner: M3, with A14 and A12.*
+  the typed verdict tokens. *Progress: the retrofit resolves the skill-layer
+  conflicts in the five retrofitted skills. Two remain: conflict 6 assigns
+  the GPIO and time durable records jointly to `hal-driver` and
+  `hal-architect`, and conflict 9 routes their tester and reviewer handoffs
+  through `hal-architect` and uses the legacy spaced verdict spellings.
+  Both cite `write-gpio` and `write-time-driver`, which M3 deliberately did
+  not touch and M4 replaces. Owner: M4.*
+- [ ] **D19** Unratified evidence-path conventions. The retrofitted skills'
+  validation tables cite evidence path categories such as
+  `halucinator/candidates/integration-<id>/evidence/…` and
+  `derived/pac/<target-id>/<run-id>/candidate/*.log`, plus an
+  `08-review-pac-crate.toml` artifact slug extrapolated from
+  `.opencode/schema/layout.md`'s `08-review-<artifact>.toml`. They are
+  consistent with the run layouts the references already mandate and fall
+  under owned roots, but remain conventions rather than ratified layout.
+  *Owner: M6, with the layout work.*
+- [ ] **D20** `README.md`'s conflict inventory is annotated, not audited.
+  M3 annotated which of the eleven listed skill/agent conflicts the retrofit
+  resolved in the skill layer, retaining every ID and identifying text so
+  the agents' declared ID sets still match. That classification came from
+  M3's scope rather than a per-conflict audit, and the entries' line-range
+  citations are now stale. A per-conflict audit and citation refresh are
+  restructuring work. *Owner: M7.*
 
 ---
 
@@ -398,8 +487,12 @@ Verified as grep-absences across all agents and skills.
   `software verified` / `passed`. *Progress: hash-pinned evidence now
   makes stale records detectable via `STALE_EVIDENCE` / `STALE_REVIEW`,
   and `.opencode/schema/handoff-common.md` defines a re-attestation
-  protocol; the existing Markdown records are not yet retrofitted to use
-  it. Owner: M3.*
+  protocol. The five retrofitted skills now carry the sequence from
+  `.opencode/schema/handoff-common.md:59-61` as executable steps, including
+  "never delete old evidence or old review records to regain validation".
+  The `write-gpio` and `write-time-driver` records are not retrofitted, and
+  nothing mechanically detects a false claim. Owner: M4 for the remaining
+  records; the false-claim mechanism remains E7.*
 - [ ] **E7** No mechanism makes a false verification claim detectable.
   Records are ordinary Markdown written by the same agent doing the work.
 - [ ] **E8** `AGENTS.md`'s dual-purpose framing is unsafe. `:15-19`
@@ -438,17 +531,19 @@ Zero concurrency vocabulary exists across all agents and skills:
   owner, `hal-integrator` is its sole writer, and every amendment runs under
   the `global:hal-integration` stage lock against a frozen candidate
   (`hal-integrator.md`, sections "Integration lock" and "Frozen candidate
-  order"). Residual: `scaffold-hal/SKILL.md` still describes the single-owner
-  model and no skill states the amendment procedure, so the discipline exists
-  only in the agent contracts. Owner: M3, with the skill retrofit.*
+  order"). The retrofitted skills now defer to that discipline and no longer
+  describe in-place production edits. Residual: durable journalling, owner
+  fencing and cross-clone crash markers are still required. Owner: M6.*
 - [ ] **F2** `ci.sh` and `examples/<chip>/Cargo.toml` are shared write
   targets with no merge discipline. `[[bin]]` and `Cargo.toml` are zero
   hits across all nine tester-side files. *Progress: both are now registry
   classes with `hal-integrator` as sole writer (`ci`, `example-manifest`,
   `example-support`, `runtime-wiring`), and the tester no longer writes them
-  at all — it hands over test logic and the integrator places it. Residual:
-  `write-examples/SKILL.md:112-115` still tells the tester to wire CI itself,
-  which is conflict 3 in `README.md`. Owner: M3.*
+  at all — it hands over test logic and the integrator places it. The
+  retrofitted skills defer to the `global:hal-integration` lock, frozen
+  candidate order and committed candidate roots and no longer assign CI
+  wiring to the tester. Residual: durable journalling, owner fencing and
+  cross-clone crash markers are still required. Owner: M6.*
 - [ ] **F3** No lease on the single physical board.
   `hardware-execution.md` is singular throughout; two concurrently
   dispatched testers would each hold genuine device authorization and
@@ -484,10 +579,12 @@ Zero concurrency vocabulary exists across all agents and skills:
   `halucinator/candidates/driver-*/` for disposable driver work, and
   `halucinator/test-candidates/<name>/` for test revisions — and the frozen
   ordering in `hal-integrator.md` requires build, verification and review in
-  that candidate before any canonical byte moves. Residual: `scaffold-hal`
-  itself still describes in-place production edits, and nothing mechanically
-  ties `SCAFFOLD.md` to the bytes it describes beyond the hashes the
-  integrator records. Owner: M3 for the skill; M6 for durable checkpointing.*
+  that candidate before any canonical byte moves. The retrofitted skills now
+  defer to the `global:hal-integration` lock, frozen candidate order and
+  committed candidate roots and no longer describe in-place production edits.
+  Residual: durable journalling, owner fencing, cross-clone crash markers and
+  a mechanical tie from `SCAFFOLD.md` to the bytes it describes are still
+  required. Owner: M6.*
 - [ ] **F10** Locks are gitignored, so crash evidence does not survive a
   fresh clone or a second machine. `.opencode/schema/layout.md` states
   this limitation explicitly; a durable record outside `.run/` is
@@ -571,7 +668,9 @@ Zero concurrency vocabulary exists across all agents and skills:
   and runner are scattered across five documents.
 - [ ] **G10** No `CONTRIBUTING.md`. The repo explains how agents build
   HALs, not how to add a skill or agent.
-- [ ] **G11** No skill template document.
+- [x] **G11** No skill template document. *(Closed by the canonical
+  `docs/skill-template.md`, whose structure is mechanically enforced by the
+  five skill-template checks named in D3.)*
 - [ ] **G12** `embassy-mcxa` is cited narrowly. `src/i2c/` is the standing
   fallback; the whole crate is the north star and the concern map
   (`AGENTS.md:41-52`) should be the entry point.
@@ -611,9 +710,12 @@ Asserted capabilities with no procedure sufficient to perform them.
   Blocked on C1.
 - [x] **H6** Automated stage gating — no state machine or validator.
   Completion is whatever the current model says after reading Markdown.
-  *(Closed at the contract level: `.opencode/schema/validate.py` enforces
-  schema, dependency graph, scope lineage, freshness, and review gating
-  across 29 rejection rules; skills do not yet invoke it — wiring is M3.)*
+  *(Closed: `.opencode/schema/validate.py` enforces schema, dependency graph,
+  scope lineage, freshness and review gating, and every retrofitted skill
+  invokes it before consumption, at publication and at the final all-gate.
+  Enforcement remains an honour system: self-check proves a skill contains
+  the instructions, never that an agent ran them, and the validator cannot
+  attest to its own prior execution. See H11.)*
 - [ ] **H7** Generated-code and fork provenance enforcement
   (`AGENTS.md:311-317`) — no check detects edits to generated output or
   scans dependency URLs and revisions.
@@ -629,6 +731,12 @@ Asserted capabilities with no procedure sufficient to perform them.
   lives outside the repository. The fixtures are committed and
   self-sufficient, but nothing in-tree can regenerate them and no owner is
   named. *Owner: M3 or M7.*
+- [ ] **H11** Validator invocation is an honour system. The retrofitted
+  skills wire the validator at every required point and self-check proves
+  those instructions are present, but nothing proves an agent ran them and
+  the validator cannot attest to its own prior execution. This limitation is
+  recorded in `.opencode/schema/selfcheck.md` and `docs/skill-template.md`;
+  no M3 text describes the wiring as runtime enforcement. *Owner: M6.*
 
 ---
 
