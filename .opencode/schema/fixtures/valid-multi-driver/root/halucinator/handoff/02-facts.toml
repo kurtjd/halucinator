@@ -1,0 +1,34 @@
+[handoff]
+schema=1
+stage="extract-facts"
+status="ready"
+inputs=[{path="halucinator/handoff/01-sources.toml",sha256="201d11c46f9936a4af05d7f7c727c8e72d2b634b10210ac59fa9143d53e13b33"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="4b233cedc663a8813fc2f31cba556a14ecb2a0fe89c4bf4089fd40c7c95c308b"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:alpha","peripheral:beta"]
+incomplete=[]
+[[checks]]
+id="citations-complete"
+status="passed"
+evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
+[[checks]]
+id="summary-field-cross-check"
+status="passed"
+evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
+[[checks]]
+id="field-encodings-exhaustive"
+status="passed"
+evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
+[[checks]]
+id="pdf-layout-extraction"
+status="not-applicable"
+reason="The fictional fixture source is text, not PDF."
+[facts]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
+citations=[{source_id="doc-001",document="FICTIONAL FIXTURE",revision="fixture-1",locator="schema-only",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}}]
+categories=["field-encodings","register-layout"]
+contradictions=[]

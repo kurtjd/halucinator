@@ -19,6 +19,16 @@ python .opencode/schema/validate.py .opencode/schema/fixtures/valid/root \
 The `--root` binding must be an absolute path; `validate.md` forbids
 drive-relative and guessed locations, so the caller (self-check) resolves it.
 
+`fixtures/valid-multi-driver/` (M4) must exit **0** with **no diagnostics**
+under the same invocation shape against its own root. It is a second accepted
+artifact set carrying two ready `06-driver` handoffs and one ready `07-tests`
+bound to the **second** of them, with `tests.name` deliberately different from
+`driver.name`. It is regression coverage for the A19 repair, not a new
+rejection case: it is green before and after. See its `README.md`.
+
+The self-check runs **every** `fixtures/valid*/` directory containing a
+`root/`, so adding a third accepted root needs no harness change.
+
 ## Invalid fixtures
 
 Each exits **1** and emits at least the named code on stderr, with a
@@ -55,6 +65,33 @@ diagnostic naming the listed file and field.
 | `27-scope-fork` | `SCOPE_FORK` | `halucinator/scope/scope-2222cccc.toml` | `previous` | minted here |
 | `28-scope-orphan` | `SCOPE_ORPHAN` | `halucinator/scope/scope-3333dddd.toml` | `previous` | minted here |
 | `29-scope-cycle` | `SCOPE_CYCLE` | `halucinator/scope/scope-1111bbbb.toml` | `previous` | minted here |
+| `30-tests-bound-to-blocked-driver` | `DEPENDENCY_NOT_READY` | `halucinator/handoff/07-tests-beta-loopback.toml` | `tests.api_handoff` | existing code |
+| `31-tests-api-handoff-wrong-kind` | `ILLEGAL_ENUM` | `halucinator/handoff/07-tests-beta-loopback.toml` | `tests.api_handoff` | existing code |
+| `32-noncanonical-singleton-filename` | `UNKNOWN_FIELD` | `halucinator/handoff/05-platform-extra.toml` | `-` | existing code |
+
+## Exact-diagnostic fixtures (M4)
+
+Fixtures 01-29 are asserted with the legacy rule: exit 1, and the declared code
+appears somewhere in the output. That rule is deliberately loose because the
+"Known multi-code fixtures" section below documents cases where a second code is
+entailed by the defect.
+
+A fixture whose `README.md` carries the line
+
+```text
+Expected diagnostics: exact
+```
+
+alongside `Expected file:` and `Expected field:` is instead held to **exactly
+one** diagnostic, matching file, field and code, with **no** additional
+diagnostics anywhere in the output. Fixtures 30, 31 and 32 use exact mode:
+each isolates one rule in an otherwise fully coherent tree, so anything else in
+the output means the fixture is passing for the wrong reason.
+
+Fixtures 30-32 add **no new diagnostic code**. They reuse
+`DEPENDENCY_NOT_READY`, `ILLEGAL_ENUM` and `UNKNOWN_FIELD` from the closed
+32-code vocabulary; `validate.py`'s `CODES` set is unchanged, as is
+`schema = 1`.
 
 ## Diagnostic codes minted by this fixture set
 

@@ -34,10 +34,17 @@ Trees:
 - `valid/` — the one complete coherent artifact set: `state.toml`, one scope
   decision, and eight handoffs, matching the ten fenced TOML blocks in
   `worked-examples.md`. Exits 0.
-- `invalid/NN-slug/` — 29 fixtures, one per rejection rule. Each is a **full
-  re-materialization** of the valid set with exactly one defect injected at the
+- `valid-multi-driver/` — a second complete coherent artifact set (M4): two
+  ready `06-driver` handoffs (`alpha`, `beta`) and one ready `07-tests`
+  (`beta-loopback`) bound through `tests.api_handoff` to the second of them,
+  with `tests.name` deliberately unequal to `driver.name`. Exits 0. Regression
+  coverage for the `tests.api_handoff` binding rule, not a rejection case.
+- `invalid/NN-slug/` — 32 fixtures, one per rejection rule. Each is a **full
+  re-materialization** of a coherent set with exactly one defect injected at the
   right point in the hash order, so every unrelated digest stays correct. Each
-  carries its own `README.md` naming exactly one expected diagnostic code.
+  carries its own `README.md` naming exactly one expected diagnostic code;
+  30-32 additionally declare `Expected diagnostics: exact` and are held to
+  exactly one diagnostic with a matching file and field.
 - `valid-locks/` — valid lock files for canonical stage IDs containing `:`,
   demonstrating the computed filename-safe lock ID. Held **outside** `valid/root`
   deliberately: see "Known limitations".
@@ -77,4 +84,10 @@ field, and for the list of codes this fixture set had to mint because
   `embassy-unobtainium/**`) which the mandated list does not cover.
 - **No fixture 30.** "Consuming a partial input to mutate canonical artifacts"
   is not statically representable; `validate.md` records it as an operational
-  limitation.
+  limitation. (The number `30` was later reused by
+  `30-tests-bound-to-blocked-driver`; the unrepresentable case remains
+  operational.)
+- **Fixtures 30-32 were authored RED.** They are accepted (exit 0) by the
+  validator as it stands and describe the contract the validator must grow to
+  meet. Their `README.md` files cite the exact `validate.py` lines that admit
+  them today.
