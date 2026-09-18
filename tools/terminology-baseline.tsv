@@ -1,0 +1,15 @@
+# terminology baseline for tools/selfcheck.py check 4
+# format: <repo-relative-posix-path>\t<token>\t<count>
+# regenerate: python tools/selfcheck.py --write-terminology-baseline
+.opencode/agents/hal-datasheet.md	initialisation	2
+.opencode/agents/hal-driver.md	behaviour	2
+.opencode/agents/hal-driver.md	type-state	1
+.opencode/agents/hal-reviewer.md	Typestate	1
+.opencode/agents/hal-reviewer.md	behaviour	1
+.opencode/agents/hal-reviewer.md	type-state	1
+.opencode/agents/hal-svd.md	behaviour	1
+.opencode/agents/hal-svd.md	normalise	1
+.opencode/agents/hal-tester.md	behaviour	2
+AGENTS.md	Typestate	1
+AGENTS.md	behaviour	2
+README.md	type-state	1
