@@ -861,7 +861,14 @@ COMMIT_DENY_PATTERN = "git commit*"
 MAX_CONTRACT_LINES = 400
 MAX_REGISTRY_ENTRIES = 500
 MAX_AST_DEPTH = 40
-SKILL_TOKEN_RE = re.compile(r"`((?:write|review|generate|gather|scaffold|extract)-[a-z][a-z0-9-]*)`")
+# Any backticked lowercase hyphenated token. This is deliberately NOT a verb
+# prefix list: M5 adds `integrate-interrupts`, `integrate-runtime-linker` and
+# `debug-hardware`, none of which begin with a verb the old
+# (write|review|generate|gather|scaffold|extract) alternation matched, so all
+# three would have been silently skipped by the reference scanner. Tokens are
+# resolved against the DISCOVERED and CANONICAL skill-name sets instead, so a
+# token that merely looks skill-shaped is not treated as a skill reference.
+SKILL_TOKEN_RE = re.compile(r"\x00([a-z][a-z0-9]*(?:-[a-z0-9]+)+)\x00")
 
 
 def norm_ws(text: str) -> str:
@@ -1727,10 +1734,23 @@ def check_workflow_markers(root: Path, report: Report) -> None:
 
 
 def check_skill_references(root: Path, report: Report) -> None:
+    """Agent prose must not name a skill that does not exist.
+
+    Subject derivation: the resolvable name set is
+    `set(skill_paths(root)) | set(SKILL_SPEC)` - what discovery actually finds,
+    unioned with the canonical mapping so that a *deleted* canonical skill is
+    still recognised as a skill reference and reported UNRESOLVED rather than
+    silently reclassified as ordinary prose. No verb prefix, no literal name.
+    """
     mark = report.mark()
     with guard(report, ".opencode/agents", "SKILLREF_ABORT"):
-        skills_dir = root / ".opencode" / "skills"
-        existing = {p.parent.name for p in skills_dir.glob("*/SKILL.md")} if skills_dir.is_dir() else set()
+        existing = set(skill_paths(root))
+        resolvable = known_skill_names(root)
+        if not resolvable:
+            report.bad(".opencode/skills", "0", "SKILL_REFERENCE_NO_NAMES",
+                       "no skill names could be derived from discovery or the canonical mapping; "
+                       "every backticked token would be unclassifiable and the scanner would assert nothing")
+            return
         found = agent_paths(root)
         refs = 0
         for name in sorted(found):
@@ -1738,8 +1758,13 @@ def check_skill_references(root: Path, report: Report) -> None:
             r = rel(root, path)
             text = read_text(path)
             for sentence in norm_ws(text.replace("`", "\u0000")).split(". "):
-                for m in re.finditer(r"\x00((?:write|review|generate|gather|scaffold|extract)-[a-z][a-z0-9-]*)\x00", sentence):
+                for m in SKILL_TOKEN_RE.finditer(sentence):
                     token = m.group(1)
+                    # A token is a skill reference only when it names a skill we
+                    # know about. `ready-with-fixes`, `06-driver` and an invented
+                    # `integrate-nothing` are prose, not unresolved skills.
+                    if token not in resolvable:
+                        continue
                     refs += 1
                     if token in existing:
                         continue
@@ -1747,7 +1772,7 @@ def check_skill_references(root: Path, report: Report) -> None:
                         continue
                     report.bad(r, "0", "SKILL_REFERENCE_UNRESOLVED",
                                f"references skill {token!r}, which does not exist under .opencode/skills/; a future skill may appear only as unlinked prose marked 'awaits M<n> TODO <ID>'")
-        report.ok("skill-references", f"{refs} skill references in agent prose resolve to existing skills", mark)
+        report.ok("skill-references", f"{refs} skill references in agent prose resolve to existing skills, matched against {len(resolvable)} discovered/canonical names", mark)
 
 
 # ---------------------------------------------------------------------------
@@ -1805,9 +1830,14 @@ NULL_SENTINELS = (
 # note path: a default is not a determinism.
 SOFT_NOTE_TOKENS = ("default to", "or default", "when unused", "if unused", "optional")
 
-SKILL_NOTE_PATHS = {
-    "generate-svd": "<documentation>/notes/SVD.md",
-    "generate-pac": "<documentation>/notes/PAC.md",
+# Deterministic first-note path, keyed by EMITTED HANDOFF KIND rather than by
+# skill name. Subjects for the note-path check are selected by parsing each
+# discovered skill's `emits:` kind, so a new skill that emits 03-svd or 04-pac
+# is covered the moment it declares that kind. Keying by skill name made the
+# mapping's own key set the subject filter - the M4 defect shape.
+NOTE_PATH_BY_KIND = {
+    "03-svd": "<documentation>/notes/SVD.md",
+    "04-pac": "<documentation>/notes/PAC.md",
 }
 
 # Skills whose exit gate is an accepting independent review. This set is NOT
@@ -1826,6 +1856,12 @@ CONSUMED_03 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scop
 CONSUMED_04 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,pac.crate_manifest,pac.package,pac.revision.kind,pac.revision.value,pac.cargo_chip_feature,pac.runtime_features,pac.metadata_features,pac.rust_compilation_target,pac.source_ids,pac.cited_notes,pac.temporary_fork,pac.foundation.id,pac.foundation.kind,pac.foundation.location,pac.foundation.status,pac.foundation.evidence"
 CONSUMED_05 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,platform.crate_manifest,platform.roadmap,platform.startup_clock_contract,platform.supporting_subsystems,platform.foundation_api,platform.pac_manifest,platform.source_ids,platform.cited_notes,platform.dependencies.crate,platform.dependencies.identity,platform.dependencies.features,platform.first_driver,platform.first_driver_modes"
 CONSUMED_06 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,driver.name,driver.scope_kind,driver.capabilities,driver.public_api,driver.dependencies.crate,driver.dependencies.identity,driver.dependencies.features,driver.trait_obligations.dependency_crate,driver.trait_obligations.trait,driver.trait_obligations.obligations,driver.test_hardware_facts.source_id,driver.test_hardware_facts.document,driver.test_hardware_facts.revision,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.build_contract.cargo_chip_feature,driver.build_contract.rust_compilation_target,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.requirement_ids,driver.public_test_record"
+
+# Sentinel for "the complete AST-derived leaf set of that kind". M5's snapshot
+# and review consumers re-read an entire predecessor rather than a curated
+# subset, so writing the subset out by hand would be a second hand-maintained
+# copy of the registry. Resolved against derive_registry() at check time.
+CONSUME_ALL = "*"
 
 
 def _leaves(raw: str) -> set[str]:
@@ -1912,6 +1948,105 @@ SKILL_SPEC: dict[str, dict] = {
             "hal-tester|test-records",
         },
     },
+    # --- M5 -----------------------------------------------------------------
+    "extract-hardware-facts": {
+        "stage": "extract-facts",
+        "emitter": "hal-datasheet",
+        "kind": "02-facts",
+        "filename": "halucinator/handoff/02-facts.toml",
+        "consumes": {"01-sources": _leaves(CONSUMED_01)},
+        "writes": {
+            "hal-datasheet|fact-notes", "hal-datasheet|facts-handoff",
+            "hal-datasheet|vendor-extractions",
+        },
+        "supplies-delta": {"hal-datasheet|sources-catalog"},
+    },
+    "write-clocks": {
+        "stage": "scaffold-hal",
+        "emitter": "hal-integrator",
+        "kind": "05-platform",
+        "filename": "halucinator/handoff/05-platform.toml",
+        "consumes": {"04-pac": _leaves(CONSUMED_04)},
+        "writes": {
+            "hal-driver|clock-modules", "hal-driver|driver-evidence",
+            "hal-integrator|integration-candidates", "hal-integrator|platform-handoff",
+        },
+        "supplies-delta": {"hal-driver|platform-notes"},
+    },
+    "integrate-interrupts": {
+        "stage": "scaffold-hal",
+        "emitter": "hal-integrator",
+        "kind": "05-platform",
+        "filename": "halucinator/handoff/05-platform.toml",
+        # A non-first platform slice consumes an immutable byte-identical
+        # snapshot of the validated live 05-platform, so it re-reads the whole
+        # predecessor rather than a curated subset.
+        "consumes": {"05-platform": CONSUME_ALL},
+        "writes": {
+            "hal-integrator|build-generation", "hal-integrator|chip-modules",
+            "hal-integrator|integration-candidates", "hal-integrator|platform-handoff",
+            "hal-integrator|platform-lib",
+        },
+        "supplies-delta": set(),
+    },
+    "integrate-runtime-linker": {
+        "stage": "scaffold-hal",
+        "emitter": "hal-integrator",
+        "kind": "05-platform",
+        "filename": "halucinator/handoff/05-platform.toml",
+        "consumes": {"05-platform": CONSUME_ALL},
+        "writes": {
+            "hal-integrator|crate-manifest", "hal-integrator|example-support",
+            "hal-integrator|integration-candidates", "hal-integrator|linker",
+            "hal-integrator|platform-handoff", "hal-integrator|platform-lib",
+            "hal-integrator|runtime-wiring",
+        },
+        "supplies-delta": set(),
+    },
+    "write-dma": {
+        "stage": "write-driver",
+        "emitter": "hal-driver",
+        "kind": "06-driver",
+        "filename": "halucinator/handoff/06-driver-dma.toml",
+        "consumes": {"05-platform": _leaves(CONSUMED_05)},
+        "writes": {
+            "hal-driver|driver-candidates", "hal-driver|driver-evidence",
+            "hal-driver|driver-handoff", "hal-driver|peripheral-modules",
+        },
+        "supplies-delta": {
+            "hal-driver|driver-records", "hal-driver|platform-notes",
+            "hal-driver|roadmap", "hal-driver|sources-catalog",
+        },
+    },
+    "review-artifact": {
+        "stage": "review",
+        "emitter": "hal-reviewer",
+        "kind": "08-review",
+        "filename": "halucinator/handoff/08-review-<artifact>.toml",
+        # One invocation selects exactly one predecessor kind, but the skill
+        # must declare every kind it may be dispatched against.
+        "consumes": {
+            "01-sources": CONSUME_ALL, "02-facts": CONSUME_ALL, "03-svd": CONSUME_ALL,
+            "04-pac": CONSUME_ALL, "05-platform": CONSUME_ALL, "06-driver": CONSUME_ALL,
+            "07-tests": CONSUME_ALL,
+        },
+        "writes": {"hal-reviewer|review-handoff"},
+        "supplies-delta": {"hal-reviewer|review-notes"},
+    },
+    "debug-hardware": {
+        "stage": "write-tests",
+        "emitter": "hal-tester",
+        "kind": "07-tests",
+        # Distinct from the consumed 07 name: the debug run never replaces the
+        # failure it is investigating.
+        "filename": "halucinator/handoff/07-tests-<source-name>-debug-<run-id>.toml",
+        "consumes": {"06-driver": _leaves(CONSUMED_06), "07-tests": CONSUME_ALL},
+        "writes": {
+            "hal-tester|test-candidate-evidence", "hal-tester|test-candidate-manifests",
+            "hal-tester|test-candidate-source", "hal-tester|tests-handoff",
+        },
+        "supplies-delta": {"hal-tester|test-records"},
+    },
 }
 
 # Stale attribution that A16 removes, and the wording that must replace it.
@@ -1972,6 +2107,93 @@ def skill_reference_paths(root: Path, skill: Path) -> list[Path]:
     if not refs.is_dir():
         return []
     return sorted(p for p in refs.glob("*.md") if p.is_file())
+
+
+# --- derived subject selectors ----------------------------------------------
+#
+# Every M5 subject set begins at skill_paths()/in_scope_skills() and is
+# narrowed by a PARSED contract field. None of these functions may mention a
+# skill name; check_skill_subject_derivation enforces that against this file's
+# own AST.
+
+
+def skill_contracts(root: Path) -> dict[str, dict[str, list[str]]]:
+    """Discovered skill -> parsed contract map, for every parseable fence.
+
+    An unparseable fence is omitted here but is independently reported by
+    check_skill_contracts, so it can never quietly narrow a derived subject
+    set without failing the suite.
+    """
+    out: dict[str, dict[str, list[str]]] = {}
+    for name, path in sorted(skill_paths(root).items()):
+        entries, err, _ = parse_contract(read_text(path), SKILL_CONTRACT_INFO)
+        if err:
+            continue
+        out[name] = contract_map(entries)
+    return out
+
+
+def _single(cmap: dict[str, list[str]], key: str) -> str | None:
+    values = cmap.get(key, [])
+    return values[0] if len(values) == 1 else None
+
+
+def emitted_kind(cmap: dict[str, list[str]]) -> str | None:
+    value = _single(cmap, "emits")
+    if value is None or "|" not in value:
+        return None
+    return value.split("|")[0]
+
+
+def emitted_filename(cmap: dict[str, list[str]]) -> str | None:
+    value = _single(cmap, "emits")
+    if value is None or value.count("|") != 2:
+        return None
+    return value.split("|")[1]
+
+
+def consumed_kinds(cmap: dict[str, list[str]]) -> set[str]:
+    out: set[str] = set()
+    for value in cmap.get("consumes", []):
+        if value.count("|") == 1:
+            out.add(value.split("|")[0])
+    return out
+
+
+def skills_emitting_kind(contracts: dict[str, dict[str, list[str]]], kind: str) -> list[str]:
+    return sorted(n for n, c in contracts.items() if emitted_kind(c) == kind)
+
+
+def skills_with_emitter(contracts: dict[str, dict[str, list[str]]], agent: str) -> list[str]:
+    return sorted(n for n, c in contracts.items() if _single(c, "emitter") == agent)
+
+
+def skills_at_stage(contracts: dict[str, dict[str, list[str]]], stage: str) -> list[str]:
+    return sorted(n for n, c in contracts.items() if _single(c, "stage") == stage)
+
+
+# A non-final platform slice declares its ready exit as unreachable; the final
+# consolidator does not. This is the parsed procedural role that separates the
+# two, and it is why the slice set is never a literal list.
+SLICE_UNREACHABLE_TOKEN = "unreachable"
+
+
+def exit_predicate(text: str, label: str) -> str | None:
+    """Raw body of one '### <label>' block inside '## Exit criteria'."""
+    for heading, body, _ in h2_sections(text):
+        if heading != "Exit criteria":
+            continue
+        for h, b in h3_blocks(body):
+            if h == label:
+                return b
+    return None
+
+
+def h2_body(text: str, heading: str) -> str | None:
+    for h, body, _ in h2_sections(text):
+        if h == heading:
+            return body
+    return None
 
 
 # --- raw markdown section helpers -------------------------------------------
@@ -2626,12 +2848,28 @@ def check_skill_consumption(root: Path, report: Report) -> None:
                 continue
             spec = SKILL_SPEC.get(name)
             if spec is None:
+                # Fail CLOSED. Skipping silently would let an unmapped skill
+                # escape the consumption check entirely - the M4 defect shape,
+                # where a missing entry degraded to "asserts nothing" instead
+                # of "fails".
+                report.bad(r, "consumes", "SKILL_CONSUMPTION_UNMAPPED",
+                           f"skill {name!r} has no canonical contract mapping, so its consumption declaration is compared against nothing; add it to SKILL_SPEC")
                 continue
             values = cmap.get("consumes", [])
             if not values:
                 report.bad(r, "consumes", "SKILL_CONSUMPTION_MISSING", "contract declares no 'consumes:' line; intake declares 'consumes: none|none'")
                 continue
-            want: dict[str, set[str]] = spec["consumes"]
+            # CONSUME_ALL resolves against the AST registry, never a literal copy.
+            want: dict[str, set[str]] = {}
+            for kind, raw in spec["consumes"].items():
+                if raw == CONSUME_ALL:
+                    if kind not in registry:
+                        report.bad(r, "consumes", "SKILL_CONSUMPTION_UNKNOWN_KIND",
+                                   f"canonical mapping names predecessor kind {kind!r}, which the validator does not define")
+                        continue
+                    want[kind] = set(registry[kind]["paths"] | registry[kind]["common"])
+                else:
+                    want[kind] = set(raw)
             if not want:
                 if values != ["none|none"]:
                     report.bad(r, "consumes", "SKILL_CONSUMPTION_NOT_INTAKE",
@@ -2729,6 +2967,24 @@ def check_skill_structure(root: Path, report: Report) -> None:
 # --- check 23: skill-trigger-frontmatter ------------------------------------
 
 SCAFFOLD_REQUIRED_TERMS = ("clocks", "init", "interrupt_mod!", "generated mappings", "memory.x", "linker")
+PLATFORM_STAGE = "scaffold-hal"
+
+
+def platform_roles(root: Path, contracts: dict[str, dict[str, list[str]]]) -> tuple[list[str], list[str]]:
+    """Split the platform stage into (non-final slices, final consolidators).
+
+    Derivation: subjects are the discovered skills whose PARSED contract stage
+    is the platform stage. A subject is a non-final slice exactly when its own
+    '### ready' exit predicate declares ready unreachable. Nothing here names a
+    skill; the role is read out of the skill's own text.
+    """
+    slices: list[str] = []
+    final: list[str] = []
+    paths = skill_paths(root)
+    for name in skills_at_stage(contracts, PLATFORM_STAGE):
+        body = exit_predicate(read_text(paths[name]), "ready") or ""
+        (slices if SLICE_UNREACHABLE_TOKEN in body.lower() else final).append(name)
+    return sorted(slices), sorted(final)
 
 
 def check_skill_trigger_frontmatter(root: Path, report: Report) -> None:
@@ -2738,6 +2994,16 @@ def check_skill_trigger_frontmatter(root: Path, report: Report) -> None:
         if not skills:
             report.bad(".opencode/skills", "0", "SKILL_TRIGGER_NO_TARGETS", "no skills discovered; no dispatch description is asserted")
             return
+        # The whole-platform dispatch terms belong to the FINAL consolidator,
+        # derived from parsed stage + parsed ready-predicate role. A non-final
+        # slice describes one slice and must not be required to advertise the
+        # complete platform vocabulary.
+        contracts = skill_contracts(root)
+        _slices, consolidators = platform_roles(root, contracts)
+        if not consolidators:
+            report.bad(".opencode/skills", "0", "SKILL_TRIGGER_NO_CONSOLIDATOR",
+                       f"no discovered skill at stage {PLATFORM_STAGE!r} declares a reachable ready exit, so the "
+                       f"whole-platform dispatch terms {', '.join(SCAFFOLD_REQUIRED_TERMS)} are asserted against nothing")
         ok = 0
         for name in sorted(skills):
             path = skills[name]
@@ -2758,13 +3024,13 @@ def check_skill_trigger_frontmatter(root: Path, report: Report) -> None:
             if "Wrong for" not in flat:
                 report.bad(r, "description", "SKILL_TRIGGER_WRONG_FOR",
                            "description does not contain 'Wrong for' naming adjacent excluded work; a description that only claims capability cannot disambiguate dispatch")
-            if name == "scaffold-hal":
+            if name in consolidators:
                 absent = [t for t in SCAFFOLD_REQUIRED_TERMS if t.lower() not in flat.lower()]
                 if absent:
                     report.bad(r, "description", "SKILL_TRIGGER_SCAFFOLD_TERMS",
-                               f"scaffold-hal description does not name dispatch/search term(s): {', '.join(absent)}")
+                               f"the final platform consolidator's description does not name dispatch/search term(s): {', '.join(absent)}")
             ok += 1
-        report.ok("skill-trigger-frontmatter", f"{ok} skill descriptions open with an observable 'Use when' trigger and name excluded adjacent work", mark)
+        report.ok("skill-trigger-frontmatter", f"{ok} skill descriptions open with an observable 'Use when' trigger and name excluded adjacent work ({len(consolidators)} final platform consolidator)", mark)
 
 
 # --- check 24: skill-ownership ----------------------------------------------
@@ -2797,6 +3063,9 @@ def check_skill_ownership(root: Path, report: Report) -> None:
                 continue
             spec = SKILL_SPEC.get(name)
             if spec is None:
+                # Fail CLOSED, as in check_skill_consumption.
+                report.bad(r, "writes", "SKILL_OWNERSHIP_UNMAPPED",
+                           f"skill {name!r} has no canonical contract mapping, so its writes/supplies-delta sets are compared against nothing; add it to SKILL_SPEC")
                 continue
             got_writes = set(cmap.get("writes", []))
             got_delta = set(cmap.get("supplies-delta", []))
@@ -3014,16 +3283,26 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
 
 
 def check_skill_note_paths(root: Path, report: Report) -> None:
+    """Skills emitting a note-bearing kind must state their exact first-note path.
+
+    Subject derivation: `skills_emitting_kind(contracts, kind)` for each kind in
+    NOTE_PATH_BY_KIND. The mapping is keyed by HANDOFF KIND, and the parsed
+    `emits:` kind - not the mapping's key set - selects the subject.
+    """
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_NOTE_ABORT"):
         skills = in_scope_skills(root)
-        targets = [(n, p) for n, p in skills.items() if n in SKILL_NOTE_PATHS]
+        contracts = skill_contracts(root)
+        targets: list[tuple[str, Path, str]] = []
+        for kind in sorted(NOTE_PATH_BY_KIND):
+            for name in skills_emitting_kind(contracts, kind):
+                if name in skills:
+                    targets.append((name, skills[name], NOTE_PATH_BY_KIND[kind]))
         if not targets:
             report.bad(".opencode/skills", "0", "SKILL_NOTE_NO_TARGETS",
-                       f"neither {' nor '.join(sorted(SKILL_NOTE_PATHS))} was discovered; the deterministic note paths are asserted against nothing")
+                       f"no discovered skill declares an 'emits:' kind in {sorted(NOTE_PATH_BY_KIND)}; the deterministic note paths are asserted against nothing")
             return
-        for name, path in sorted(targets):
-            want = SKILL_NOTE_PATHS[name]
+        for name, path, want in sorted(targets):
             bare = want.split("/")[-1]
             files = [path] + skill_reference_paths(root, path)
             seen_exact = False
@@ -3196,9 +3475,19 @@ def check_selfcheck_doc_parity(root: Path, report: Report) -> None:
 # Scope is the WHOLE write-examples Markdown tree, SKILL.md and every
 # reference including references/profiles/, because the tester loads all of it.
 
-VALIDATION_SCAN_ROOT = ".opencode/skills/write-examples"
+# The tester-facing tree and the implementation tree are both DERIVED from
+# parsed `emitter:` declarations, not from literal directory names. M5 gives
+# hal-tester a second skill (debug-hardware) and hal-driver two more
+# (write-clocks, write-dma); a literal write-examples/write-driver pair would
+# have left all three unscanned.
+TESTER_AGENT = "hal-tester"
+IMPLEMENTATION_AGENT = "hal-driver"
+PROFILE_SUBDIR = "references/profiles"
+
+# Retained ONLY as fixture data for the analyzer self-test below, which is not
+# a subject selector: the live scan derives its forbidden roots from
+# IMPLEMENTATION_AGENT.
 IMPLEMENTATION_SKILL_DIR = ".opencode/skills/write-driver"
-VALIDATION_PROFILE_DIR = ".opencode/skills/write-examples/references/profiles"
 
 # Deliberately NOT included: any `(private|internal)\s+(field|state|...)` rule.
 # It matches the legitimate, load-bearing sentence "not the target HAL's
@@ -3224,14 +3513,17 @@ IMPLEMENTATION_TOKENS: tuple[str, ...] = (
 _IMPL_RE = tuple((p, re.compile(p, re.MULTILINE)) for p in IMPLEMENTATION_TOKENS)
 
 
-def analyze_validation_guidance(relpath: str, text: str) -> list[tuple[str, str]]:
+def analyze_validation_guidance(relpath: str, text: str,
+                                forbidden: tuple[str, ...] = (IMPLEMENTATION_SKILL_DIR,)) -> list[tuple[str, str]]:
     """Pure analyzer: [(code, message)] for implementation guidance in one file.
 
-    Pure function of (repository-relative path, raw markdown) so the in-memory
-    non-vacuity fixtures below can drive it without touching the filesystem.
+    Pure function of (repository-relative path, raw markdown, forbidden link
+    roots) so the in-memory non-vacuity fixtures below can drive it without
+    touching the filesystem. The live caller passes DERIVED forbidden roots.
 
     Two independent failure modes:
-      (a) a relative Markdown link that RESOLVES beneath write-driver/, and
+      (a) a relative Markdown link that RESOLVES beneath an implementation
+          skill directory, and
       (b) prose matching the implementation token set.
     """
     out: list[tuple[str, str]] = []
@@ -3244,12 +3536,14 @@ def analyze_validation_guidance(relpath: str, text: str) -> list[tuple[str, str]
             resolved = posixpath.normpath(target.lstrip("/"))
         else:
             resolved = posixpath.normpath(posixpath.join(base, target))
-        if resolved == IMPLEMENTATION_SKILL_DIR or resolved.startswith(IMPLEMENTATION_SKILL_DIR + "/"):
-            out.append((
-                "VALIDATION_GUIDANCE_LEAK",
-                f"link {target!r} resolves to {resolved!r}, beneath the implementation skill "
-                f"{IMPLEMENTATION_SKILL_DIR!r}; hal-tester must never be routed into implementation guidance",
-            ))
+        for root_dir in forbidden:
+            if resolved == root_dir or resolved.startswith(root_dir + "/"):
+                out.append((
+                    "VALIDATION_GUIDANCE_LEAK",
+                    f"link {target!r} resolves to {resolved!r}, beneath the implementation skill "
+                    f"{root_dir!r}; hal-tester must never be routed into implementation guidance",
+                ))
+                break
     for lineno, line in enumerate(text.split("\n"), start=1):
         for pattern, rx in _IMPL_RE:
             if rx.search(line):
@@ -3326,41 +3620,563 @@ def validation_analyzer_failures(root: Path) -> list[str]:
 
 
 def check_validation_guidance_isolation(root: Path, report: Report) -> None:
+    """Every tester-loaded Markdown tree must be free of implementation guidance.
+
+    Subject derivation: `skills_with_emitter(contracts, TESTER_AGENT)` - every
+    discovered skill whose PARSED contract emitter is hal-tester. Forbidden
+    link roots are `skills_with_emitter(contracts, IMPLEMENTATION_AGENT)`.
+    Neither is a literal directory path, so M5's debug-hardware, write-clocks
+    and write-dma are covered the moment they declare their emitter.
+    """
     mark = report.mark()
-    with guard(report, VALIDATION_SCAN_ROOT, "VALIDATION_GUIDANCE_ABORT"):
+    with guard(report, ".opencode/skills", "VALIDATION_GUIDANCE_ABORT"):
         for problem in validation_analyzer_failures(root):
             report.bad("tools/selfcheck.py", "analyze_validation_guidance",
                        "VALIDATION_GUIDANCE_FIXTURE",
                        f"the validation-guidance analyzer failed its in-memory fixtures: {problem}")
-        scan_dir = root / VALIDATION_SCAN_ROOT
-        if not scan_dir.is_dir():
-            report.bad(VALIDATION_SCAN_ROOT, "0", "VALIDATION_GUIDANCE_NO_SCAN_ROOT",
-                       "the tester-facing skill tree is absent; the isolation check has nothing to scan")
+        paths = skill_paths(root)
+        contracts = skill_contracts(root)
+        tester_skills = [n for n in skills_with_emitter(contracts, TESTER_AGENT) if n in paths]
+        impl_skills = [n for n in skills_with_emitter(contracts, IMPLEMENTATION_AGENT) if n in paths]
+        if not tester_skills:
+            report.bad(".opencode/skills", "0", "VALIDATION_GUIDANCE_NO_SCAN_ROOT",
+                       f"no discovered skill declares 'emitter: {TESTER_AGENT}'; the isolation check has nothing to scan")
             return
-        files = sorted(p for p in scan_dir.rglob("*.md") if p.is_file())
+        forbidden = tuple(rel(root, paths[n].parent) for n in impl_skills)
+        if not forbidden:
+            report.bad(".opencode/skills", "0", "VALIDATION_GUIDANCE_NO_FORBIDDEN_ROOT",
+                       f"no discovered skill declares 'emitter: {IMPLEMENTATION_AGENT}'; the link arm of the "
+                       "isolation check would forbid nothing and pass vacuously")
+            return
+        files: list[Path] = []
+        profiles: list[Path] = []
+        for name in tester_skills:
+            scan_dir = paths[name].parent
+            files.extend(sorted(p for p in scan_dir.rglob("*.md") if p.is_file()))
+            pdir = scan_dir / PROFILE_SUBDIR
+            if pdir.is_dir():
+                profiles.extend(sorted(p for p in pdir.rglob("*.md") if p.is_file()))
         if not files:
-            report.bad(VALIDATION_SCAN_ROOT, "0", "VALIDATION_GUIDANCE_NO_TARGETS",
-                       "no Markdown found under the tester-facing skill tree; a scanner with no targets must not pass vacuously")
+            report.bad(".opencode/skills", "0", "VALIDATION_GUIDANCE_NO_TARGETS",
+                       "no Markdown found under any tester-facing skill tree; a scanner with no targets must not pass vacuously")
             return
-        # A tester-safe validation profile must actually exist. Without one the
-        # scan is technically green and substantively meaningless: it would be
-        # asserting that guidance that does not exist contains no leak.
-        profiles = sorted(p for p in (root / VALIDATION_PROFILE_DIR).rglob("*.md")
-                          if p.is_file()) if (root / VALIDATION_PROFILE_DIR).is_dir() else []
+        # A tester-safe validation profile must actually exist somewhere in the
+        # tester-loaded trees. Without one the scan is technically green and
+        # substantively meaningless: it would be asserting that guidance that
+        # does not exist contains no leak.
         if not profiles:
-            report.bad(VALIDATION_PROFILE_DIR, "0", "VALIDATION_GUIDANCE_NO_PROFILE",
-                       "no tester-safe validation profile exists under "
-                       f"{VALIDATION_PROFILE_DIR}; hal-tester has nothing to load in place of the "
-                       "implementation skill, so the isolation guarantee is vacuous")
+            report.bad(".opencode/skills", "0", "VALIDATION_GUIDANCE_NO_PROFILE",
+                       f"no tester-safe validation profile exists under any <tester-skill>/{PROFILE_SUBDIR}; "
+                       "hal-tester has nothing to load in place of the implementation skill, so the "
+                       "isolation guarantee is vacuous")
         for p in files:
             r = rel(root, p)
-            for code, message in analyze_validation_guidance(r, read_text(p)):
+            for code, message in analyze_validation_guidance(r, read_text(p), forbidden):
                 report.bad(r, "0", code, message)
         report.ok("validation-guidance-isolation",
-                  f"{len(files)} tester-facing Markdown files ({len(profiles)} validation profiles) carry no "
-                  f"implementation guidance under {len(IMPLEMENTATION_TOKENS)} tokens and no link into "
-                  f"{IMPLEMENTATION_SKILL_DIR} (analyzer self-tested against {len(_VALIDATION_NEAR_MISSES)} near-misses)",
+                  f"{len(files)} tester-facing Markdown files across {len(tester_skills)} hal-tester-emitted skill(s) "
+                  f"({len(profiles)} validation profiles) carry no implementation guidance under "
+                  f"{len(IMPLEMENTATION_TOKENS)} tokens and no link into {len(forbidden)} hal-driver-emitted skill tree(s) "
+                  f"(analyzer self-tested against {len(_VALIDATION_NEAR_MISSES)} near-misses)",
                   mark)
+
+
+# --- M5 check: skill-platform-slices ----------------------------------------
+#
+# G5. The platform stage becomes an ORDERED chain of partial slices followed by
+# one final consolidator. Four independent writers of the singleton
+# 05-platform.toml could otherwise each erase the previous slice, so the
+# discipline has to be asserted: a non-final slice publishes only `partial`,
+# performs no canonical placement, obtains no review, and consumes the
+# immutable snapshot of its predecessor rather than restarting from the PAC.
+
+PAC_KIND = "04-pac"
+PLATFORM_KIND = "05-platform"
+LINKER_CLASS = "linker"
+
+COMPOSITE_EVIDENCE_MARKER = "composite evidence"
+CANONICAL_PLACEMENT_MARKER = "canonical placement"
+CANDIDATE_ONLY_MARKER = "candidate-only"
+NEGATED_PLACEMENT = (
+    "no canonical placement",
+    "without canonical placement",
+    "not perform canonical placement",
+    "never perform canonical placement",
+)
+
+
+def _writes_class(cmap: dict[str, list[str]], cid: str) -> bool:
+    return any(v.count("|") == 1 and v.split("|")[1] == cid for v in cmap.get("writes", []))
+
+
+def check_skill_platform_slices(root: Path, report: Report) -> None:
+    """Subject derivation: parsed stage + parsed ready-predicate role.
+
+    `platform_roles()` returns (non-final slices, final consolidators) from
+    `skills_at_stage(contracts, PLATFORM_STAGE)` narrowed by whether the
+    skill's own '### ready' predicate declares ready unreachable. The
+    runtime/linker slice is identified by its declared `writes: <agent>|linker`
+    ownership class. No literal skill name appears anywhere in this check.
+    """
+    mark = report.mark()
+    with guard(report, ".opencode/skills", "SKILL_PLATFORM_ABORT"):
+        paths = skill_paths(root)
+        contracts = skill_contracts(root)
+        slices, final = platform_roles(root, contracts)
+        if not slices:
+            report.bad(".opencode/skills", "0", "SKILL_PLATFORM_NO_SLICES",
+                       f"no discovered skill at stage {PLATFORM_STAGE!r} declares an unreachable ready exit; "
+                       "the ordered partial platform-slice chain is asserted against nothing")
+            return
+        if len(final) != 1:
+            report.bad(".opencode/skills", "0", "SKILL_PLATFORM_CONSOLIDATOR_COUNT",
+                       f"{len(final)} platform skill(s) declare a reachable ready exit ({', '.join(final) or 'none'}); "
+                       "exactly one final consolidator may publish a ready platform")
+
+        # The consolidator, and only the consolidator, carries the final
+        # composite-evidence / review / canonical-placement responsibilities.
+        for name in final:
+            r = rel(root, paths[name])
+            flat = norm_ws(read_text(paths[name])).lower()
+            if COMPOSITE_EVIDENCE_MARKER not in flat:
+                report.bad(r, "Procedure", "SKILL_PLATFORM_NO_COMPOSITE",
+                           f"the final platform consolidator never states {COMPOSITE_EVIDENCE_MARKER!r}; "
+                           "slice-local evidence does not attest the complete platform, so fresh composite "
+                           "evidence for every canonical check is what the ready handoff rests on")
+            if CANONICAL_PLACEMENT_MARKER not in flat:
+                report.bad(r, "Procedure", "SKILL_PLATFORM_NO_PLACEMENT",
+                           f"the final platform consolidator never states {CANONICAL_PLACEMENT_MARKER!r}; "
+                           "it is the sole skill that may move a canonical byte")
+            if norm_ws(VERDICT_SENTENCE) not in norm_ws(read_text(paths[name])):
+                report.bad(r, "0", "SKILL_PLATFORM_NO_REVIEW_GATE",
+                           f"the final platform consolidator does not state the exact accepting sentence {VERDICT_SENTENCE!r}")
+
+        first: list[str] = []
+        for name in slices:
+            r = rel(root, paths[name])
+            text = read_text(paths[name])
+            flat = norm_ws(text).lower()
+            cmap = contracts.get(name, {})
+            kinds = consumed_kinds(cmap)
+
+            ready = exit_predicate(text, "ready") or ""
+            if SLICE_UNREACHABLE_TOKEN not in ready.lower():
+                # Unreachable by construction of platform_roles(); kept so the
+                # assertion is stated where a reader looks for it.
+                report.bad(r, "Exit criteria", "SKILL_PLATFORM_READY_REACHABLE",
+                           "a non-final platform slice must declare its ready exit unreachable")
+            proc = h2_body(text, "Procedure")
+            if proc is None or "partial" not in proc.lower():
+                report.bad(r, "Procedure", "SKILL_PLATFORM_NO_PARTIAL",
+                           "the procedure never names the 'partial' status it must publish; a non-final slice "
+                           "publishes only a partial 05-platform and returns to the consolidator")
+            if COMPOSITE_EVIDENCE_MARKER in flat:
+                report.bad(r, "Procedure", "SKILL_PLATFORM_SLICE_COMPOSITE",
+                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r}; composite evidence "
+                           "across all slices belongs only to the final consolidator")
+
+            if PAC_KIND in kinds and PLATFORM_KIND in kinds:
+                report.bad(r, "consumes", "SKILL_PLATFORM_CHAIN",
+                           f"slice consumes both {PAC_KIND!r} and {PLATFORM_KIND!r}; the first slice starts from the "
+                           "PAC and every later slice consumes the immutable predecessor snapshot, never both")
+            elif PAC_KIND in kinds:
+                first.append(name)
+            elif PLATFORM_KIND not in kinds:
+                report.bad(r, "consumes", "SKILL_PLATFORM_CHAIN",
+                           f"slice consumes {sorted(kinds) or 'nothing'}; a platform slice consumes either "
+                           f"{PAC_KIND!r} (first slice) or {PLATFORM_KIND!r} (every later slice)")
+
+            if _writes_class(cmap, LINKER_CLASS):
+                if CANDIDATE_ONLY_MARKER not in flat:
+                    report.bad(r, "Procedure", "SKILL_PLATFORM_NOT_CANDIDATE_ONLY",
+                               f"the runtime/linker slice (declared by 'writes: <agent>|{LINKER_CLASS}') never states "
+                               f"{CANDIDATE_ONLY_MARKER!r}; its linker and runtime wiring stays inside the "
+                               "integration candidate until the consolidator places it")
+                if not any(p in flat for p in NEGATED_PLACEMENT):
+                    report.bad(r, "Procedure", "SKILL_PLATFORM_SLICE_PLACEMENT",
+                               f"the runtime/linker slice does not state any of {list(NEGATED_PLACEMENT)}; it must "
+                               "explicitly disclaim independent canonical placement")
+
+        if len(first) != 1:
+            report.bad(".opencode/skills", "0", "SKILL_PLATFORM_FIRST_SLICE",
+                       f"{len(first)} platform slice(s) consume {PAC_KIND!r} ({', '.join(first) or 'none'}); exactly "
+                       "one first slice starts the chain from the PAC")
+        report.ok("skill-platform-slices",
+                  f"{len(slices)} non-final platform slice(s) publish only partial, start once from {PAC_KIND} and "
+                  f"otherwise consume the {PLATFORM_KIND} snapshot, and {len(final)} final consolidator carries "
+                  "composite evidence, review and canonical placement", mark)
+
+
+# --- M5 check: debug-lineage ------------------------------------------------
+#
+# G6. A debugging test run must never overwrite the failure it is
+# investigating. 07 filenames are name-derived and repeatable
+# (validate.py SINGLETON_KINDS), so nothing in the schema stops a debug run
+# from reusing the original name; the discipline is procedural and is asserted
+# here.
+
+TESTS_KIND = "07-tests"
+DRIVER_KIND = "06-driver"
+DRIVER_FILE_PREFIX = "06-driver-"
+TESTS_FILE_RE = re.compile(r"halucinator/handoff/07-tests-(.+)\.toml$")
+
+
+def check_debug_lineage(root: Path, report: Report) -> None:
+    """Subject derivation: skills that both EMIT and CONSUME the tests kind.
+
+    `[n for n in skills_emitting_kind(contracts, TESTS_KIND)
+        if TESTS_KIND in consumed_kinds(contracts[n])]` - parsed `emits:` and
+    parsed `consumes:` only. The ordinary example producer emits 07 without
+    consuming one and is therefore not a subject.
+    """
+    mark = report.mark()
+    with guard(report, ".opencode/skills", "DEBUG_LINEAGE_ABORT"):
+        paths = skill_paths(root)
+        contracts = skill_contracts(root)
+        emitters = [n for n in skills_emitting_kind(contracts, TESTS_KIND) if n in paths]
+        subjects = [n for n in emitters if TESTS_KIND in consumed_kinds(contracts[n])]
+        if not subjects:
+            report.bad(".opencode/skills", "0", "DEBUG_LINEAGE_NO_TARGETS",
+                       f"no discovered skill both emits and consumes {TESTS_KIND!r}; the distinct-output debugging "
+                       "lineage is asserted against nothing")
+            return
+        for name in subjects:
+            r = rel(root, paths[name])
+            text = read_text(paths[name])
+            mine = emitted_filename(contracts[name])
+            if not mine:
+                report.bad(r, "emits", "DEBUG_LINEAGE_NO_FILENAME",
+                           "no parseable deterministic filename in the 'emits:' declaration")
+                continue
+            for other in emitters:
+                if other == name:
+                    continue
+                theirs = emitted_filename(contracts[other])
+                if theirs is not None and theirs == mine:
+                    report.bad(r, "emits", "DEBUG_LINEAGE_SELF_REPLACEMENT",
+                               f"the debug output filename template {mine!r} equals the template emitted by "
+                               f"{other!r}; a debug run must publish a distinct name and never replace the "
+                               "failing original it pins")
+            proc = (h2_body(text, "Procedure") or "").lower()
+            if "distinct" not in proc:
+                report.bad(r, "Procedure", "DEBUG_LINEAGE_NO_DISTINCT_STEP",
+                           "the procedure never requires a distinct debug name; selecting a fresh name is the "
+                           "step that preserves the original failing handoff")
+            if "differ" not in proc and "no matching file" not in proc:
+                report.bad(r, "Procedure", "DEBUG_LINEAGE_NO_DISTINCT_STEP",
+                           "the procedure never requires the chosen name to differ from the consumed one, so "
+                           "in-place replacement is not actually forbidden")
+            # The worked example must show a real, non-self-replacing lineage.
+            docs: list[dict] = []
+            for block in fenced_blocks(h2_body(text, "Application example") or "", "toml"):
+                if len(block.encode("utf-8", "replace")) > MAX_TOML_EXAMPLE_BYTES:
+                    continue
+                try:
+                    docs.append(tomllib.loads(block))
+                except (tomllib.TOMLDecodeError, ValueError):
+                    continue
+            shown = [d for d in docs if isinstance(d.get("tests"), dict)]
+            if not shown:
+                report.bad(r, "Application example", "DEBUG_LINEAGE_NO_EXAMPLE",
+                           "no parseable typed example showing a [tests] table, so the distinct lineage is "
+                           "demonstrated nowhere")
+                continue
+            for doc in shown:
+                tests = doc["tests"]
+                own = tests.get("name")
+                inputs = doc.get("handoff", {}).get("inputs", []) if isinstance(doc.get("handoff"), dict) else []
+                sources = []
+                for ref in inputs if isinstance(inputs, list) else []:
+                    if not isinstance(ref, dict):
+                        continue
+                    m = TESTS_FILE_RE.search(str(ref.get("path", "")))
+                    if m:
+                        sources.append(m.group(1))
+                if not sources:
+                    report.bad(r, "Application example", "DEBUG_LINEAGE_NO_SOURCE_PIN",
+                               f"the example's handoff.inputs pins no {TESTS_KIND} handoff; the failing original "
+                               "must remain pinned, not merely referenced in prose")
+                for src in sources:
+                    if src == own:
+                        report.bad(r, "Application example", "DEBUG_LINEAGE_SELF_REPLACEMENT",
+                                   f"the example emits tests.name {own!r} while pinning the identically named "
+                                   f"{TESTS_KIND} input; the debug run would overwrite the failure it consumed")
+                api = tests.get("api_handoff")
+                api_path = str(api.get("path", "")) if isinstance(api, dict) else ""
+                if not api_path.rsplit("/", 1)[-1].startswith(DRIVER_FILE_PREFIX):
+                    report.bad(r, "Application example", "DEBUG_LINEAGE_API_HANDOFF",
+                               f"tests.api_handoff names {api_path or '(nothing)'!r}; it binds by path to the exact "
+                               f"{DRIVER_KIND} handoff whose public API the debug run exercises")
+        report.ok("debug-lineage",
+                  f"{len(subjects)} of {len(emitters)} {TESTS_KIND} emitter(s) consume a {TESTS_KIND} handoff and "
+                  "publish a distinct debug name that pins, never replaces, the failing original", mark)
+
+
+
+# --- M5 check: skill-subject-derivation -------------------------------------
+#
+# G3. M4 shipped a defect its own review caught: SKILL_REVIEW_GATED was a
+# hard-coded tuple that omitted write-driver, so that skill's declared review
+# gate asserted nothing. M5 adds seven skills - seven more chances to repeat
+# it. This check reads THIS FILE's AST and rejects the four shapes by which a
+# check can quietly narrow its own subject set to a literal:
+#
+#   1. literal skill-name comparison      name == "scaffold-hal"
+#   2. literal skill-name collection      M4_SKILLS = (...) used for equality
+#   3. literal skill-directory scan root  root / ".opencode/skills/write-examples"
+#   4. mapping-key membership             if n in SKILL_NOTE_PATHS
+#
+# An expectation mapping keyed by skill name stays legal when the lookup
+# happens AFTER the discovered subject is selected and the mapping does not
+# filter applicability - i.e. subscript and .get() are fine, membership tests,
+# iteration and set/sorted() coercion are not.
+
+SKILL_DIR_PREFIX = ".opencode/skills/"
+COLLECTION_COERCIONS = ("sorted", "set", "frozenset", "list", "tuple", "any", "all")
+_MIN_LITERAL_NAMES = 2
+
+
+def known_skill_names(root: Path) -> set[str]:
+    """Discovered plus canonically mapped skill names.
+
+    Deliberately not a `check_*` function: it is the guard's own input, and the
+    guard only scans `check_*` bodies.
+    """
+    return set(skill_paths(root)) | set(SKILL_SPEC)
+
+
+def _str_const(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _literal_strings(node: ast.AST) -> list[str]:
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return [s for s in (_str_const(e) for e in node.elts) if s is not None]
+    if isinstance(node, ast.Dict):
+        return [s for s in (_str_const(k) for k in node.keys if k is not None) if s is not None]
+    return []
+
+
+def analyze_subject_derivation(source: str, names: set[str],
+                               exempt: tuple[str, ...] = ()) -> list[tuple[str, str, str]]:
+    """Pure analyzer: [(function, code, message)] for literal subject selection.
+
+    Pure function of (python source, known skill names, exempt functions) so
+    the in-memory near-miss fixtures below drive it without touching the
+    filesystem.
+    """
+    out: list[tuple[str, str, str]] = []
+    tree = ast.parse(source)
+
+    # Module-level constants whose literal content is skill names, and
+    # constants that are literal skill-directory paths.
+    name_collections: dict[str, str] = {}   # const -> "collection" | "mapping"
+    dir_consts: dict[str, str] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        value = node.value
+        if value is None:
+            continue
+        for t in targets:
+            if not isinstance(t, ast.Name):
+                continue
+            literal = _literal_strings(value)
+            if len([s for s in literal if s in names]) >= _MIN_LITERAL_NAMES:
+                name_collections[t.id] = "mapping" if isinstance(value, ast.Dict) else "collection"
+            s = _str_const(value)
+            if s is not None and s.startswith(SKILL_DIR_PREFIX):
+                tail = s[len(SKILL_DIR_PREFIX):].split("/")[0]
+                if tail in names:
+                    dir_consts[t.id] = s
+
+    def flag(fn: str, code: str, message: str) -> None:
+        out.append((fn, code, message))
+
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.name.startswith("check_") or node.name in exempt:
+            continue
+        fn = node.name
+        for sub in ast.walk(node):
+            # 1. literal skill-name comparison
+            if isinstance(sub, ast.Compare):
+                operands = [sub.left] + list(sub.comparators)
+                for operand in operands:
+                    s = _str_const(operand)
+                    if s is not None and s in names:
+                        flag(fn, "SKILL_SUBJECT_LITERAL_NAME",
+                             f"compares against the literal skill name {s!r}; subjects must be derived from "
+                             "skill_paths()/parsed contract fields, never from a name written into the harness")
+                # 4. mapping-key / collection membership used for selection
+                for op, comparator in zip(sub.ops, sub.comparators):
+                    if not isinstance(op, (ast.In, ast.NotIn)):
+                        continue
+                    if isinstance(comparator, ast.Name) and comparator.id in name_collections:
+                        kind = name_collections[comparator.id]
+                        code = ("SKILL_SUBJECT_MAPPING_KEYS" if kind == "mapping"
+                                else "SKILL_SUBJECT_LITERAL_COLLECTION")
+                        flag(fn, code,
+                             f"tests membership in {comparator.id!r}, whose {'keys' if kind == 'mapping' else 'elements'} "
+                             "are literal skill names; that makes the literal the subject filter. Select the subject "
+                             "from discovery first, then look the expectation up")
+                    elif len([s for s in _literal_strings(comparator) if s in names]) >= _MIN_LITERAL_NAMES:
+                        flag(fn, "SKILL_SUBJECT_LITERAL_COLLECTION",
+                             "tests membership in an inline literal collection of skill names")
+                # 2. literal-collection equality
+                for operand in operands:
+                    if isinstance(operand, ast.Name) and name_collections.get(operand.id) == "collection":
+                        flag(fn, "SKILL_SUBJECT_LITERAL_COLLECTION",
+                             f"compares against {operand.id!r}, a literal collection of skill names; a new skill "
+                             "would have to be hand-added to it, which is exactly how a declared gate comes to "
+                             "assert nothing")
+            # 2. literal collection iterated or coerced
+            if isinstance(sub, (ast.For, ast.comprehension)):
+                it = sub.iter
+                if isinstance(it, ast.Name) and it.id in name_collections:
+                    flag(fn, "SKILL_SUBJECT_LITERAL_COLLECTION",
+                         f"iterates {it.id!r}, a literal collection of skill names, to produce subjects")
+                elif len([s for s in _literal_strings(it) if s in names]) >= _MIN_LITERAL_NAMES:
+                    flag(fn, "SKILL_SUBJECT_LITERAL_COLLECTION",
+                         "iterates an inline literal collection of skill names to produce subjects")
+            if isinstance(sub, ast.Call):
+                if isinstance(sub.func, ast.Name) and sub.func.id in COLLECTION_COERCIONS:
+                    for arg in sub.args:
+                        if isinstance(arg, ast.Name) and arg.id in name_collections:
+                            flag(fn, "SKILL_SUBJECT_LITERAL_COLLECTION",
+                                 f"coerces {arg.id!r} with {sub.func.id}(); a literal skill-name collection must "
+                                 "not become a subject set")
+                # 3. literal skill-directory scan root
+                if isinstance(sub.func, ast.Attribute) and sub.func.attr in ("glob", "rglob"):
+                    base = sub.func.value
+                    if isinstance(base, ast.Name) and base.id in dir_consts:
+                        flag(fn, "SKILL_SUBJECT_LITERAL_PATH",
+                             f"scans {dir_consts[base.id]!r}, a literal skill directory")
+            # 3. literal skill-directory joined onto a root path
+            if isinstance(sub, ast.BinOp) and isinstance(sub.op, ast.Div):
+                for operand in (sub.left, sub.right):
+                    if isinstance(operand, ast.Name) and operand.id in dir_consts:
+                        flag(fn, "SKILL_SUBJECT_LITERAL_PATH",
+                             f"joins the literal skill directory {dir_consts[operand.id]!r} onto a path; the tree to "
+                             "scan must be derived from a parsed contract field, not from a directory name")
+                    s = _str_const(operand)
+                    if s is not None and s.startswith(SKILL_DIR_PREFIX) \
+                            and s[len(SKILL_DIR_PREFIX):].split("/")[0] in names:
+                        flag(fn, "SKILL_SUBJECT_LITERAL_PATH",
+                             f"joins the literal skill directory {s!r} onto a path")
+    # Deduplicate: one finding per (function, code, message).
+    seen: set[tuple[str, str, str]] = set()
+    unique: list[tuple[str, str, str]] = []
+    for item in out:
+        if item not in seen:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
+_SUBJECT_NAMES = {"alpha-skill", "beta-skill"}
+
+_SUBJECT_GOOD = '''
+EXPECT = {"alpha-skill": "a", "beta-skill": "b"}
+
+def check_good(root, report):
+    for name in sorted(skill_paths(root)):
+        want = EXPECT.get(name)
+        if want is not None:
+            report.ok(name, want)
+'''
+
+_SUBJECT_CASES: tuple[tuple[str, str, str], ...] = (
+    ("literal name comparison",
+     'def check_x(root, report):\n'
+     '    for name in sorted(skill_paths(root)):\n'
+     '        if name == "alpha-skill":\n'
+     '            report.ok(name, "x")\n',
+     "SKILL_SUBJECT_LITERAL_NAME"),
+    ("literal name collection compared for equality",
+     'M_SKILLS = ("alpha-skill", "beta-skill")\n'
+     'def check_x(root, report):\n'
+     '    if sorted(skill_paths(root)) != sorted(M_SKILLS):\n'
+     '        report.bad("x", "0", "C", "m")\n',
+     "SKILL_SUBJECT_LITERAL_COLLECTION"),
+    ("literal name collection iterated",
+     'M_SKILLS = ["alpha-skill", "beta-skill"]\n'
+     'def check_x(root, report):\n'
+     '    for name in M_SKILLS:\n'
+     '        report.ok(name, "x")\n',
+     "SKILL_SUBJECT_LITERAL_COLLECTION"),
+    ("literal skill-directory scan root",
+     'SCAN = ".opencode/skills/alpha-skill"\n'
+     'def check_x(root, report):\n'
+     '    for p in (root / SCAN).rglob("*.md"):\n'
+     '        report.ok(str(p), "x")\n',
+     "SKILL_SUBJECT_LITERAL_PATH"),
+    ("inline literal skill-directory scan root",
+     'def check_x(root, report):\n'
+     '    d = root / ".opencode/skills/beta-skill"\n'
+     '    report.ok(str(d), "x")\n',
+     "SKILL_SUBJECT_LITERAL_PATH"),
+    ("mapping-key membership as subject selection",
+     'NOTES = {"alpha-skill": "a", "beta-skill": "b"}\n'
+     'def check_x(root, report):\n'
+     '    targets = [n for n in skill_paths(root) if n in NOTES]\n'
+     '    report.ok("x", str(targets))\n',
+     "SKILL_SUBJECT_MAPPING_KEYS"),
+)
+
+
+def subject_analyzer_failures() -> list[str]:
+    """Self-test: empty when the analyzer discriminates, problems otherwise."""
+    problems: list[str] = []
+    clean = analyze_subject_derivation(_SUBJECT_GOOD, _SUBJECT_NAMES)
+    if clean:
+        problems.append(
+            f"the conforming in-memory check was rejected with {[c for _, c, _ in clean]}; a name-keyed "
+            "expectation map read AFTER discovery is legal, so the analyzer rejects everything and proves nothing")
+    for label, src, want in _SUBJECT_CASES:
+        codes = [c for _, c, _ in analyze_subject_derivation(src, _SUBJECT_NAMES)]
+        if want not in codes:
+            problems.append(f"near-miss {label!r} did not yield {want} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_skill_subject_derivation(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "tools/selfcheck.py", "SKILL_SUBJECT_ABORT"):
+        for problem in subject_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_subject_derivation", "SKILL_SUBJECT_FIXTURE",
+                       f"the subject-derivation analyzer failed its in-memory fixtures: {problem}")
+        names = known_skill_names(root)
+        if not names:
+            report.bad(".opencode/skills", "0", "SKILL_SUBJECT_NO_NAMES",
+                       "no discovered or canonical skill names; the guard would recognise no literal and "
+                       "pass vacuously")
+            return
+        try:
+            source = Path(__file__).read_text(encoding="utf-8")
+        except OSError as exc:
+            report.bad("tools/selfcheck.py", "0", "SKILL_SUBJECT_UNREADABLE",
+                       f"cannot read this harness to audit its own subject selection: {exc}")
+            return
+        if len(SUBJECT_DERIVATION_EXEMPT) != 1:
+            report.bad("tools/selfcheck.py", "SUBJECT_DERIVATION_EXEMPT", "SKILL_SUBJECT_EXEMPTION",
+                       f"{len(SUBJECT_DERIVATION_EXEMPT)} functions are exempt from the guard; exactly one - the "
+                       "discovery-closure comparison, whose entire job is comparing discovery against the "
+                       "canonical mapping - may be")
+        findings = analyze_subject_derivation(source, names, SUBJECT_DERIVATION_EXEMPT)
+        for fn, code, message in findings:
+            report.bad("tools/selfcheck.py", fn, code, message)
+        audited = sum(1 for n in ast.walk(ast.parse(source))
+                      if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                      and n.name.startswith("check_") and n.name not in SUBJECT_DERIVATION_EXEMPT)
+        report.ok("skill-subject-derivation",
+                  f"{audited} check functions select their subjects from discovery and parsed contract fields, with "
+                  f"no literal skill name, collection, directory or mapping-key filter across {len(names)} known "
+                  f"skill names (analyzer self-tested against {len(_SUBJECT_CASES)} near-misses)", mark)
 
 
 # --- M4 check: skill-discovery-closure --------------------------------------
@@ -3372,14 +4188,16 @@ def check_validation_guidance_isolation(root: Path, report: Report) -> None:
 # visible. This check is what keeps discovery honest now that the file and its
 # parser are gone.
 
-M4_SKILLS: tuple[str, ...] = (
-    "gather-documentation",
-    "generate-pac",
-    "generate-svd",
-    "scaffold-hal",
-    "write-driver",
-    "write-examples",
-)
+# M4_SKILLS is gone. A literal six-name tuple compared for equality is a
+# subject-selection literal (G3 shape 2), and it would also have had to be
+# hand-edited for every new milestone. Discovery is now compared BOTH ways
+# against the canonical mapping SKILL_SPEC, which the contract checks already
+# treat as authoritative.
+#
+# This is the one function permitted to read SKILL_SPEC as a collection: its
+# entire job IS that comparison. check_skill_subject_derivation enforces the
+# exemption is exactly this one function.
+SUBJECT_DERIVATION_EXEMPT: tuple[str, ...] = ("check_skill_discovery_closure",)
 
 
 def check_skill_discovery_closure(root: Path, report: Report) -> None:
@@ -3402,12 +4220,21 @@ def check_skill_discovery_closure(root: Path, report: Report) -> None:
                 report.bad(r, "0", "SKILL_DISCOVERY_NOT_REGULAR",
                            "SKILL.md is not a regular file")
         discovered = sorted(skill_paths(root))
-        if discovered != sorted(M4_SKILLS):
-            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_SET",
-                       f"discovered skills are {discovered}; after M4 there must be exactly "
-                       f"{len(M4_SKILLS)}: {sorted(M4_SKILLS)}. Implementation guidance is consolidated "
-                       "into write-driver and tester-safe validation profiles live under "
-                       f"{VALIDATION_PROFILE_DIR}")
+        if not discovered:
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_EMPTY",
+                       "no skill was discovered at all; every skill-scoped check would assert nothing")
+            return
+        canonical = sorted(SKILL_SPEC)
+        undiscovered = sorted(set(canonical) - set(discovered))
+        unmapped = sorted(set(discovered) - set(canonical))
+        if undiscovered:
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_MISSING",
+                       f"canonical skill(s) {', '.join(undiscovered)} are mapped but not discovered under "
+                       ".opencode/skills/*/SKILL.md; a mapped skill that does not exist is a stage with no procedure")
+        if unmapped:
+            report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_UNMAPPED",
+                       f"discovered skill(s) {', '.join(unmapped)} have no canonical contract mapping; "
+                       "every discovered skill must be mapped or the contract checks compare it against nothing")
         # Every discovered skill must be in scope for the template checks with
         # no exclusion set applied at all.
         unbound = sorted(set(discovered) - set(in_scope_skills(root)))
@@ -3415,8 +4242,8 @@ def check_skill_discovery_closure(root: Path, report: Report) -> None:
             report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_UNBOUND",
                        f"skills {unbound} are discovered but not in scope for the template checks")
         report.ok("skill-discovery-closure",
-                  f"{len(discovered)} skill directories each carry exactly one regular SKILL.md and the "
-                  f"discovered set is the exact M4 set of {len(M4_SKILLS)}", mark)
+                  f"{len(discovered)} skill directories each carry exactly one regular SKILL.md and directory "
+                  f"discovery equals the {len(canonical)}-entry canonical mapping in both directions", mark)
 
 
 # ---------------------------------------------------------------------------
@@ -3462,6 +4289,7 @@ def main(argv: list[str]) -> int:
     check_skill_references(root, report)
     check_validation_guidance_isolation(root, report)
     check_skill_discovery_closure(root, report)
+    check_skill_subject_derivation(root, report)
 
     # Skill template checks. M4 retired the two-generation exemption file and
     # its parser together, so these are ordinary invocations with no exclusion
@@ -3476,6 +4304,8 @@ def main(argv: list[str]) -> int:
     check_skill_verdict(root, report)
     check_skill_validator_wiring(root, report)
     check_skill_note_paths(root, report)
+    check_skill_platform_slices(root, report)
+    check_debug_lineage(root, report)
     check_schema_attribution(root, report)
     check_test_candidate_layout(root, report)
     check_selfcheck_doc_parity(root, report)
