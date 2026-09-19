@@ -142,6 +142,9 @@ follow evidence retention, not that source limit.
   result-evaluation, and repair workflow, and for the applicable tester-safe
   validation profile. Never load `write-driver`, its implementation procedure,
   private checklist, or driver record.
+- Use `debug-hardware` only for a preserved failure and a distinct output name.
+  It does not relax source blindness, `cargo fmt*` denial or `git commit*`
+  denial.
 - Work from the payload: target and scope, the exact `06` FileRef, only the
   public API, dependencies, trait obligations, test facts and build contract,
   the cases, the output and execution scope, the board and setup and observation

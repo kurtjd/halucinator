@@ -90,6 +90,15 @@ The clock subsystem is **hal-driver**'s. It is implemented against the contract
 **hal-architect** specified in `ARCHITECTURE.md`; the architect does not
 implement it, and no driver hand-rolls gating or reset outside `clocks`.
 
+This stage is the **sole final consolidator** of the platform chain.
+**hal-coordinator** dispatches `write-clocks`, then `integrate-interrupts`, then
+`integrate-runtime-linker`, each of which publishes only a `partial`
+`05-platform` inside the one continuously held Phase-I platform session and
+moves no canonical byte. This skill then creates the composite evidence, obtains
+the independent review with no platform lock held, performs canonical placement,
+and publishes the single `ready` `05-platform`. No slice may do any of those
+four things.
+
 `SCAFFOLD.md` and `STARTUP.md` are class `platform-notes`, owned and materialized
 by **hal-integrator**. **hal-architect** and **hal-driver** author semantic
 deltas into them; **hal-coordinator** dispatches the integrator to materialize
@@ -262,20 +271,30 @@ access or an invented constant.
     `state.toml` currently pins before replacing it, publish the preliminary
     `05-platform`, run
     `python .opencode/schema/validate.py <repository-root> --kind all` again,
-    then request through **hal-coordinator** the independent **hal-reviewer**
-    review over `platform.crate_manifest` and the frozen candidate, and discharge
-    `independent-review` from the accepting verdict. Only review.verdict=ready
-    accepts; ready-with-fixes and not-ready do not.
-14. **Re-attest, publish the final handoff, and run the final gate.** Re-attest
-    where referenced bytes changed — preserve the superseded evidence and review
-    records, create replacement evidence at a new path rather than overwriting
-    one, rerun only the affected checks, and obtain a new review where the
-    reviewed bytes changed — then let **hal-integrator** copy the reviewed bytes
-    verbatim to their canonical paths and commit, publish the final
-    `halucinator/handoff/05-platform.toml`, validate it, let **hal-coordinator**
-    update `state.toml` through the compare-and-swap sequence, run the final
-    `--kind all` gate, and return the record paths, status and next action. State
-    that no peripheral driver, publication or hardware operation was performed.
+    then create fresh **composite evidence** at new paths for every one of the
+    ten canonical checks, taking each slice-local log as an input FileRef,
+    listing all of them, and attesting the complete candidate rather than any
+    one slice. Release the Phase-I platform session lock, then request through
+    **hal-coordinator** the independent **hal-reviewer** review over
+    `platform.crate_manifest` and the frozen candidate — peer review happens
+    with **no platform lock held** — and discharge `independent-review` from the
+    accepting verdict. Only review.verdict=ready accepts; ready-with-fixes and
+    not-ready do not.
+14. **Re-attest, place canonically, publish the final handoff, and run the final
+    gate.** Re-attest where referenced bytes changed — preserve the superseded
+    evidence and review records, create replacement evidence at a new path
+    rather than overwriting one, rerun only the affected checks, and obtain a
+    new review where the reviewed bytes changed — then let **hal-integrator**
+    reacquire the platform lock, revalidate every candidate, composite-evidence
+    and review hash against what the review accepted, and perform **canonical
+    placement**: copy the reviewed bytes verbatim to their canonical paths and
+    commit. Any contention or changed baseline aborts this phase and restarts
+    from fresh validation and review. Publish the final
+    `halucinator/handoff/05-platform.toml` — the only `ready` `05-platform` this
+    stage produces — validate it, let **hal-coordinator** update `state.toml`
+    through the compare-and-swap sequence, run the final `--kind all` gate, and
+    return the record paths, status and next action. State that no peripheral
+    driver, publication or hardware operation was performed.
 
 ## Validation
 

@@ -129,6 +129,7 @@ order of severity.
 
 ## How you work
 
+- Use `review-artifact` for every initial review and recheck.
 - Work from the payload: artifact ID and primary ArtifactRef, the complete
   frozen set, the scope, the architecture specification, the dependency closure,
   the citations and contracts, the live Embassy references, any prior review,

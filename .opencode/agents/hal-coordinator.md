@@ -107,6 +107,43 @@ falling back.
 - Record what you did not verify. A run whose tester context may have seen
   implementation source is invalid; dispatch a fresh tester context. No
   mechanism enforces this, so it is your judgement that carries it.
+- On every entry and before declaring any stage complete, enumerate all current
+  `partial` and `blocked` `state.stages[]` entries. Surface the affected check,
+  exact remedy, next eligible dispatch and whether unaffected work remains.
+  This is procedural visibility, not durable automatic detection; F14 remains
+  open.
+
+## Platform stage sequence
+
+The `scaffold-hal` stage runs as an ordered chain of four dispatches:
+`write-clocks`, then `integrate-interrupts`, then `integrate-runtime-linker`,
+then `scaffold-hal` itself as the sole final consolidator. Each of the first
+three publishes only a `partial` `05-platform`; only `scaffold-hal` publishes
+the single `ready` `05-platform` and reaches a canonical path.
+
+The chain runs in two phases:
+
+- **Phase I.** `hal-integrator` holds one continuously heartbeated
+  `kind="stage"` platform session whose resources carry `stage:scaffold-hal`,
+  `global:hal-integration` and one `path:` entry per candidate or owned file any
+  slice may mutate. Every slice joins that already-authorized session rather
+  than acquiring a second conflicting lock, and no canonical byte moves. Before
+  each `05-platform` replacement, validate the live singleton, copy its exact
+  bytes to a fresh candidate snapshot path, hash it, verify byte equality, and
+  pass the snapshot FileRef — never the live singleton path — as the
+  successor's `handoff.inputs`.
+- **Phase II.** Release the implementation lock before requesting review.
+  `scaffold-hal` creates fresh composite evidence for every canonical check from
+  the slice-local logs, and review happens with no platform lock held. After
+  `review.verdict=ready`, reacquire the lock, reverify the candidate and review
+  hashes, place canonically, publish the sole `ready` `05-platform`, and update
+  state. Any contention or changed baseline aborts Phase II and restarts from
+  fresh validation and review.
+
+The shared session is an honor-system coordination convention: schema 1 has no
+fencing token or multi-agent lease, and snapshot semantics are inherited from
+the immediately preceding validation plus byte equality rather than
+independently rediscovered by the validator.
 
 ## What you do NOT do
 

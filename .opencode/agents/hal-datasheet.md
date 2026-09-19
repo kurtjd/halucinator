@@ -126,8 +126,8 @@ things an SVD file has no way to say.
 - Prefer the reference manual for register detail and the datasheet for
   electrical limits and `fmax`. They are different documents with different
   jobs.
-- A dedicated `extract-hardware-facts` skill awaits M5 TODO D7/B4; until it
-  exists, this contract and the analysis procedure above are the procedure.
+- Use `extract-hardware-facts` for every `extract-facts` dispatch and
+  resumption. It is the only procedure that may publish `02-facts`.
 
 ## What you do NOT do
 

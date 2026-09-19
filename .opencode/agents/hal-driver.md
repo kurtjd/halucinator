@@ -16,6 +16,7 @@ permission:
     "halucinator/candidates/driver-*/src/lib.rs": deny
     "halucinator/candidates/driver-*/src/chips/**": deny
     "halucinator/candidates/driver-*/src/_generated.rs": deny
+    "halucinator/candidates/driver-*/evidence/**": allow
     "halucinator/handoff/06-driver-*.toml": allow
   bash:
     "*": ask
@@ -31,6 +32,7 @@ owner: hal-driver owns one peripheral or hardware-semantic subsystem implementat
 owns: peripheral-modules
 owns: clock-modules
 owns: driver-candidates
+owns: driver-evidence
 owns: driver-handoff
 emits: 06-driver|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.name,driver.owned_files,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts.document,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.test_hardware_facts.revision,driver.test_hardware_facts.source_id,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
 state-writes: none
@@ -125,6 +127,9 @@ shared crate files and the tester's test modules, which it owns.
   subsystem with its scope kind and modes, the foundation API, the dependency
   contracts, the citations, your owned patterns, the build contract, and the
   requirement IDs. On a missing mandatory input, return `blocked`.
+- Use `write-clocks` for the first platform clock/reset slice, `write-dma` for
+  the shared DMA subsystem, and `write-driver` for ordinary peripheral
+  subsystems.
 - Use `write-driver` for GPIO, Embassy time drivers, buses, and other peripheral
   subsystems. Its selected profile's subsystem architecture, lifecycle, and
   scheduling rules take precedence over the generic bus-driver template above.
@@ -179,6 +184,7 @@ shared crate files and the tester's test modules, which it owns.
   halucinator/candidates/driver-*/src/lib.rs=deny;
   halucinator/candidates/driver-*/src/chips/**=deny;
   halucinator/candidates/driver-*/src/_generated.rs=deny;
+  halucinator/candidates/driver-*/evidence/**=allow;
   halucinator/handoff/06-driver-*.toml=allow`
 - Read: `*=allow`
 - Bash: `*=ask; git commit*=deny`

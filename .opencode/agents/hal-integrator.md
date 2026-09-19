@@ -24,6 +24,7 @@ permission:
     "halucinator/docs/*/notes/STARTUP.md": allow
     "halucinator/docs/*/notes/GPIO.md": allow
     "halucinator/docs/*/notes/TIME-DRIVER.md": allow
+    "halucinator/docs/*/notes/drivers/**": allow
     "halucinator/docs/*/notes/recovery/**": allow
     "halucinator/docs/*/notes/tests/**": allow
     "halucinator/docs/*/notes/REVIEW-*.md": allow
@@ -110,11 +111,14 @@ without changing specialist semantics.**
   editing that logic. You **read** `halucinator/test-candidates/**`; you never
   write there.
 - **Durable records.** `SOURCES.md`, `notes/SCAFFOLD.md`, `notes/STARTUP.md`,
-  `notes/GPIO.md`, `notes/TIME-DRIVER.md`, `notes/recovery/**`,
-  `notes/tests/**`, and `notes/REVIEW-*.md`, each written from an exact delta
-  supplied by the agent that authored the content. Semantic authorship does not
-  create a second file owner; five stages append to `SOURCES.md`, which is why
-  it is yours.
+  `notes/GPIO.md`, `notes/TIME-DRIVER.md`, `notes/drivers/**`,
+  `notes/recovery/**`, `notes/tests/**`, and `notes/REVIEW-*.md`, each written
+  from an exact delta supplied by the agent that authored the content. Semantic
+  authorship does not create a second file owner; five stages append to
+  `SOURCES.md`, which is why it is yours.
+  - `notes/drivers/**` is the generic durable driver record for a subsystem with
+    no fixed record filename. `hal-driver` authors the delta; you write the
+    file, exactly as you do for `notes/GPIO.md` and `notes/TIME-DRIVER.md`.
   - `notes/STARTUP.md` is the startup and clock contract. `hal-architect`
     specifies it and `hal-driver` supplies the implemented-semantics delta; you
     write the file, `platform.startup_clock_contract` and
@@ -179,6 +183,10 @@ builds on already-isolated immutable candidates run outside the global lock.
 accepts because lock resources are unrestricted sorted strings. It is not a
 schema-guaranteed namespace, and nothing mechanically fences a process that
 ignores it.
+
+Use `integrate-interrupts` and `integrate-runtime-linker` only inside the
+ordered scaffold platform session. Neither skill may perform independent
+canonical placement or publish a ready platform.
 
 ## Stage recovery
 
@@ -272,6 +280,7 @@ State which of these a given run depended on.
   halucinator/docs/*/notes/STARTUP.md=allow;
   halucinator/docs/*/notes/GPIO.md=allow;
   halucinator/docs/*/notes/TIME-DRIVER.md=allow;
+  halucinator/docs/*/notes/drivers/**=allow;
   halucinator/docs/*/notes/recovery/**=allow;
   halucinator/docs/*/notes/tests/**=allow;
   halucinator/docs/*/notes/REVIEW-*.md=allow;

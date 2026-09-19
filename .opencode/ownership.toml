@@ -82,6 +82,11 @@ owner = "hal-driver"
 patterns = ["halucinator/candidates/driver-*/src/**"]
 
 [[file_classes]]
+id = "driver-evidence"
+owner = "hal-driver"
+patterns = ["halucinator/candidates/driver-*/evidence/**"]
+
+[[file_classes]]
 id = "driver-handoff"
 owner = "hal-driver"
 patterns = ["halucinator/handoff/06-driver-*.toml"]
@@ -89,7 +94,11 @@ patterns = ["halucinator/handoff/06-driver-*.toml"]
 [[file_classes]]
 id = "driver-records"
 owner = "hal-integrator"
-patterns = ["halucinator/docs/*/notes/GPIO.md", "halucinator/docs/*/notes/TIME-DRIVER.md"]
+patterns = [
+  "halucinator/docs/*/notes/GPIO.md",
+  "halucinator/docs/*/notes/TIME-DRIVER.md",
+  "halucinator/docs/*/notes/drivers/**",
+]
 
 [[file_classes]]
 id = "example-binaries"
