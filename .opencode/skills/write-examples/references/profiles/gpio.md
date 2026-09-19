@@ -1,32 +1,41 @@
-# GPIO Validation
+# GPIO Validation Profile
 
-This is the **public, tester-safe specification** for `write-gpio`. Both
-**hal-driver** and **hal-tester** use its requirements; **hal-reviewer** audits
-their coverage. It contains no target HAL implementation or prescribed private
-design. Requirements are a minimum: the tester derives independent adversarial
-cases from the public API, upstream contracts, and cited hardware facts.
+This is the **public, tester-safe validation profile** for GPIO drivers.
+**hal-tester** loads it in addition to [`universal.md`](./universal.md) when the
+coordinator-supplied public contract positively establishes that the driver
+under test is a GPIO driver. **hal-reviewer** audits its coverage.
+
+It contains no target HAL implementation and no prescribed private design.
+Requirements are a minimum: the tester derives independent adversarial cases from
+the public API, the upstream contracts, and the cited hardware facts.
 
 ## Intake and ownership
 
-**hal-architect** supplies the exact MCU, package and board context, selected
-scope, public API signatures and behavioral contracts, applicable source IDs,
-cited notes, and actual documentation/PAC/build locations. Include supported
-pin capabilities, chip features, compilation target, public initialization and
-interrupt-binding requirements, memory/runtime facts, and an observation
-facility. Do not send function bodies or the full implementation record.
+**hal-coordinator** supplies the exact MCU, package and board context, the
+selected scope, the public API signatures and behavioral contracts, the
+applicable source IDs, the cited notes, and the actual documentation, PAC and
+build locations. That supply includes the supported pin capabilities, the chip
+features, the compilation target, the public initialization and
+interrupt-binding requirements, the memory and runtime facts, and an observation
+facility. Function bodies and the full implementation record are never supplied
+and are never requested.
 
-Use only public material and permitted example/build files under **hal-tester**'s
-source boundary. Report API ambiguity or missing observability rather than
-reading or fixing the implementation.
+Use only public material and the permitted example and build files inside
+**hal-tester**'s source boundary. Report API ambiguity or missing observability
+to **hal-coordinator** rather than reading or fixing the implementation.
 
-Read and follow `AGENTS.md` at the handed-over working repository root, sections
-"Artifact storage and handoff" and "Hardware testing", for shared boundaries.
-Do not resolve it relative to the skill installation; a missing policy is a
-blocker. **hal-tester** also invokes `write-examples` and follows its required
-hardware-execution and public-record references. This document supplies GPIO
-cases and fixture requirements to that workflow, not a second execution loop.
-Implementation and review readers use the GPIO contracts, not the tester's
-writing or hardware-execution procedures.
+## Composition
+
+Read `AGENTS.md` at the handed-over working repository root, sections "Artifact
+storage and handoff" and "Hardware testing", for the shared boundaries. Do not
+resolve it relative to the skill installation; a missing policy is a blocker.
+
+**hal-tester** reaches this profile through `write-examples` and follows that
+skill's required [test-record](../test-record.md) and
+[hardware-execution](../hardware-execution.md) references. This document
+supplies GPIO cases and fixture requirements to that workflow, not a second
+execution loop. Implementation and review readers consume the GPIO contracts
+here without taking the tester's writing or hardware-execution role.
 
 ## Contract sources
 
@@ -35,9 +44,9 @@ Read the documentation for the actual dependency versions in the checkout:
 - [embedded-hal digital traits](https://docs.rs/embedded-hal/latest/embedded_hal/digital/index.html):
   `ErrorType`, `InputPin`, `OutputPin`, and `StatefulOutputPin` where applicable.
 - [StatefulOutputPin](https://docs.rs/embedded-hal/latest/embedded_hal/digital/trait.StatefulOutputPin.html):
-   the output-state contract used by GPIO-04.
+  the output-state contract used by GPIO-04.
 - [embedded-hal-async Wait](https://docs.rs/embedded-hal-async/latest/embedded_hal_async/digital/trait.Wait.html):
-   the five level/edge contracts used by GPIO-07 through GPIO-11.
+  the five level/edge contracts used by GPIO-07 through GPIO-11.
 
 Below, **D** means the applicable digital trait contract, **W** the `Wait`
 contract, **H** the supplied public HAL contract and toolkit requirements, and
@@ -77,7 +86,7 @@ PAC metadata, unimplemented behavior, or unavailable equipment. Only a cited
 capability limit or the explicitly agreed scope makes a row inapplicable. Missing
 equipment or evidence leaves required cases blocked. A scaffold-support subset
 does not claim completion of the full GPIO matrix. Scope reductions return to
-**hal-architect** for an explicit decision; do not quietly remove failing cases.
+**hal-coordinator** for an explicit decision; do not quietly remove failing cases.
 
 ## Prepare a physical setup
 
@@ -85,11 +94,13 @@ does not claim completion of the full GPIO matrix. Scope reductions return to
    documentation, within the public API's capabilities. Require a suitable
    interrupt-capable input for async cases. Check header-to-MCU mapping and
    attached loads or debug/boot/oscillator conflicts under `write-examples`'
-   hardware procedure; never invent a jumper position or resistor value.
+   [hardware-execution procedure](../hardware-execution.md); never invent a
+   jumper position or resistor value.
 2. Provide a connection table with connector/pin, MCU pin, role, destination, and
-   citation. Plan mode transitions so the jumper never joins two driven outputs,
-   including while existing firmware boots or test firmware is prepared. Apply
-   that procedure to any preparation image, power sequence, and confirmation.
+   citation. **Plan mode transitions so the jumper never joins two driven
+   outputs, including while existing firmware boots or test firmware is
+   prepared.** Apply that procedure to any preparation image, power sequence, and
+   confirmation.
 3. Prefer one documented output connected to one documented input. A driven
    loopback cannot measure pulls; shared-interrupt isolation may need additional
    pins and independent stimuli. Request extra setup only for required coverage.
@@ -98,12 +109,12 @@ does not claim completion of the full GPIO matrix. Scope reductions return to
 
 Within `write-examples`' authorized execution loop:
 
-1. For loopback, establish input mode safely before driving the output, then
-   check stable low/high states and patterns. Reverse roles only when supported
-   and with a transition that never leaves both ends driving. Coordinate async
-   stimuli through public test code so waits are actually polled/armed before
-   the event where the case requires it. Merely constructing an async future
-   does not arm it. Exercise initially satisfied levels separately from edges.
+1. **For loopback, establish input mode safely before driving the output**, then
+   check stable low/high states and patterns. **Reverse roles only when supported
+   and with a transition that never leaves both ends driving.** Coordinate async
+   stimuli through public test code so waits are actually polled and armed before
+   the event where the case requires it. **Merely constructing an async future
+   does not arm it.** Exercise initially satisfied levels separately from edges.
 2. Use bounded trials and host-side runner deadlines. For negative expectations,
    verify that the wait remains pending during a defined no-event interval,
    then cancel or provide the required event; an intentional pending wait must
@@ -126,7 +137,8 @@ outcomes, and unresolved API or instrumentation findings. Reuse the existing
 source-blind setup/run record when supplied; do not create a duplicate GPIO
 test log or redefine its statuses here.
 
-Return that record through **hal-architect**, which links it from the full GPIO
+Return that record through **hal-coordinator**, which links it from the full GPIO
 record without exposing implementation sections to the tester. For repairs and
-retesting, the tester follows `write-examples`' "Evaluate, repair through the
-owner, and retest" section; this matrix remains the GPIO acceptance specification.
+retesting, the tester follows `write-examples`' "Compare observations against
+expectations and route repairs" step; this matrix remains the GPIO acceptance
+specification.

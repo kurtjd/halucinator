@@ -1,4 +1,0 @@
-# temporary M3 skill-contract allowlist; remove in M4
-# format: <repo-relative-posix-path>\t<token>\t<count>
-.opencode/skills/write-gpio/SKILL.md	legacy-skill-contract-until-M4	1
-.opencode/skills/write-time-driver/SKILL.md	legacy-skill-contract-until-M4	1

@@ -125,12 +125,10 @@ shared crate files and the tester's test modules, which it owns.
   subsystem with its scope kind and modes, the foundation API, the dependency
   contracts, the citations, your owned patterns, the build contract, and the
   requirement IDs. On a missing mandatory input, return `blocked`.
-- For GPIO use `write-gpio`; for Embassy time drivers use `write-time-driver`.
-  Their subsystem architecture, lifecycle, and scheduling rules take precedence
-  over the generic bus-driver template above. A generic `write-driver` skill
-  awaits M4 TODO D13, so for other peripherals `embassy-mcxa/src/i2c/` is the
-  reference implementation and `embassy-mcxa/src/lpuart/` is the reference for
-  mode variants. Read them before you write.
+- Use `write-driver` for GPIO, Embassy time drivers, buses, and other peripheral
+  subsystems. Its selected profile's subsystem architecture, lifecycle, and
+  scheduling rules take precedence over the generic bus-driver template above.
+  Read the live `embassy-mcxa` references that skill names before you write.
 - Use generated PAC field accessors — `w.set_men(true)`, `r.txcount()` — never
   hand-written bit constants. A block of `const FOO: u32 = 1 << n;` behind
   `#[allow(dead_code)]` means the PAC needs patching: return that to

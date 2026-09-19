@@ -1,26 +1,33 @@
-# Time Driver Validation
+# Time Driver Validation Profile
 
-This is the **public, tester-safe specification** for `write-time-driver`.
-**hal-driver** uses its requirements, **hal-tester** derives independent cases,
-and **hal-reviewer** audits coverage. It describes observable time-service
-behavior, not the target HAL's implementation or private state.
+This is the **public, tester-safe validation profile** for an Embassy time
+driver. **hal-tester** loads it in addition to [`universal.md`](./universal.md)
+when the coordinator-supplied public contract positively establishes that the
+driver under test is a time driver. **hal-driver** uses its requirements and
+**hal-reviewer** audits coverage.
+
+It describes observable time-service behavior, not the target HAL's
+implementation or private state.
 
 ## Intake and composition
 
-Use `write-examples`' public intake and record fields for target, API/source
-versions, build/runtime facts, and existing evidence. The architect's handoff
-also supplies the time-specific contracts: initialization, reserved resources,
-tick rate/resolution, supported idle/clock behavior, observation facilities, and
-accuracy/latency expectations with their cited basis. Unknowns block dependent
-checks, not unrelated software preparation.
+Use `write-examples`' public intake and record fields for target, API and source
+versions, build and runtime facts, and existing evidence. **hal-coordinator**'s
+handoff also supplies the time-specific contracts: initialization, reserved
+resources, tick rate and resolution, supported idle and clock behavior,
+observation facilities, and accuracy and latency expectations with their cited
+basis. Unknowns block dependent checks, not unrelated software preparation.
 
-Read `AGENTS.md` at the actual working repository root for shared boundaries
-and artifact policy, not relative to the skill installation. **hal-tester**
-combines this reference with `write-examples` and its required references for
-test creation, setup, execution, repair/retest, and public records. This is not
-a second execution workflow. Do not load HAL bodies, the private time checklist,
-or the full time-driver record. Implementation/review readers consume these
-contracts without taking the tester's writing or hardware-execution role.
+Read `AGENTS.md` at the actual working repository root for shared boundaries and
+artifact policy, not relative to the skill installation. **hal-tester** combines
+this profile with `write-examples` and its required
+[test-record](../test-record.md) and
+[hardware-execution](../hardware-execution.md) references for test creation,
+setup, execution, repair and retest, and public records. This is not a second
+execution workflow. Do not load HAL bodies, private implementation checklists, or
+the full time-driver record. Implementation and review readers consume these
+contracts without taking the tester's writing or hardware-execution role. Report
+API ambiguity or missing observability to **hal-coordinator**.
 
 ## Contract sources
 
@@ -83,32 +90,32 @@ time-service validation. Record unobserved behavior separately from passes.
 
 ## Independent timing evidence
 
-Do not use the time driver under test as the sole clock for its own acceptance
-or test timeout. `now()` and `Timer` agreeing with each other can conceal the
-same frequency error. A second counter on the same unverified clock is not an
-independent frequency reference.
+**Do not use the time driver under test as the sole clock for its own acceptance
+or test timeout.** `now()` and `Timer` agreeing with each other can conceal the
+same frequency error. **A second counter on the same unverified clock is not an
+independent frequency reference.**
 
-Use a documented external reference or suitable instrument for quantitative
-accuracy/latency claims, with a public observation path such as a known GPIO
-marker only when the handed-over fixture supports it. Provide the required
+**Use a documented external reference or suitable instrument for quantitative
+accuracy and latency claims**, with a public observation path such as a known
+GPIO marker only when the handed-over fixture supports it. Provide the required
 connections and instrument setup through `write-examples`; do not invent pin,
-voltage, oscillator, or calibration facts. Record reference frequency/accuracy,
-sample window, event definition, quantization, and transport/scheduling
-uncertainty before choosing tolerances. Never derive a passing limit from the
-failing driver's observed rate.
+voltage, oscillator, or calibration facts. **Record reference frequency and
+accuracy, sample window, event definition, quantization, and transport and
+scheduling uncertainty before choosing tolerances. Never derive a passing limit
+from the failing driver's observed rate.**
 
 A host-side watchdog establishes bounded liveness. Host timestamps can support
-coarse interval checks only with a justified uncertainty bound; debugger/USB/RTT
-latency is not a precise timer measurement. Separate a hardware event, task
-resumption, and host receipt of a log. Missing independent observation leaves
-the corresponding accuracy claim unverified or its required HIL case blocked.
+coarse interval checks only with a justified uncertainty bound; debugger, USB or
+RTT latency is not a precise timer measurement. Separate a hardware event, task
+resumption, and host receipt of a log. **Missing independent observation leaves
+the corresponding accuracy claim unverified or its required HIL case `blocked`.**
 
 ## Boundary and concurrency cases
 
 Use public `embassy-time` consumer APIs and the documented initialization
 surface. Account for lazy futures: creating a timer is not proof it has been
-polled or scheduled. Arrange polling and stimuli deliberately for earlier/later
-insertion, cancellation, and pending-peer cases. Repoll on wakes and judge
+polled or scheduled. Arrange polling and stimuli deliberately for earlier and
+later insertion, cancellation, and pending-peer cases. Repoll on wakes and judge
 completion against the actual contract, not an invented one-wake-per-alarm rule.
 
 Use genuine production arithmetic for host boundary tests, not a disconnected
@@ -116,16 +123,17 @@ timer simulator. Reduced-width exploration or a test-only accelerated timer
 can inform review but is not production rollover HIL evidence. Observe a real
 boundary in an advertised configuration when feasible, with a cited counter
 period and run budget. If impractical or inaccessible through the public API,
-record the limitation and planned host/review evidence; required runtime
+record the limitation and planned host and review evidence; required runtime
 coverage stays blocked until satisfied or the scope is explicitly revised.
-Do not add private counter-write hooks or have the tester poke registers to
-force a pass.
+**Do not add private counter-write hooks or have the tester poke registers to
+force a pass.**
 
 ## Results and handoff
 
 Use `write-examples`' public test record and repair/retest workflow. Include
 the TIME requirement mapping, selected API/tick configuration, timing reference
 and tolerances, actual observations, wrap/idle cases exercised, and remaining
-measurement gaps. Reuse existing public records and link them from the private
-time-driver record through **hal-architect**. The tester never reads that record's
-implementation sections or changes the driver to match a test expectation.
+measurement gaps. Reuse existing public records and link them through
+**hal-coordinator**, which links them from the private time-driver record. The
+tester never reads that record's implementation sections and never changes the
+driver to match a test expectation.

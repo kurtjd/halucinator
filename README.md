@@ -17,14 +17,13 @@ No HAL source lives here. This repository is the toolkit.
 | Agents | 8 written |
 | Ownership registry | `.opencode/ownership.toml`, 45 file classes |
 | Root config | `opencode.json`, `default_agent: hal-coordinator` |
-| Skills | 7 written |
+| Skills | 6 written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
 [generate-svd](.opencode/skills/generate-svd/SKILL.md),
 [generate-pac](.opencode/skills/generate-pac/SKILL.md),
 [scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md),
-[write-gpio](.opencode/skills/write-gpio/SKILL.md),
-[write-time-driver](.opencode/skills/write-time-driver/SKILL.md), and
+[write-driver](.opencode/skills/write-driver/SKILL.md), and
 [write-examples](.opencode/skills/write-examples/SKILL.md) are implemented.
 Three of the eight agents — `hal-coordinator`, `hal-integrator` and
 `hal-reviewer` — have no dedicated skill at all, and `hal-architect` has no
@@ -165,6 +164,12 @@ both gates. Stages are not strictly serial — a driver regularly sends you
 back to the manual — but the dependency direction never reverses. You cannot
 write a driver for a register the PAC does not expose.
 
+The peripheral-drivers row runs on one generic per-peripheral procedure,
+[write-driver](.opencode/skills/write-driver/SKILL.md): it applies the
+universal driver obligations to every peripheral and then selects a GPIO,
+Embassy-time-service or bus profile for the subsystem at hand, so a bus shape
+is never treated as universal.
+
 ## The agents
 
 `.opencode/ownership.toml` is the single machine-readable source of truth for
@@ -286,15 +291,16 @@ domain procedure applies only inside the dispatched agent's ownership
 boundary.** Every agent carries that precedence sentence and the IDs of the
 conflicts that affect it.
 
-The skill retrofit has since resolved conflicts 1–5, 7, 8, 10 and 11 in the
-skill layer: those five skills — `gather-documentation`, `generate-svd`,
-`generate-pac`, `scaffold-hal`, `write-examples` — now state ownership,
-dispatch and verdict vocabulary consistent with the agents, so the cited line
-ranges below record what was wrong rather than what a reader will find today.
-Conflicts 6 and 9 remain, because `write-gpio` and `write-time-driver` are
-replaced by a later milestone — see `TODO.md`. The precedence rule stays stated
-in every agent, both for that remainder and because an installed agent may meet
-an unreconciled or third-party skill.
+The skill retrofit and the M4 driver consolidation have since resolved
+conflicts 1–11 in the skill layer: the six skills — `gather-documentation`,
+`generate-svd`, `generate-pac`, `scaffold-hal`, `write-driver`,
+`write-examples` — now state ownership, dispatch and verdict vocabulary
+consistent with the agents, so the cited line ranges below record what was
+wrong rather than what a reader will find today. Conflicts 6 and 9 are
+historical: the two skills they cited, `write-gpio` and `write-time-driver`,
+were consolidated into `write-driver` and no longer exist, so their entries
+carry no link. The precedence rule stays stated in every agent, because an
+installed agent may still meet an unreconciled or third-party skill.
 
 The verified conflicts, defined here once so no agent file copies a
 citation that can drift:
@@ -321,11 +327,12 @@ citation that can drift:
    tells `hal-datasheet` to create or update `SOURCES.md`. It owns the initial
    content; `hal-integrator` materializes every edit, because the catalog is
    shared by five stages.
-6. [`gpio-record.md:3-11`](.opencode/skills/write-gpio/references/gpio-record.md)
-   and [`time-record.md:3-14`](.opencode/skills/write-time-driver/references/time-record.md)
-   assign the durable records jointly to `hal-driver` and `hal-architect` and
-   ask them to link `SOURCES.md`. Record content is `hal-driver`'s; every
-   record and `SOURCES.md` file write is `hal-integrator`'s.
+6. Historical, in the now-deleted `write-gpio/references/gpio-record.md:3-11`
+   and `write-time-driver/references/time-record.md:3-14`: they assigned the
+   durable GPIO and time-driver records jointly to `hal-driver` and
+   `hal-architect` and asked them to link `SOURCES.md`. Record content is
+   `hal-driver`'s; every record and `SOURCES.md` file write is
+   `hal-integrator`'s.
 7. [`test-record.md:3-23`](.opencode/skills/write-examples/references/test-record.md)
    assigns public record and log maintenance to `hal-tester`. Content and
    evidence are the tester's; the committed file writes are
@@ -333,11 +340,11 @@ citation that can drift:
 8. [`scaffold-record.md:3-30`](.opencode/skills/scaffold-hal/references/scaffold-record.md)
    makes `SCAFFOLD.md` and the roadmap `hal-architect`-maintained. `SCAFFOLD.md`
    is `hal-integrator`'s; the roadmap is `hal-coordinator`'s.
-9. [`write-gpio/SKILL.md:99-123`](.opencode/skills/write-gpio/SKILL.md) and
-   [`write-time-driver/SKILL.md:94-118`](.opencode/skills/write-time-driver/SKILL.md)
-   route tester and reviewer handoffs through `hal-architect` and quote the
-   legacy spaced rejection spelling instead of the typed verdict tokens.
-   Routing is `hal-coordinator`'s; the tokens are `ready`, `ready-with-fixes`
+9. Historical, in the now-deleted `write-gpio/SKILL.md:99-123` and
+   `write-time-driver/SKILL.md:94-118`: they routed tester and reviewer
+   handoffs through `hal-architect` and quoted the legacy spaced rejection
+   spelling instead of the typed verdict tokens. Routing is
+   `hal-coordinator`'s; the tokens are `ready`, `ready-with-fixes`
    and `not-ready`.
 10. [`gather-documentation/SKILL.md:15-17,38-39,173-177,192-193,198-199`](.opencode/skills/gather-documentation/SKILL.md)
     routes the intake handoff, the unanswered interview questions, the

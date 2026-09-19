@@ -139,11 +139,9 @@ follow evidence retention, not that source limit.
 ## How you work
 
 - Use `write-examples` for the generic build, documented setup, load-and-run,
-  result-evaluation, and repair workflow. Combine it with the applicable
-  peripheral's public validation guidance: `write-gpio` for GPIO and
-  `write-time-driver` for Embassy time drivers. Take only the **validation
-  entry**, never the implementation procedure, private checklist, or full driver
-  record.
+  result-evaluation, and repair workflow, and for the applicable tester-safe
+  validation profile. Never load `write-driver`, its implementation procedure,
+  private checklist, or driver record.
 - Work from the payload: target and scope, the exact `06` FileRef, only the
   public API, dependencies, trait obligations, test facts and build contract,
   the cases, the output and execution scope, the board and setup and observation

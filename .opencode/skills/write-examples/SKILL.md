@@ -43,31 +43,27 @@ has told you nothing you did not already believe.
 ## When to use
 
 Use this skill when **hal-coordinator** dispatches `write-tests` against a
-`06-driver` handoff that validates and is `ready`, when it dispatches an
-explicitly **build-only** scaffold link check, or when a previous run left
-`07-tests-<name>` at `partial` or `blocked` and the recorded next action is now
-possible.
-
-**No template-conforming `06` producer procedure exists yet.** `hal-driver`
-already emits a typed `06-driver`; what is missing is a skill procedure for that
-stage with the validator wiring, the deterministic publication sequence, the
-canonical check discharge and the typed exit predicates. `06-driver`'s only
-procedural producers are `write-gpio` and `write-time-driver`, which this
-milestone does not retrofit, so no conforming procedure currently produces a
-typed `06`. The replacement driver workflow supplies it. Until it lands, do not
-invoke this skill as a typed-ready continuation merely because `05-platform` is
-`ready`, do not fabricate a `06`, and do not describe the pipeline as flowing
-end to end beyond `05`. A build-only scaffold link check dispatched from
-`scaffold-hal` is the one admissible entry without a typed `06`, and it closes
-only the build-only gate.
+validated `ready` `06-driver`, or against a validated **partial** `06-driver`
+solely for the fresh disposable candidate authoring needed to close that
+driver's `target-link-ci` check. Partial admission never permits canonical
+mutation, hardware operation, or a `ready` `07-tests`; propagate `partial` until
+the exact driver handoff is finalized. This is the bounded break in a real
+cycle — a driver's `ready` requires `target-link-ci`, which requires a candidate
+this stage authors — and it is exactly the disposable fresh-candidate work
+[`handoff-common.md`](../../schema/handoff-common.md) already permits off a
+`partial` predecessor. The skill also applies when **hal-coordinator** dispatches
+an explicitly **build-only** scaffold link check, which closes only the
+build-only gate, or when a previous run left `07-tests-<name>` at `partial` or
+`blocked` and the recorded next action is now possible.
 
 Read the [public test-record reference](./references/test-record.md) at intake.
 For hardware-validation work, also read and follow the
 [hardware-execution procedure](./references/hardware-execution.md) before any
-setup planning or target-affecting operation. Combine both with the applicable
-peripheral's public validation guidance, which supplies the cases, fixture
-constraints and expected results. A missing required reference blocks the
-affected work; never fall back to a remembered procedure.
+setup planning or target-affecting operation. Combine both with the
+[universal validation profile](./references/profiles/universal.md), which applies
+to every driver, and with exactly the positively classified category profile
+where one applies. A missing required reference blocks the affected work; never
+fall back to a remembered procedure.
 
 ## Ownership and boundaries
 
@@ -147,10 +143,11 @@ admission vocabulary is exactly the producer's field names:
 for the validator or **hal-integrator**; the tester never reads the
 implementation it names.
 
-A driver scope may produce several `06-driver-*` handoffs, and the validator does
-not yet match one uniquely to a `07-tests-<name>`. Do not claim validator
-matching is sufficient: **hal-coordinator** manually confirms the exact
-`tests.api_handoff` FileRef and name until a validator fix lands.
+A driver scope may produce several `06-driver-*` handoffs. The validator resolves
+`tests.api_handoff` by path to the exact `06-driver` handoff, and when the suite
+is `ready` it requires that driver handoff to be `ready`. That binding is by
+path, not by name, so the operative discipline is unchanged: **hal-coordinator**
+names the exact `tests.api_handoff` FileRef for the suite.
 
 A `blocked` predecessor permits no consumption. A `partial` one permits
 candidate-only work and no downstream `ready`. An unknown fact blocks only the
@@ -203,13 +200,20 @@ Resolve two decisions at intake and record them:
    exit, or not running it is not a pass and blocks consumption. Report an
    unrelated stale artifact or ambiguous lock as a named blocker, and confirm
    with **hal-coordinator** that the consumed handoff is the exact
-   `tests.api_handoff` intended for this name.
+   `tests.api_handoff` intended for this name. When that exact API handoff is
+   `partial`, continue only for the coordinator-authorized fresh candidate and
+   link cycle, mutate nothing canonical, and preserve `partial` status.
 3. **Load the workflow references and the predecessor.** Load this skill's
-   test-record and hardware-execution references and the applicable peripheral's
-   public validation guidance, then load the exact `06-driver` leaves through the
-   admission mapping above. Record which references were read and discharge
-   `workflow-references-read`; a missing required reference is a blocker, not a
-   reason to improvise.
+   test-record and hardware-execution references, then load
+   `references/profiles/universal.md`, which applies to every driver. Classify
+   the driver from the coordinator-supplied public contract and its positive
+   rationale: add `gpio.md`, `time-driver.md` or `bus.md` when that category is
+   positively established, and use universal-only when the record positively
+   establishes that none applies. A missing or uncertain classification is
+   `partial` or `blocked`, never permission to guess. Then load the exact
+   `06-driver` leaves through the admission mapping above. Record every profile
+   and reference read under `workflow-references-read`; a missing required
+   reference is a blocker, not a reason to improvise.
 4. **Inspect the live example and test conventions.** Inspect the checkout's
    permitted example and HIL layouts, manifests, target and link configuration,
    `ci.sh`, toolchain, formatting and contribution rules, and discharge
@@ -481,7 +485,8 @@ those three is the stage vocabulary.
 | Stage | `write-tests` |
 | Emitter | `hal-tester` |
 | Emitted handoff | `halucinator/handoff/07-tests-<name>.toml`, kind `07-tests`, `<name>` equals `tests.name` |
-| Consumes | `06-driver` only, whose template-conforming producer procedure does not exist yet |
+| Consumes | the exact validated `06-driver` named by `tests.api_handoff` — `ready` normally, `partial` only for the bounded candidate and link cycle |
+| Validation profiles | always `references/profiles/universal.md`, plus exactly the positively classified `gpio.md`, `time-driver.md` or `bus.md` |
 | Checks | `build-only-ci`, `format-lint`, `hardware-admission`, `hardware-execution`, `independent-review`, `live-conventions-read`, `target-build-link`, `workflow-references-read` |
 | Tester-owned classes | `test-candidate-source`, `test-candidate-manifests`, `test-candidate-evidence`, `tests-handoff` |
 | Integrator-owned deltas | `example-binaries`, `example-manifest`, `example-support`, `hil-tests`, `runtime-wiring`, `ci`, `test-records` |
@@ -490,7 +495,7 @@ those three is the stage vocabulary.
 | Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write |
 | Review gate | Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
 | Typed vocabularies | coverage `passed/failed/blocked/not-applicable`; hardware run `passed/failed/blocked/not-run`; Check `passed/failed/unrun/not-applicable`; stage `ready/partial/blocked` |
-| Deferred | destination-crate deny-glob coverage, unique `06` to `07` matching in the validator |
+| Deferred | destination-crate deny-glob coverage |
 
 ## Common mistakes
 
@@ -500,10 +505,13 @@ those three is the stage vocabulary.
 - **Routing to `hal-architect`.** Setup questions, findings and repairs return
   to `hal-coordinator`; the architect writes the architecture specification and
   dispatches nobody.
-- **Treating `05-platform` as permission to run this stage typed.** No
-  retrofitted procedure produces a typed `06` yet, even though `hal-driver`'s
-  agent contract already emits one. Only the build-only scaffold
-  link check enters without one.
+- **Using `bus.md` for a non-bus.** Bus-shaped `Instance`/`Info`/`Mode`,
+  transfer, DMA and ISR patterns are not universal. Apply `bus.md` only after
+  positive classification; GPIO and time drivers have their own profiles, and
+  uncertain classification fails closed.
+- **Skipping `universal.md` because a category profile was loaded.** The
+  universal profile applies to every driver and a category profile is added on
+  top of it, never in place of it.
 - **Reading the driver to resolve an ambiguity.** That produces tests that agree
   with the implementation, including where it is wrong. Report the ambiguity.
 - **Describing blindness as guaranteed.** `bash` is `ask`, `grep` matches the

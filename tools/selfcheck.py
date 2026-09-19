@@ -62,9 +62,6 @@ BASELINE_RELPATH = "tools/terminology-baseline.tsv"
 # the link and terminology checks cover it, and by nothing else.
 SKILL_TEMPLATE_RELPATH = "docs/skill-template.md"
 
-# M3: the single, visible, time-boxed exemption from the new skill checks.
-SKILL_ALLOWLIST_RELPATH = "tools/skill-template-allowlist.tsv"
-
 # Mechanically enforced rejected tokens (terminology.md). Case sensitive.
 REJECTED_TOKENS = ("type-state", "Typestate", "behaviour", "normalise", "initialisation")
 
@@ -1754,24 +1751,18 @@ def check_skill_references(root: Path, report: Report) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Milestone M3 - typed procedural skills
+# Typed procedural skills
 #
-# Fourteen checks validating the five retrofitted skills against the canonical
+# Thirteen checks validating every discovered skill against the canonical
 # template. Like the M2 checks above they parse *raw* Markdown, because the
 # machine-readable skill contract lives inside a fence that strip_code() erases.
 #
-# Every one of the fourteen receives the SAME parsed exclusion set, produced
-# once by skill_exclusions() and threaded through the m3_check registry by
-# main(). No check may build a private exception list; check_skill_generation_
-# allowlist() asserts that mechanically, including an AST audit proving the two
-# exempt skill names appear as string literals in exactly one place in this
-# file.
+# M4 retired the two-generation exemption file and its parser together. There
+# is no exclusion set and no registry indirection: each check is invoked
+# directly from main() and scans every discovered skill. A check that covered
+# nothing because its input file had vanished was the failure mode that
+# retirement removes.
 # ---------------------------------------------------------------------------
-
-from collections.abc import Callable
-
-# Signature every M3 check shares, so that one exclusion set reaches all of them.
-M3CheckFn = Callable[[Path, Report, frozenset[str]], None]
 
 SKILL_CONTRACT_INFO = "halucinator-skill-contract"
 SKILL_CONTRACT_KEYS = ("stage", "participants", "emitter", "emits", "checks", "consumes", "writes", "supplies-delta")
@@ -1819,21 +1810,11 @@ SKILL_NOTE_PATHS = {
     "generate-pac": "<documentation>/notes/PAC.md",
 }
 
-# Skills whose exit gate is an accepting independent review.
-SKILL_REVIEW_GATED = ("generate-pac", "scaffold-hal", "write-examples")
-
-# The exact expected bytes of the allowlist. This constant is the ONLY place in
-# this file permitted to name the two exempt skills; check_skill_generation_
-# allowlist() enforces that by AST audit.
-SKILL_ALLOWLIST_EXPECTED = (
-    "# temporary M3 skill-contract allowlist; remove in M4\n"
-    "# format: <repo-relative-posix-path>\\t<token>\\t<count>\n"
-    ".opencode/skills/write-gpio/SKILL.md\tlegacy-skill-contract-until-M4\t1\n"
-    ".opencode/skills/write-time-driver/SKILL.md\tlegacy-skill-contract-until-M4\t1\n"
-)
-SKILL_ALLOWLIST_TOKEN = "legacy-skill-contract-until-M4"
-SKILL_ALLOWLIST_M4_COMMENT = "# temporary M3 skill-contract allowlist; remove in M4"
-M3_CHECK_COUNT = 14
+# Skills whose exit gate is an accepting independent review. This set is NOT
+# hard-coded: a skill is review-gated exactly when its own contract fence
+# declares the 'independent-review' check, so a new review-gated skill is
+# covered the moment it declares the check. See review_gated_skills().
+REVIEW_GATED_CHECK = "independent-review"
 
 # Per-skill canonical contract expectations. Leaf/check sets are NOT stored
 # here: they are derived from validate.py's AST by derive_registry(). Only the
@@ -1843,6 +1824,7 @@ CONSUMED_01 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scop
 CONSUMED_02 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,facts.notes,facts.citations.source_id,facts.citations.document,facts.citations.revision,facts.citations.locator,facts.citations.note,facts.categories,facts.contradictions"
 CONSUMED_03 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,checks.id,checks.status,checks.evidence,checks.reason,svd.route,svd.source,svd.transforms,svd.includes,svd.prepared_manifest,svd.extraction_mode,svd.namespace_mode,svd.representation_limits,svd.unresolved_facts"
 CONSUMED_04 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,pac.crate_manifest,pac.package,pac.revision.kind,pac.revision.value,pac.cargo_chip_feature,pac.runtime_features,pac.metadata_features,pac.rust_compilation_target,pac.source_ids,pac.cited_notes,pac.temporary_fork,pac.foundation.id,pac.foundation.kind,pac.foundation.location,pac.foundation.status,pac.foundation.evidence"
+CONSUMED_05 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,platform.crate_manifest,platform.roadmap,platform.startup_clock_contract,platform.supporting_subsystems,platform.foundation_api,platform.pac_manifest,platform.source_ids,platform.cited_notes,platform.dependencies.crate,platform.dependencies.identity,platform.dependencies.features,platform.first_driver,platform.first_driver_modes"
 CONSUMED_06 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,driver.name,driver.scope_kind,driver.capabilities,driver.public_api,driver.dependencies.crate,driver.dependencies.identity,driver.dependencies.features,driver.trait_obligations.dependency_crate,driver.trait_obligations.trait,driver.trait_obligations.obligations,driver.test_hardware_facts.source_id,driver.test_hardware_facts.document,driver.test_hardware_facts.revision,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.build_contract.cargo_chip_feature,driver.build_contract.rust_compilation_target,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.requirement_ids,driver.public_test_record"
 
 
@@ -1850,7 +1832,7 @@ def _leaves(raw: str) -> set[str]:
     return {p for p in raw.split(",") if p}
 
 
-M3_SKILL_SPEC: dict[str, dict] = {
+SKILL_SPEC: dict[str, dict] = {
     "gather-documentation": {
         "stage": "gather-documentation",
         "emitter": "hal-datasheet",
@@ -1895,6 +1877,22 @@ M3_SKILL_SPEC: dict[str, dict] = {
         "supplies-delta": {
             "hal-architect|platform-notes", "hal-driver|platform-notes", "hal-tester|example-binaries",
             "hal-tester|example-manifest", "hal-tester|example-support",
+        },
+    },
+    "write-driver": {
+        "stage": "write-driver",
+        "emitter": "hal-driver",
+        "kind": "06-driver",
+        # 06 is per-peripheral; <name> equals driver.name.
+        "filename": "halucinator/handoff/06-driver-<name>.toml",
+        "consumes": {"05-platform": _leaves(CONSUMED_05)},
+        "writes": {
+            "hal-driver|clock-modules", "hal-driver|driver-candidates",
+            "hal-driver|driver-handoff", "hal-driver|peripheral-modules",
+        },
+        "supplies-delta": {
+            "hal-driver|driver-records", "hal-driver|platform-notes",
+            "hal-driver|roadmap", "hal-driver|sources-catalog",
         },
     },
     "write-examples": {
@@ -1954,57 +1952,7 @@ TEST_CANDIDATE_ATTRIBUTES = (
 TEST_CANDIDATE_CLASSES = ("test-candidate-source", "test-candidate-manifests", "test-candidate-evidence")
 README_DEFERRED_CLAIM = "Ratifying this layout in the schema is deferred"
 
-# --- shared exclusion set ---------------------------------------------------
-
-M3_CHECKS: list[tuple[str, "M3CheckFn"]] = []
-
-
-def m3_check(display: str):
-    """Register an M3 check so main() can thread ONE exclusion set into all of them."""
-    def deco(fn):
-        M3_CHECKS.append((display, fn))
-        return fn
-    return deco
-
-
-def parse_skill_allowlist(root: Path) -> tuple[list[tuple[str, str, int]], str | None]:
-    """Parse the two-generation allowlist into (rows, error).
-
-    Rows are (repo-relative-posix-path, token, count) in file order.
-    """
-    path = root / SKILL_ALLOWLIST_RELPATH
-    if not path.is_file():
-        return [], f"{SKILL_ALLOWLIST_RELPATH} is absent; the two-generation skill allowlist must exist until M4 removes it"
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return [], f"cannot read {SKILL_ALLOWLIST_RELPATH}: {_one_line(str(exc), 200)}"
-    rows: list[tuple[str, str, int]] = []
-    for line in text.split("\n"):
-        line = line.rstrip("\r")
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        parts = line.split("\t")
-        if len(parts) != 3:
-            return [], f"malformed allowlist record {line!r}; expected three TAB-separated fields"
-        try:
-            rows.append((parts[0], parts[1], int(parts[2])))
-        except ValueError:
-            return [], f"allowlist record {line!r} has a non-integer count"
-    return rows, None
-
-
-def skill_exclusions(root: Path) -> frozenset[str]:
-    """The single exclusion set every M3 check uses. Empty when the file is absent.
-
-    Deliberately fails open to the empty set: a missing allowlist must make the
-    new checks cover *more*, never less. check_skill_generation_allowlist()
-    reports the absence itself.
-    """
-    rows, err = parse_skill_allowlist(root)
-    if err:
-        return frozenset()
-    return frozenset(p for p, _, _ in rows)
+# --- skill discovery --------------------------------------------------------
 
 
 def skill_paths(root: Path) -> dict[str, Path]:
@@ -2014,9 +1962,9 @@ def skill_paths(root: Path) -> dict[str, Path]:
     return {p.parent.name: p for p in sorted(d.glob("*/SKILL.md"))}
 
 
-def in_scope_skills(root: Path, excluded: frozenset[str]) -> dict[str, Path]:
-    """Every discovered skill whose SKILL.md path is not in the shared exclusion set."""
-    return {name: p for name, p in skill_paths(root).items() if rel(root, p) not in excluded}
+def in_scope_skills(root: Path) -> dict[str, Path]:
+    """Every discovered skill. M4 removed the exemption mechanism entirely."""
+    return dict(skill_paths(root))
 
 
 def skill_reference_paths(root: Path, skill: Path) -> list[Path]:
@@ -2514,14 +2462,13 @@ def parse_skill_contract(root: Path, path: Path, report: Report) -> dict[str, li
     return contract_map(entries)
 
 
-@m3_check("skill-contracts")
-def check_skill_contracts(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_contracts(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_CONTRACT_ABORT"):
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
             report.bad(".opencode/skills", "0", "SKILL_CONTRACT_NO_TARGETS",
-                       "no non-allowlisted skills were discovered; the skill contract checks would assert nothing")
+                       "no skills were discovered; the skill contract checks would assert nothing")
             return
         ok = 0
         for name in sorted(skills):
@@ -2548,10 +2495,10 @@ def check_skill_contracts(root: Path, report: Report, excluded: frozenset[str]) 
                     if re.search(r"\s*,\s+|\s+,|\s+\||\|\s+", value):
                         report.bad(r, key, "SKILL_CONTRACT_WHITESPACE",
                                    f"{key} value {value!r} has whitespace around a comma or pipe; values are whitespace-free around separators")
-            spec = M3_SKILL_SPEC.get(name)
+            spec = SKILL_SPEC.get(name)
             if spec is None:
                 report.bad(r, "contract", "SKILL_CONTRACT_UNMAPPED",
-                           f"skill {name!r} has no canonical M3 contract mapping and is not allowlisted; add it to M3_SKILL_SPEC or allowlist it")
+                           f"skill {name!r} has no canonical contract mapping; add it to SKILL_SPEC")
                 continue
             if cmap["stage"][0] != spec["stage"]:
                 report.bad(r, "stage", "SKILL_CONTRACT_STAGE", f"stage is {cmap['stage'][0]!r}; the canonical stage for {name} is {spec['stage']!r}")
@@ -2588,13 +2535,13 @@ def check_skill_contracts(root: Path, report: Report, excluded: frozenset[str]) 
                 report.bad(r, "participants", "SKILL_CONTRACT_PARTICIPANTS",
                            f"participants is {declared}; it must be the sorted set of every agent named by emitter/writes/supplies-delta, {sorted(named)}")
             ok += 1
-        report.ok("skill-contracts", f"{ok} of {len(skills)} non-allowlisted skill contract fences parsed from raw Markdown and conform", mark)
+        report.ok("skill-contracts", f"{ok} of {len(skills)} skill contract fences parsed from raw Markdown and conform", mark)
 
 
 # --- check 20: skill-emissions ----------------------------------------------
 
 
-def m3_registry(root: Path, report: Report, code: str) -> dict[str, dict] | None:
+def skill_registry(root: Path, report: Report, code: str) -> dict[str, dict] | None:
     validator = root / ".opencode" / "schema" / "validate.py"
     if not validator.is_file():
         report.bad(".opencode/schema/validate.py", "0", code, "validator absent; the structural field registry cannot be derived")
@@ -2606,16 +2553,15 @@ def m3_registry(root: Path, report: Report, code: str) -> dict[str, dict] | None
         return None
 
 
-@m3_check("skill-emissions")
-def check_skill_emissions(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_emissions(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_EMISSION_ABORT"):
-        registry = m3_registry(root, report, "SKILL_EMISSION_NO_REGISTRY")
+        registry = skill_registry(root, report, "SKILL_EMISSION_NO_REGISTRY")
         if registry is None:
             return
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_EMISSION_NO_TARGETS", "no non-allowlisted skills discovered; nothing to compare against the AST registry")
+            report.bad(".opencode/skills", "0", "SKILL_EMISSION_NO_TARGETS", "no skills discovered; nothing to compare against the AST registry")
             return
         ok = 0
         for name in sorted(skills):
@@ -2661,16 +2607,15 @@ def check_skill_emissions(root: Path, report: Report, excluded: frozenset[str]) 
 # --- check 21: skill-consumption --------------------------------------------
 
 
-@m3_check("skill-consumption")
-def check_skill_consumption(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_consumption(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_CONSUMPTION_ABORT"):
-        registry = m3_registry(root, report, "SKILL_CONSUMPTION_NO_REGISTRY")
+        registry = skill_registry(root, report, "SKILL_CONSUMPTION_NO_REGISTRY")
         if registry is None:
             return
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_CONSUMPTION_NO_TARGETS", "no non-allowlisted skills discovered; no consumption declaration is asserted")
+            report.bad(".opencode/skills", "0", "SKILL_CONSUMPTION_NO_TARGETS", "no skills discovered; no consumption declaration is asserted")
             return
         ok = 0
         for name in sorted(skills):
@@ -2679,7 +2624,7 @@ def check_skill_consumption(root: Path, report: Report, excluded: frozenset[str]
             cmap = parse_skill_contract(root, path, report)
             if cmap is None:
                 continue
-            spec = M3_SKILL_SPEC.get(name)
+            spec = SKILL_SPEC.get(name)
             if spec is None:
                 continue
             values = cmap.get("consumes", [])
@@ -2735,19 +2680,18 @@ def check_skill_consumption(root: Path, report: Report, excluded: frozenset[str]
 # --- check 22: skill-structure ----------------------------------------------
 
 
-@m3_check("skill-structure")
-def check_skill_structure(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_structure(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_STRUCTURE_ABORT"):
         for problem in structure_fixture_failures():
             report.bad("tools/selfcheck.py", "analyze_structure", "SKILL_STRUCTURE_FIXTURE",
                        f"the template-form analyzer failed its in-memory near-miss fixtures: {problem}")
-        registry = m3_registry(root, report, "SKILL_STRUCTURE_NO_REGISTRY")
+        registry = skill_registry(root, report, "SKILL_STRUCTURE_NO_REGISTRY")
         if registry is None:
             return
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_STRUCTURE_NO_TARGETS", "no non-allowlisted skills discovered; template form is asserted against nothing")
+            report.bad(".opencode/skills", "0", "SKILL_STRUCTURE_NO_TARGETS", "no skills discovered; template form is asserted against nothing")
             return
         ok = 0
         for name in sorted(skills):
@@ -2787,13 +2731,12 @@ def check_skill_structure(root: Path, report: Report, excluded: frozenset[str]) 
 SCAFFOLD_REQUIRED_TERMS = ("clocks", "init", "interrupt_mod!", "generated mappings", "memory.x", "linker")
 
 
-@m3_check("skill-trigger-frontmatter")
-def check_skill_trigger_frontmatter(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_trigger_frontmatter(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_TRIGGER_ABORT"):
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_TRIGGER_NO_TARGETS", "no non-allowlisted skills discovered; no dispatch description is asserted")
+            report.bad(".opencode/skills", "0", "SKILL_TRIGGER_NO_TARGETS", "no skills discovered; no dispatch description is asserted")
             return
         ok = 0
         for name in sorted(skills):
@@ -2827,8 +2770,7 @@ def check_skill_trigger_frontmatter(root: Path, report: Report, excluded: frozen
 # --- check 24: skill-ownership ----------------------------------------------
 
 
-@m3_check("skill-ownership")
-def check_skill_ownership(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_ownership(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_OWNERSHIP_ABORT"):
         data = load_registry(root, Report())  # silent: check_ownership reports absence
@@ -2841,9 +2783,9 @@ def check_skill_ownership(root: Path, report: Report, excluded: frozenset[str]) 
             report.bad(".opencode/ownership.toml", "0", "SKILL_OWNERSHIP_NO_REGISTRY",
                        "no ownership registry classes could be loaded; skill writes/supplies-delta cannot be validated against an owner")
             return
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_OWNERSHIP_NO_TARGETS", "no non-allowlisted skills discovered; no ownership declaration is asserted")
+            report.bad(".opencode/skills", "0", "SKILL_OWNERSHIP_NO_TARGETS", "no skills discovered; no ownership declaration is asserted")
             return
         ok = 0
         for name in sorted(skills):
@@ -2853,7 +2795,7 @@ def check_skill_ownership(root: Path, report: Report, excluded: frozenset[str]) 
             cmap = parse_skill_contract(root, path, report)
             if cmap is None:
                 continue
-            spec = M3_SKILL_SPEC.get(name)
+            spec = SKILL_SPEC.get(name)
             if spec is None:
                 continue
             got_writes = set(cmap.get("writes", []))
@@ -2902,8 +2844,7 @@ TOML_SCALAR_RE = re.compile(r'^\s*[A-Za-z_][A-Za-z0-9_.-]*\s*=\s*"([^"]*)"\s*(?:
 TOML_ARRAY_RE = re.compile(r'^\s*[A-Za-z_][A-Za-z0-9_.-]*\s*=\s*\[(.*)\]\s*(?:#.*)?$')
 
 
-@m3_check("skill-status-vocabulary")
-def check_skill_status_vocabulary(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_status_vocabulary(root: Path, report: Report) -> None:
     """Syntactically scoped. A global token search is unsatisfiable, because the
     schema's own Check (passed/failed/unrun/not-applicable), coverage and
     hardware-run vocabularies legitimately use the same words. Ordinary prose
@@ -2911,9 +2852,9 @@ def check_skill_status_vocabulary(root: Path, report: Report, excluded: frozense
     """
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_STATUS_ABORT"):
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_STATUS_NO_TARGETS", "no non-allowlisted skills discovered; stage vocabulary is asserted against nothing")
+            report.bad(".opencode/skills", "0", "SKILL_STATUS_NO_TARGETS", "no skills discovered; stage vocabulary is asserted against nothing")
             return
         ok = 0
         for name in sorted(skills):
@@ -2927,7 +2868,7 @@ def check_skill_status_vocabulary(root: Path, report: Report, excluded: frozense
                 report.bad(r, "contract", "SKILL_STATUS_NO_STAGE",
                            "no parseable skill contract, so the emitted-stage declaration cannot be scoped for the status vocabulary")
             else:
-                spec = M3_SKILL_SPEC.get(name)
+                spec = SKILL_SPEC.get(name)
                 values = contract_map(entries).get("stage", [])
                 if spec is not None and values and values[0] != spec["stage"]:
                     report.bad(r, "stage", "SKILL_STATUS_STAGE", f"contract stage is {values[0]!r}; the canonical emitted stage is {spec['stage']!r}")
@@ -2954,8 +2895,6 @@ def check_skill_status_vocabulary(root: Path, report: Report, excluded: frozense
             # Scope 3: TOML scalar values inside fenced TOML example blocks only.
             for target in [path] + skill_reference_paths(root, path):
                 tr = rel(root, target)
-                if tr in excluded:
-                    continue
                 for block in fenced_blocks(read_text(target), "toml"):
                     for lineno, line in enumerate(block.split("\n"), start=1):
                         values2: list[str] = []
@@ -2977,22 +2916,40 @@ def check_skill_status_vocabulary(root: Path, report: Report, excluded: frozense
 # --- check 26: skill-verdict ------------------------------------------------
 
 
-@m3_check("skill-verdict")
-def check_skill_verdict(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def review_gated_skills(root: Path, skills: dict[str, Path]) -> list[str]:
+    """Skills whose own contract fence declares the independent-review check.
+
+    Derived rather than listed: hard-coding the set let write-driver declare a
+    review gate that the harness never asserted. A skill that cannot be parsed
+    here is not silently dropped -- check_skill_contracts reports the same fence
+    and fails the suite, so an unparseable fence can never quietly narrow this
+    set to nothing.
+    """
+    gated: list[str] = []
+    for name in sorted(skills):
+        entries, err, _ = parse_contract(read_text(skills[name]), SKILL_CONTRACT_INFO)
+        if err:
+            continue
+        for value in contract_map(entries).get("checks", []):
+            if REVIEW_GATED_CHECK in [v for v in value.split(",") if v]:
+                gated.append(name)
+                break
+    return gated
+
+
+def check_skill_verdict(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_VERDICT_ABORT"):
-        skills = in_scope_skills(root, excluded)
-        gated = [n for n in SKILL_REVIEW_GATED if n in skills]
+        skills = in_scope_skills(root)
+        gated = review_gated_skills(root, skills)
         if not gated:
             report.bad(".opencode/skills", "0", "SKILL_VERDICT_NO_TARGETS",
-                       f"none of the review-gated skills {', '.join(SKILL_REVIEW_GATED)} were discovered outside the allowlist; the accepting verdict sentence is asserted against nothing")
+                       f"no discovered skill declares the {REVIEW_GATED_CHECK!r} check in its contract fence; the accepting verdict sentence is asserted against nothing")
             return
         for name in gated:
             path = skills[name]
             for target in [path] + skill_reference_paths(root, path):
                 tr = rel(root, target)
-                if tr in excluded:
-                    continue
                 flat = norm_ws(read_text(target))
                 if target == path and norm_ws(VERDICT_SENTENCE) not in flat:
                     report.bad(tr, "0", "SKILL_VERDICT_SENTENCE_MISSING",
@@ -3010,13 +2967,12 @@ VALIDATOR_STEM = "python .opencode/schema/validate.py"
 VALIDATOR_ALL = "--kind all"
 
 
-@m3_check("skill-validator-wiring")
-def check_skill_validator_wiring(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_validator_wiring(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_VALIDATOR_ABORT"):
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         if not skills:
-            report.bad(".opencode/skills", "0", "SKILL_VALIDATOR_NO_TARGETS", "no non-allowlisted skills discovered; validator wiring is asserted against nothing")
+            report.bad(".opencode/skills", "0", "SKILL_VALIDATOR_NO_TARGETS", "no skills discovered; validator wiring is asserted against nothing")
             return
         ok = 0
         for name in sorted(skills):
@@ -3057,15 +3013,14 @@ def check_skill_validator_wiring(root: Path, report: Report, excluded: frozenset
 # --- check 28: skill-note-paths ---------------------------------------------
 
 
-@m3_check("skill-note-paths")
-def check_skill_note_paths(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_skill_note_paths(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_NOTE_ABORT"):
-        skills = in_scope_skills(root, excluded)
+        skills = in_scope_skills(root)
         targets = [(n, p) for n, p in skills.items() if n in SKILL_NOTE_PATHS]
         if not targets:
             report.bad(".opencode/skills", "0", "SKILL_NOTE_NO_TARGETS",
-                       f"neither {' nor '.join(sorted(SKILL_NOTE_PATHS))} was discovered outside the allowlist; the deterministic note paths are asserted against nothing")
+                       f"neither {' nor '.join(sorted(SKILL_NOTE_PATHS))} was discovered; the deterministic note paths are asserted against nothing")
             return
         for name, path in sorted(targets):
             want = SKILL_NOTE_PATHS[name]
@@ -3074,8 +3029,6 @@ def check_skill_note_paths(root: Path, report: Report, excluded: frozenset[str])
             seen_exact = False
             for target in files:
                 tr = rel(root, target)
-                if tr in excluded:
-                    continue
                 text = read_text(target)
                 if want in text:
                     seen_exact = True
@@ -3093,113 +3046,10 @@ def check_skill_note_paths(root: Path, report: Report, excluded: frozenset[str])
         report.ok("skill-note-paths", f"{len(targets)} skills state their exact deterministic first-note path with no soft alternative", mark)
 
 
-# --- check 29: skill-generation-allowlist -----------------------------------
-
-
-def _allowlist_literal_sites(source: str) -> list[str]:
-    """Top-level names whose subtree contains a string literal naming an exempt skill.
-
-    Proves no check carries a private second exception list: the two exempt
-    skill names may appear as string constants in exactly one module-level
-    assignment, SKILL_ALLOWLIST_EXPECTED.
-    """
-    needles = [p for p, _, _ in _parse_expected_rows()]
-    tree = ast.parse(source)
-    sites: list[str] = []
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            label = ", ".join(t.id for t in node.targets if isinstance(t, ast.Name)) or "<assign>"
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            label = node.name
-        else:
-            label = type(node).__name__
-        for sub in ast.walk(node):
-            if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
-                if any(n in sub.value for n in needles):
-                    sites.append(label)
-                    break
-    return sites
-
-
-def _parse_expected_rows() -> list[tuple[str, str, int]]:
-    rows: list[tuple[str, str, int]] = []
-    for line in SKILL_ALLOWLIST_EXPECTED.split("\n"):
-        if not line.strip() or line.lstrip().startswith("#"):
-            continue
-        parts = line.split("\t")
-        if len(parts) == 3:
-            rows.append((parts[0], parts[1], int(parts[2])))
-    return rows
-
-
-@m3_check("skill-generation-allowlist")
-def check_skill_generation_allowlist(root: Path, report: Report, excluded: frozenset[str]) -> None:
-    mark = report.mark()
-    with guard(report, SKILL_ALLOWLIST_RELPATH, "SKILL_ALLOWLIST_ABORT"):
-        r = SKILL_ALLOWLIST_RELPATH
-        path = root / r
-        if not path.is_file():
-            report.bad(r, "0", "SKILL_ALLOWLIST_MISSING",
-                       "the two-generation skill allowlist is absent; M3 requires exactly two visible, time-boxed exemptions that M4 removes")
-            return
-        actual = path.read_text(encoding="utf-8")
-        expected_rows = _parse_expected_rows()
-        if actual.replace("\r\n", "\n") != SKILL_ALLOWLIST_EXPECTED:
-            report.bad(r, "0", "SKILL_ALLOWLIST_CONTENT",
-                       "allowlist bytes differ from the exact expected contents; an invisible extra exemption is how a second skill generation becomes permanent")
-        rows, err = parse_skill_allowlist(root)
-        if err:
-            report.bad(r, "0", "SKILL_ALLOWLIST_MALFORMED", err)
-            return
-        if rows != expected_rows:
-            report.bad(r, "rows", "SKILL_ALLOWLIST_ROWS",
-                       f"allowlist rows are {[p for p, _, _ in rows]}; M3 permits exactly {[p for p, _, _ in expected_rows]} with token {SKILL_ALLOWLIST_TOKEN!r} and count 1")
-        if [p for p, _, _ in rows] != sorted(p for p, _, _ in rows):
-            report.bad(r, "rows", "SKILL_ALLOWLIST_ORDER", "allowlist rows must be sorted by path")
-        if SKILL_ALLOWLIST_M4_COMMENT not in actual:
-            report.bad(r, "0", "SKILL_ALLOWLIST_COMMENT",
-                       f"allowlist does not carry the retirement comment {SKILL_ALLOWLIST_M4_COMMENT!r}; an undated exemption never retires")
-        for p, token, count in rows:
-            if token != SKILL_ALLOWLIST_TOKEN or count != 1:
-                report.bad(r, p, "SKILL_ALLOWLIST_TOKEN", f"row {p!r} has token/count {token!r}/{count}; M3 permits only {SKILL_ALLOWLIST_TOKEN!r}/1")
-            if not (root / p).is_file():
-                report.bad(r, p, "SKILL_ALLOWLIST_DANGLING", f"allowlisted path {p!r} does not exist; an exemption for a nonexistent file hides nothing and must be removed")
-        if excluded != frozenset(p for p, _, _ in rows):
-            report.bad(r, "0", "SKILL_ALLOWLIST_SET_MISMATCH",
-                       "the exclusion set threaded into the M3 checks does not equal the parsed allowlist rows")
-
-        # Every M3 check must be registered, and so receive the one shared set.
-        if len(M3_CHECKS) != M3_CHECK_COUNT:
-            report.bad("tools/selfcheck.py", "M3_CHECKS", "SKILL_ALLOWLIST_REGISTRY",
-                       f"{len(M3_CHECKS)} M3 checks are registered; M3 specifies exactly {M3_CHECK_COUNT}, each receiving the same parsed exclusion set")
-        import inspect
-        for display, fn in M3_CHECKS:
-            try:
-                params = list(inspect.signature(fn).parameters)
-            except (TypeError, ValueError):
-                params = []
-            if params != ["root", "report", "excluded"]:
-                report.bad("tools/selfcheck.py", display, "SKILL_ALLOWLIST_SIGNATURE",
-                           f"M3 check {display!r} has parameters {params}; every M3 check must accept the shared (root, report, excluded) triple")
-
-        # No private second exception list anywhere in this harness.
-        try:
-            source = Path(__file__).read_text(encoding="utf-8")
-        except OSError as exc:
-            report.bad("tools/selfcheck.py", "0", "SKILL_ALLOWLIST_AUDIT", f"cannot self-audit for private exception lists: {exc}")
-            return
-        sites = _allowlist_literal_sites(source)
-        if sites != ["SKILL_ALLOWLIST_EXPECTED"]:
-            report.bad("tools/selfcheck.py", "0", "SKILL_ALLOWLIST_PRIVATE_LIST",
-                       f"the exempt skill names appear as string literals in {sites}; they may appear only in SKILL_ALLOWLIST_EXPECTED, so that the single allowlist is the only visible exemption")
-        report.ok("skill-generation-allowlist", f"allowlist has exactly {len(rows)} sorted M4-dated rows and all {len(M3_CHECKS)} M3 checks share the one parsed exclusion set", mark)
-
-
 # --- check 30: schema-attribution -------------------------------------------
 
 
-@m3_check("schema-attribution")
-def check_schema_attribution(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_schema_attribution(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/schema", "SCHEMA_ATTRIBUTION_ABORT"):
         checked = 0
@@ -3230,8 +3080,7 @@ def check_schema_attribution(root: Path, report: Report, excluded: frozenset[str
 # --- check 31: test-candidate-layout ----------------------------------------
 
 
-@m3_check("test-candidate-layout")
-def check_test_candidate_layout(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_test_candidate_layout(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/schema/layout.md", "TEST_CANDIDATE_LAYOUT_ABORT"):
         relpath = ".opencode/schema/layout.md"
@@ -3296,15 +3145,10 @@ def invoked_check_names(source: str) -> list[str]:
                 if isinstance(sub, ast.Call) and isinstance(sub.func, ast.Name) and sub.func.id.startswith("check_"):
                     if sub.func.id in display and display[sub.func.id] not in invoked:
                         invoked.append(display[sub.func.id])
-    for _, fn in M3_CHECKS:
-        name = getattr(fn, "__name__", "")
-        if name in display and display[name] not in invoked:
-            invoked.append(display[name])
     return invoked
 
 
-@m3_check("selfcheck-doc-parity")
-def check_selfcheck_doc_parity(root: Path, report: Report, excluded: frozenset[str]) -> None:
+def check_selfcheck_doc_parity(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/schema/selfcheck.md", "SELFCHECK_DOC_ABORT"):
         relpath = ".opencode/schema/selfcheck.md"
@@ -3335,13 +3179,10 @@ def check_selfcheck_doc_parity(root: Path, report: Report, excluded: frozenset[s
         if "eight agents" not in low:
             report.bad(relpath, "0", "SELFCHECK_DOC_AGENT_COUNT",
                        "the document does not state that there are exactly eight agents with one primary")
-        if SKILL_ALLOWLIST_RELPATH not in text:
-            report.bad(relpath, "0", "SELFCHECK_DOC_ALLOWLIST",
-                       f"the document does not describe the uniform two-generation allowlist at {SKILL_ALLOWLIST_RELPATH}")
         if "honor system" not in low and "honor-system" not in low:
             report.bad(relpath, "0", "SELFCHECK_DOC_HONOR_SYSTEM",
                        "the document does not state the honor-system limitation: a green self-check proves structural and procedural necessity, not that agents invoked the validator, locks, CAS or review")
-        report.ok("selfcheck-doc-parity", f"all {len(names)} AST-derived invoked check names are documented with the eight-agent, allowlist and honor-system wording", mark)
+        report.ok("selfcheck-doc-parity", f"all {len(names)} AST-derived invoked check names are documented with the eight-agent and honor-system wording", mark)
 
 
 # --- M4 check: validation-guidance-isolation --------------------------------
@@ -3527,11 +3368,9 @@ def check_validation_guidance_isolation(root: Path, report: Report) -> None:
 # Part 8. The template checks bind on whatever skill_paths() discovers, and
 # discovery globs `*/SKILL.md` - so a skill directory with no SKILL.md is
 # simply invisible and silently exempt. That is a fail-OPEN discovery, and it
-# is exactly the hole the retiring allowlist used to make visible.
-#
-# Deliberately independent of check_skill_generation_allowlist: it reads no
-# allowlist, takes no `excluded` set, and is not registered in M3_CHECKS, so it
-# keeps asserting after the allowlist and its parser are deleted.
+# is exactly the hole the retired two-generation exemption file used to make
+# visible. This check is what keeps discovery honest now that the file and its
+# parser are gone.
 
 M4_SKILLS: tuple[str, ...] = (
     "gather-documentation",
@@ -3571,7 +3410,7 @@ def check_skill_discovery_closure(root: Path, report: Report) -> None:
                        f"{VALIDATION_PROFILE_DIR}")
         # Every discovered skill must be in scope for the template checks with
         # no exclusion set applied at all.
-        unbound = sorted(set(discovered) - set(in_scope_skills(root, frozenset())))
+        unbound = sorted(set(discovered) - set(in_scope_skills(root)))
         if unbound:
             report.bad(".opencode/skills", "0", "SKILL_DISCOVERY_UNBOUND",
                        f"skills {unbound} are discovered but not in scope for the template checks")
@@ -3621,18 +3460,25 @@ def main(argv: list[str]) -> int:
     check_candidate_convention(root, report)
     check_workflow_markers(root, report)
     check_skill_references(root, report)
-    # M4: deliberately NOT registered in M3_CHECKS. Both must keep asserting
-    # after tools/skill-template-allowlist.tsv and its parser are deleted, so
-    # neither takes an `excluded` set and neither reads the allowlist.
     check_validation_guidance_isolation(root, report)
     check_skill_discovery_closure(root, report)
 
-    # M3: one parsed exclusion set, threaded into every registered M3 check.
-    # Dispatching through the registry rather than by name is what makes a
-    # private second exception list impossible to introduce unnoticed.
-    excluded = skill_exclusions(root)
-    for _display, fn in M3_CHECKS:
-        fn(root, report, excluded)
+    # Skill template checks. M4 retired the two-generation exemption file and
+    # its parser together, so these are ordinary invocations with no exclusion
+    # set: each scans every discovered skill.
+    check_skill_contracts(root, report)
+    check_skill_emissions(root, report)
+    check_skill_consumption(root, report)
+    check_skill_structure(root, report)
+    check_skill_trigger_frontmatter(root, report)
+    check_skill_ownership(root, report)
+    check_skill_status_vocabulary(root, report)
+    check_skill_verdict(root, report)
+    check_skill_validator_wiring(root, report)
+    check_skill_note_paths(root, report)
+    check_schema_attribution(root, report)
+    check_test_candidate_layout(root, report)
+    check_selfcheck_doc_parity(root, report)
     return report.emit()
 
 
