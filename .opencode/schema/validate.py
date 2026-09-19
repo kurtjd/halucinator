@@ -783,11 +783,26 @@ class Handoff:
         self.data = data
 
 
+# Kinds whose filename is not name-derived and occurs at most once. Their
+# canonical filename is exactly "<kind>.toml"; a prefix match such as
+# "05-platform-extra.toml" is a non-canonical name, not a second handoff.
+# "06-driver-<name>", "07-tests-<name>" and "08-review-<artifact>" stay
+# name-derived and repeatable.
+SINGLETON_KINDS = ("01-sources", "02-facts", "03-svd", "04-pac", "05-platform")
+
+
 def kind_of(filename: str) -> str | None:
     for key in KINDS:
         if filename.startswith(key):
             return key
     return None
+
+
+def canonical_filename(kind: str, filename: str) -> bool:
+    """Whether `filename` is a canonical filename for `kind`."""
+    if kind in SINGLETON_KINDS:
+        return filename == kind + ".toml"
+    return True
 
 
 def evidence_code(field: str, kind: str) -> str:
@@ -1046,12 +1061,12 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
                         got.add((entry.get("id"), entry.get("kind"), entry.get("location")))
             if got != requirements:
                 ctx.err("pac.foundation", "FOUNDATION_PARTITION",
-                        "entries exactly partitioning the architect requirements %s"
+                        "entries exactly partitioning the coordinator requirements %s"
                         % sorted(requirements), sorted(got),
                         "cover every foundation requirement exactly once")
         # PAC/state continuity: a PAC handoff may not contradict the current
-        # architect-owned decisions it is built against. Compared only when the
-        # architect has actually recorded the decision; both fields are
+        # coordinator-owned decisions it is built against. Compared only when the
+        # coordinator has actually recorded the decision; both fields are
         # optional in state.toml.
         for name in ("cargo_chip_feature", "rust_compilation_target"):
             decided = world.state_decisions.get(name)
@@ -1059,11 +1074,36 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
                 continue
             if table.get(name) != decided:
                 ctx.err("pac." + name, "DEPENDENCY_NOT_READY",
-                        "%s to equal the current architect decision %r"
+                        "%s to equal the current coordinator decision %r"
                         % (name.replace("_", " "), decided),
                         table.get(name),
                         "rebuild the PAC against the recorded decision, or "
-                        "record a new architect decision first")
+                        "record a new coordinator decision first")
+
+    if h.kind == "07-tests":
+        # `tests.api_handoff` is a binding to one specific driver handoff, so
+        # it is resolved by path, never through `world.by_stage` (which keeps
+        # only the first handoff per stage and so cannot tell two drivers
+        # apart). A binding that does not name a `06-driver` is corrupt
+        # lineage at any status, hence this is not gated on `status`.
+        # Hash freshness of the reference is already proved by validate_refs.
+        # Suite and driver names need not match: one driver may carry several
+        # suites.
+        ref = table.get("api_handoff")
+        target = world.by_path.get(ref.get("path")) if isinstance(ref, dict) else None
+        if target is None or target.kind != "06-driver":
+            ctx.err("tests.api_handoff", "ILLEGAL_ENUM",
+                    "a path naming a present 06-driver handoff",
+                    ref.get("path") if isinstance(ref, dict) else ref,
+                    "bind the suite to the driver handoff whose API it exercises")
+        elif status == "ready":
+            tstatus = target.data.get("handoff", {}).get("status") \
+                if isinstance(target.data.get("handoff"), dict) else None
+            if tstatus != "ready":
+                ctx.err("tests.api_handoff", "DEPENDENCY_NOT_READY",
+                        "the bound driver handoff %r to be ready" % target.rel,
+                        tstatus,
+                        "complete the bound driver before declaring tests ready")
 
     # dependency graph for ready
     if status == "ready":
@@ -1073,7 +1113,8 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
             "generate-pac": ["generate-svd"],
             "scaffold-hal": ["generate-pac"],
             "write-driver": ["scaffold-hal"],
-            "write-tests": ["write-driver"],
+            # "write-tests" is deliberately absent: its upstream is the one
+            # driver named by `tests.api_handoff`, checked above by path.
         }.get(KINDS[h.kind]["stage"], [])
         if KINDS[h.kind]["stage"] == "generate-svd" and table.get("route") == "author-from-docs":
             required = required + ["extract-facts"]
@@ -1336,10 +1377,11 @@ def validate_locks(rep, loader, run_dir, state, state_stage_status) -> None:
 class World:
     def __init__(self):
         self.by_stage: dict[str, Handoff] = {}
+        self.by_path: dict[str, Handoff] = {}
         self.reviews_by_path: dict[str, Handoff] = {}
         self.scope_nodes: dict[str, dict] = {}
         self.state_requirements: set | None = None
-        # Current architect-owned decisions from state.toml, used to prove a
+        # Current coordinator-owned decisions from state.toml, used to prove a
         # ready PAC handoff does not contradict them.
         self.state_decisions: dict = {}
 
@@ -1509,7 +1551,7 @@ def run(root_dir, bindings, kind) -> int:
                 continue
             khint = kind_of(name)
             rel = "halucinator/handoff/" + name
-            if khint is None:
+            if khint is None or not canonical_filename(khint, name):
                 rep.emit(rel, "-", "UNKNOWN_FIELD",
                          "a filename matching a declared handoff kind", name,
                          "rename to a canonical handoff filename")
@@ -1522,10 +1564,26 @@ def run(root_dir, bindings, kind) -> int:
                 continue
             handoff = Handoff(khint, rel, abspath, data)
             handoffs.append(handoff)
+            # Per-path index. `by_stage` collapses the repeatable kinds onto a
+            # single entry per stage, which is correct for the singleton
+            # generic dependencies but cannot express "this tests handoff is
+            # bound to that driver handoff". Cross-artifact bindings resolve
+            # through `by_path` instead.
+            if rel in world.by_path:
+                # Defensive: `os.listdir` cannot yield a duplicate name, so
+                # this is unreachable under filesystem discovery.
+                rep.emit(rel, "-", "ILLEGAL_ENUM",
+                         "at most one handoff per repository path", rel,
+                         "remove the duplicate handoff")
+            else:
+                world.by_path[rel] = handoff
             stage = data.get("handoff", {}).get("stage") if isinstance(data.get("handoff"), dict) else None
             if stage and stage not in world.by_stage:
                 world.by_stage[stage] = handoff
             if khint == "08-review":
+                # Reviews are resolved by path only (see
+                # validate_independent_review); an 08-review is never a
+                # `by_stage` consumer.
                 world.reviews_by_path["halucinator/handoff/" + name] = handoff
 
     for handoff in handoffs:
