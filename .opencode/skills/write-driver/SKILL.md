@@ -26,6 +26,7 @@ checks: format-lint-build,generated-mappings,independent-review,live-reference-r
 consumes: 05-platform|coverage.complete,coverage.incomplete,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
 writes: hal-driver|clock-modules
 writes: hal-driver|driver-candidates
+writes: hal-driver|driver-evidence
 writes: hal-driver|driver-handoff
 writes: hal-driver|peripheral-modules
 supplies-delta: hal-driver|driver-records
@@ -76,7 +77,7 @@ dispatch peers.
 
 | Owner | Materializes here | Never here |
 |---|---|---|
-| **hal-driver** | classes `peripheral-modules`, `clock-modules`, `driver-candidates`, `driver-handoff`; the implementation, its host tests and the `06` handoff | shared files, manifests, linker scripts, CI, examples, target tests, commits |
+| **hal-driver** | classes `peripheral-modules`, `clock-modules`, `driver-candidates`, `driver-evidence`, `driver-handoff`; the implementation, its host tests, its check evidence and the `06` handoff | shared files, manifests, linker scripts, CI, examples, target tests, commits |
 | **hal-coordinator** | class `roadmap`, exactly `halucinator/docs/<target-id>/notes/ROADMAP.md`; the target, bounded scope, selected subsystem and its modes; and every dispatch | implementation or shared files |
 | **hal-integrator** | classes `driver-records`, `platform-notes`, `sources-catalog`, and every shared crate file; and it is the **sole committer** | driver logic, test logic, scope decisions |
 | **hal-tester** | the source-blind link-check and validation binaries under `halucinator/test-candidates/<name>/` | reading this skill, this driver's source, or any canonical path |
@@ -88,14 +89,17 @@ Cross-owner deltas: this stage authors semantic content for
 first three, **hal-coordinator** itself for the roadmap — to materialize each
 delta and return its FileRef.
 
-`driver-records` is **profile-conditional**. `.opencode/ownership.toml` registers
-exactly two paths in that class, `notes/GPIO.md` and `notes/TIME-DRIVER.md`, so
-only a GPIO task or a time-driver task may supply that delta. A bus driver and an
-unprofiled driver carry their durable record in the typed `06` itself, in hashed
-`handoff.notes` records, in check evidence and citations, and in the ROADMAP,
-SOURCES and platform-note deltas. Inventing `notes/DRIVER-<name>.md` would
-require an ownership-registry change, which is an agent-layer change and is out
-of scope here: return that need to **hal-coordinator**.
+`driver-records` is owned by **hal-integrator** and registers three patterns:
+`notes/GPIO.md`, `notes/TIME-DRIVER.md`, and `notes/drivers/**`. A GPIO task
+supplies the first, a time-driver task the second, and **every other driver —
+bus or unprofiled — supplies a generic durable record at
+`halucinator/docs/<target-id>/notes/drivers/<name>.md`**. In all three cases
+**hal-driver** authors the semantic delta only; **hal-coordinator** dispatches
+**hal-integrator** to materialize the file and return its FileRef, and
+**hal-driver** never writes that path itself. The typed `06`, its hashed
+`handoff.notes`, its check evidence and its citations remain the primary
+machine-readable record; the durable note is the human-readable companion, not
+a substitute for either.
 
 Do not hand-roll clock gating or reset in a peripheral module; that policy lives
 in `clocks`, which is also yours, and is extended there. Do not edit the PAC or
@@ -140,9 +144,9 @@ not. Never bridge either gap with raw register access or an invented constant.
   domains.
 - A hashed classification record naming the selected profile and the positive
   finding that selected it, carried in `handoff.notes`.
-- Record deltas: `notes/GPIO.md` or `notes/TIME-DRIVER.md` where the profile
-  permits, plus the ROADMAP, SOURCES and platform-note deltas the work implies,
-  each materialized by its registry owner.
+- Record deltas: `notes/GPIO.md` for a GPIO task, `notes/TIME-DRIVER.md` for the
+  time driver, otherwise `notes/drivers/<name>.md`, plus the ROADMAP, SOURCES and
+  platform-note deltas the work implies, each materialized by its registry owner.
 - `halucinator/handoff/06-driver-<name>.toml`, carrying `driver.name`,
   `driver.scope_kind`, `driver.owned_files`, `driver.capabilities`, the complete
   tester-safe `driver.public_api`, `driver.dependencies`,
@@ -485,8 +489,8 @@ sentinel word.
 | Checks | `format-lint-build`, `generated-mappings`, `independent-review`, `live-reference-read`, `pure-host-tests`, `target-link-ci`, `trait-conformance` |
 | Universal reading | [driver checklist](./references/driver-checklist.md), [driver record](./references/driver-record.md) |
 | Profiles | exactly one of [gpio](./references/profiles/gpio.md), [time-driver](./references/profiles/time-driver.md), [bus](./references/profiles/bus.md), or none on a positive finding |
-| Owned classes | `peripheral-modules`, `clock-modules`, `driver-candidates`, `driver-handoff` |
-| Deltas | `driver-records` (GPIO and time only), `platform-notes`, `sources-catalog` via `hal-integrator`; `roadmap` via `hal-coordinator` |
+| Owned classes | `peripheral-modules`, `clock-modules`, `driver-candidates`, `driver-evidence`, `driver-handoff` |
+| Deltas | `driver-records` (`GPIO.md`, `TIME-DRIVER.md`, otherwise `drivers/<name>.md`), `platform-notes`, `sources-catalog` via `hal-integrator`; `roadmap` via `hal-coordinator` |
 | Candidate root | `halucinator/candidates/driver-*/` while the predecessor is `partial` |
 | Lock | `kind="stage"` with `stage:write-driver:<name>` plus one `path:` resource per mutable file, cooperative only |
 | Cycle break | a validated tester-safe `partial` `06`, one frozen revision per test cycle |
@@ -494,7 +498,7 @@ sentinel word.
 | Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write |
 | Review gate | Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
 | Ready | empty incomplete, complete equals included scope, `can_progress` absent, empty blockers, applicable checks `passed`, accepting review |
-| Deferred | a profile discriminator in the typed schema, `schema = 1` being frozen; a registry class for `halucinator/candidates/driver-*/evidence/**`, which today matches no `[[file_classes]]` entry |
+| Deferred | a profile discriminator in the typed schema, `schema = 1` being frozen |
 
 ## Common mistakes
 

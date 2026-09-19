@@ -25,6 +25,7 @@ emitter: hal-integrator
 emits: 05-platform|halucinator/handoff/05-platform.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
 checks: advertised-builds,build-only-ci,format-lint,foundation-coverage,generated-mappings,independent-review,live-reference-read,negative-chip-selection,pure-host-tests,target-link
 consumes: 04-pac|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,pac.crate_manifest,pac.package,pac.revision.kind,pac.revision.value,pac.cargo_chip_feature,pac.runtime_features,pac.metadata_features,pac.rust_compilation_target,pac.source_ids,pac.cited_notes,pac.temporary_fork,pac.foundation.id,pac.foundation.kind,pac.foundation.location,pac.foundation.status,pac.foundation.evidence
+consumes: 05-platform|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
 writes: hal-architect|architecture-spec
 writes: hal-coordinator|roadmap
 writes: hal-driver|clock-modules
@@ -81,7 +82,7 @@ Specialists never dispatch peers.
 |---|---|---|
 | **hal-coordinator** | class `roadmap`, the exact path `halucinator/docs/<target-id>/notes/ROADMAP.md`; the target, bounded scope, Cargo chip feature, Rust compilation target, destination crate, first peripheral and its modes, foundation requirements; and every dispatch | implementation or shared files |
 | **hal-architect** | class `architecture-spec`, exactly `halucinator/docs/*/notes/ARCHITECTURE.md`, carrying the startup, clock and public API **contracts** | any code, any manifest, any decision, any dispatch |
-| **hal-driver** | class `clock-modules`, `embassy-*/src/clocks/**`, and the host-side unit tests of its functional core | shared files, manifests, CI, commits |
+| **hal-driver** | class `clock-modules`, `embassy-*/src/clocks/**`, and the host-side unit tests of its functional core — authored in the `write-clocks` slice, not re-authored at consolidation | shared files, manifests, CI, commits |
 | **hal-integrator** | every shared file: `integration-candidates`, `crate-manifest`, `build-generation`, `platform-lib`, `chip-modules`, `linker`, `runtime-wiring`, `example-binaries`, `example-manifest`, `example-support`, `ci`, `platform-notes` and `platform-handoff`; and it is the **sole committer** | test logic, design contracts, scope decisions |
 | **hal-tester** | nothing canonical; it authors the source-blind link-check binary, its manifest and its support files as deltas | canonical example, test or CI files |
 | **hal-reviewer** | the `08-review` verdict only | any file this stage produces |
@@ -94,10 +95,12 @@ This stage is the **sole final consolidator** of the platform chain.
 **hal-coordinator** dispatches `write-clocks`, then `integrate-interrupts`, then
 `integrate-runtime-linker`, each of which publishes only a `partial`
 `05-platform` inside the one continuously held Phase-I platform session and
-moves no canonical byte. This skill then creates the composite evidence, obtains
-the independent review with no platform lock held, performs canonical placement,
-and publishes the single `ready` `05-platform`. No slice may do any of those
-four things.
+moves no canonical byte. This skill **admits the final slice snapshot as a typed
+input, verifies the ordered chain behind it**, creates the composite evidence,
+obtains the independent review with no platform lock held, performs canonical
+placement, and publishes the single `ready` `05-platform`. No slice may do any
+of those five things, and this stage re-authors none of their work: it
+consolidates what they produced and blocks on what they did not.
 
 `SCAFFOLD.md` and `STARTUP.md` are class `platform-notes`, owned and materialized
 by **hal-integrator**. **hal-architect** and **hal-driver** author semantic
@@ -139,6 +142,26 @@ admission vocabulary is exactly the producer's field names:
 | Fork state | `pac.temporary_fork` |
 | Lineage | `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`, `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete` |
 
+Also consume the validated `05-platform` leaves declared in the contract's
+second `consumes:` line. That input is **not** the live singleton: it is the
+immutable snapshot the last slice published inside the integration candidate,
+`halucinator/candidates/integration-<id>/snapshots/05-platform-after-runtime.toml`,
+pinned by hash in `handoff.inputs`. Snapshot semantics are inherited from the
+slices: each slice validated the live singleton immediately before copying it
+byte-identically, and later validation hashes the snapshot for freshness.
+`validate.py` does not discover candidate snapshots as handoffs and does not
+reparse them as a kind, so the snapshot's admissibility rests on the byte
+equality each slice verified — a procedural guarantee, stated as one.
+
+The slice chain is `write-clocks`, then `integrate-interrupts`, then
+`integrate-runtime-linker`. Each is `partial`, and each pins its own predecessor
+snapshot in `handoff.inputs`, so the ordered chain is recoverable from the final
+snapshot by following those pins. Nothing mechanical enforces the order or the
+chain: no `05-platform` leaf carries a slice discriminator, `schema = 1` is
+frozen, and repeatable `05` snapshot filenames are not validator-visible. The
+chain walk below is therefore discipline plus hashes, and no reader may treat it
+as enforcement.
+
 Read separately from coordinator-owned state: `decisions.cargo_chip_feature`,
 `decisions.rust_compilation_target`, `decisions.destination_crate`,
 `decisions.foundation_requirements`, the next-driver selection and its modes, the
@@ -161,10 +184,12 @@ access or an invented constant.
   public API contracts.
 - `halucinator/docs/<target-id>/notes/ROADMAP.md` from **hal-coordinator**,
   linked and never duplicated.
-- Clock modules and their host-side unit tests from **hal-driver**.
+- Clock modules and their host-side unit tests from **hal-driver**, produced by
+  the `write-clocks` slice and admitted here, not re-authored here.
 - One disposable integration candidate under
-  `halucinator/candidates/integration-*/`, and, only after an accepting review,
-  the canonical shared files, examples and CI wiring from **hal-integrator**.
+  `halucinator/candidates/integration-*/`, carrying the three ordered slice
+  snapshots under `snapshots/`, and, only after an accepting review, the
+  canonical shared files, examples and CI wiring from **hal-integrator**.
 - `SCAFFOLD.md` and `STARTUP.md`, materialized by **hal-integrator** from
   architect and driver deltas.
 - `halucinator/handoff/05-platform.toml`, carrying `platform.crate_manifest`,
@@ -225,20 +250,36 @@ access or an invented constant.
    carrying `stage:scaffold-hal`, `global:hal-integration` and one `path:` entry
    per touched file. Candidate, canonical and recovery locations must not
    overlap.
-8. **Author the clock and reset implementation.** **hal-driver** authors
-   `embassy-*/src/clocks/**` against the architect's contract — a real `Gate`,
-   `enable_and_reset`, the usable frequency result and any required lifetime
-   guard — and authors the host-side unit tests of its pure configuration,
-   encoding and arithmetic logic, exhaustive over small legal domains. Discharge
-   `pure-host-tests` from those runs, or record it `not-applicable` with a reason
-   the reviewer audits. A no-op that returns success is not a scaffold.
-9. **Author the shared platform files in the candidate.** **hal-integrator**
-   authors the crate manifest and Embassy docs metadata, the build and
-   code-generation integration, the crate root with `peripherals!` and
-   `interrupt_mod!` plumbing, the chip module, the `init` and configuration
-   policy, and `memory.x` with the linker and runtime wiring — all inside the
-   candidate, never at a canonical path. Compare the generated singleton,
-   interrupt and build mappings against the PAC metadata and discharge
+8. **Load the final slice snapshot and walk the slice chain.** Admit
+   `halucinator/candidates/integration-<id>/snapshots/05-platform-after-runtime.toml`,
+   hash it, and pin that FileRef in `handoff.inputs`. Then walk its
+   `handoff.inputs` back through the `integrate-interrupts` and `write-clocks`
+   snapshots, verifying that all three exist, hash as pinned, name the same
+   integration candidate, and carry the same `scope.revision` and
+   `scope.decision` as this run. Verify that the clock modules the chain
+   attributes to **hal-driver** are present in the candidate and that their
+   host-test evidence is the evidence the clock slice pinned; discharge
+   `pure-host-tests` from those runs, or record it `not-applicable` with a
+   reason the reviewer audits. **Author no clock code here.** `clock-modules` is
+   **hal-driver**'s and was implemented by the `write-clocks` slice against the
+   architect's contract; re-authoring it in this stage puts the same policy in
+   two places and makes the slice's review meaningless. A missing snapshot, a
+   hash mismatch, an out-of-order chain, a snapshot describing a different
+   candidate or scope, or a chain that does not account for all three slices is
+   a named blocker returned to **hal-coordinator**, never a gap this stage fills
+   by re-implementing the slice.
+9. **Compare the candidate's shared platform files against the admitted chain.**
+   Confirm that the candidate the slices built actually carries the crate
+   manifest and Embassy docs metadata, the build and code-generation
+   integration, the crate root with `peripherals!` and `interrupt_mod!`
+   plumbing, the chip module, the `init` and configuration policy, and
+   `memory.x` with the linker and runtime wiring — each attributable to the
+   slice that produced it, each still inside the candidate and not at a
+   canonical path. **hal-integrator** repairs only what this verification shows
+   to be inconsistent with the admitted contract, and any substantive gap
+   returns to **hal-coordinator** for the owning slice rather than being
+   re-authored here. Compare the generated singleton, interrupt and build
+   mappings against the PAC metadata across the whole candidate and discharge
    `generated-mappings` without editing generated output.
 10. **Run the formatting, lint and build matrix.** Run the repository-required
     formatting and lint checks for every touched surface and discharge
@@ -358,7 +399,10 @@ request, while the generated PAC covers those foundation registers but lacks ADC
 metadata. The coordinator selects UART0 in blocking and DMA modes as the first
 driver. Scaffold only `AX100`, the documented internal-oscillator path, the
 central gate, reset and frequency plumbing, pin mux and DMA support; the ADC gap
-does not block. The emitted handoff:
+does not block. The three ordered slices have already run in integration
+candidate `001`, so this stage admits their final snapshot
+`snapshots/05-platform-after-runtime.toml` alongside `04-pac` and verifies the
+chain behind it. The emitted handoff:
 
 ```toml
 [handoff]
@@ -367,6 +411,7 @@ stage = "scaffold-hal"
 status = "ready"
 inputs = [
   { path = "halucinator/handoff/04-pac.toml", sha256 = "4c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
+  { path = "halucinator/candidates/integration-001/snapshots/05-platform-after-runtime.toml", sha256 = "5d2f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f709" },
 ]
 notes = [
   { path = "halucinator/docs/acme-ax100/notes/SCAFFOLD.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
@@ -465,11 +510,12 @@ sentinel word.
 | Stage | `scaffold-hal` |
 | Emitter | `hal-integrator`, the sole committer |
 | Emitted handoff | `halucinator/handoff/05-platform.toml`, kind `05-platform` |
-| Consumes | `04-pac` only; decisions and roots come from coordinator-owned state |
+| Consumes | `04-pac`, plus the final slice `05-platform` as an immutable candidate snapshot; decisions and roots come from coordinator-owned state |
+| Slice chain | `write-clocks`, `integrate-interrupts`, `integrate-runtime-linker`; admitted here as `snapshots/05-platform-after-runtime.toml` and walked back by pinned inputs, procedurally and unenforced |
 | Checks | `advertised-builds`, `build-only-ci`, `format-lint`, `foundation-coverage`, `generated-mappings`, `independent-review`, `live-reference-read`, `negative-chip-selection`, `pure-host-tests`, `target-link` |
 | Decisions and roadmap | `hal-coordinator`; roadmap is exactly `halucinator/docs/<target-id>/notes/ROADMAP.md` |
 | Design contracts | `hal-architect`, only `halucinator/docs/*/notes/ARCHITECTURE.md` |
-| Clocks | `hal-driver`, `embassy-*/src/clocks/**`, plus host-side unit tests |
+| Clocks | `hal-driver`, `embassy-*/src/clocks/**`, plus host-side unit tests; produced by the `write-clocks` slice and admitted here |
 | Shared files | `hal-integrator`, in `halucinator/candidates/integration-*/` first |
 | Candidate roots | `halucinator/candidates/integration-*/`, `halucinator/candidates/driver-*/`, `halucinator/test-candidates/<name>/` |
 | Lock | `kind="stage"` with `stage:scaffold-hal` and `global:hal-integration`, cooperative only |
@@ -484,6 +530,16 @@ sentinel word.
 - **Routing target, scope or the roadmap to `hal-architect`.** Those are
   `hal-coordinator` decisions. The architect writes `ARCHITECTURE.md` and
   nothing else.
+- **Re-authoring a slice's work instead of consolidating it.** Clocks,
+  interrupt plumbing and the runtime and linker wiring were produced by the
+  three slices and reviewed as their output. Writing them again here creates a
+  second copy of the same policy, discards the slice's review, and reintroduces
+  exactly the multi-writer hazard the slicing removed. Verify, and block on what
+  is missing.
+- **Publishing `ready` without admitting the final slice snapshot.** The
+  snapshot and the chain behind it are the only typed evidence that the three
+  slices ran, ran in order, and describe this candidate. Without them the
+  consolidation asserts a lineage nobody recorded.
 - **Assigning clocks to the architect.** `clock-modules` is `hal-driver`'s, and
   a clock implementation written by the designer of its own contract is reviewed
   by nobody.

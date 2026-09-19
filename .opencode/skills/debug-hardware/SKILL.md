@@ -240,18 +240,34 @@ names the exact `06-driver-*` handoff by path.
     or record it `not-applicable` with a reason when the scope is `build-only`.
 11. **Run bounded reproductions.** Run only the authorized cases, under bounded
     runners and per-case deadlines, capture raw logs into the revision's
-    `evidence/`, follow the documented safe teardown for successful and failing
-    runs alike, and discharge `hardware-execution`. A successful load, empty
-    output or a zero exit is not a pass, and a successful build is never a
-    runtime result.
-12. **Record interrupted hardware honestly.** Record hardware state as unknown
+    `evidence/`, and follow the documented safe teardown for successful and
+    failing runs alike. Discharge `hardware-execution` from **whether the
+    execution procedure itself ran correctly** — authorized operations only, on
+    the reconfirmed board, within the deadlines, with teardown performed and raw
+    observations preserved. A successful load, empty output or a zero exit is
+    not a pass, and a successful build is never a runtime result.
+12. **Record the observation separately from the check.** Record what the device
+    actually did in `tests.coverage` and `tests.hardware_runs`, whose status
+    vocabularies exist precisely to carry a failing case. **A correctly executed
+    reproduction of a genuine defect leaves `hardware-execution` `passed` and
+    the affected `tests.coverage` and `tests.hardware_runs` rows `failed`.**
+    That is the expected shape of a successful localization: the check attests
+    the procedure, the rows attest the misbehavior. Collapsing the two —
+    marking the check `failed` because the device failed — destroys the
+    distinction between "the reproduction did not run" and "the reproduction ran
+    and reproduced the defect", and makes the skill's most useful outcome
+    unreachable. `hardware-execution` is `failed` only when the procedure itself
+    failed: an unauthorized or unreconfirmed operation, a deadline or runner
+    fault that prevented the bounded case from completing, missing teardown, an
+    overlapping run, or lost raw observations.
+13. **Record interrupted hardware honestly.** Record hardware state as unknown
     in evidence whenever teardown is missing after an interruption, or whenever
     an operation overlapped another run on the same board. Missing teardown
     after an interruption forces `blocked`, and no result from an overlapping or
-    interrupted run may be marked `passed`. There is no interrupted-HIL recovery
-    machinery and no universal between-test safe state; say so rather than
-    implying one.
-13. **Compare evidence and route ownership.** Compare every captured observation
+    interrupted run may be marked `passed` — not the check, and not any coverage
+    or hardware-run row. There is no interrupted-HIL recovery machinery and no
+    universal between-test safe state; say so rather than implying one.
+14. **Compare evidence and route ownership.** Compare every captured observation
     against its recorded expectation, state which owners the evidence excludes
     and which it leaves open, and route each finding through
     **hal-coordinator** to its owner — **hal-driver** for a driver or contract
@@ -259,7 +275,7 @@ names the exact `06-driver-*` handoff by path.
     gap, **hal-integrator** for shared wiring, build or CI, and the user for an
     environment gap. Uncertain ownership is a finding, not authority to open the
     implementation.
-14. **Publish and review.** Publish the preliminary distinct handoff, preserving
+15. **Publish and review.** Publish the preliminary distinct handoff, preserving
     a hashed snapshot and recovery record of any deterministic handoff
     `state.toml` currently pins before replacing it, run
     `python .opencode/schema/validate.py <repository-root> --kind all` again,
@@ -293,7 +309,7 @@ replacement evidence at a fresh path, rerun affected checks and re-attest.
 | `build-only-ci` | Record the integrator's build of the debug candidate's build-only CI path | `halucinator/test-candidates/<name>/evidence/debug-build-only-ci.log` |
 | `format-lint` | Record the integrator's sanitized formatting and lint results | `halucinator/test-candidates/<name>/evidence/debug-format-lint.log` |
 | `hardware-admission` | Record board identity, safe starting state, named operations, readiness and authorization | `halucinator/test-candidates/<name>/evidence/debug-hardware-admission.md`, or `reason (no evidence FileRef)` when the scope is `build-only` |
-| `hardware-execution` | Run the bounded authorized reproductions and capture raw observations and teardown | `halucinator/test-candidates/<name>/evidence/debug-hardware-execution.log`, or `reason (no evidence FileRef)` when the scope is `build-only` |
+| `hardware-execution` | Record that the bounded authorized reproductions ran correctly, within deadlines, with teardown performed and raw observations preserved; the device's own pass or failure is recorded in `tests.coverage` and `tests.hardware_runs`, not here | `halucinator/test-candidates/<name>/evidence/debug-hardware-execution.log`, or `reason (no evidence FileRef)` when the scope is `build-only` |
 | `independent-review` | Request the coordinator-dispatched review of the distinct debugging record and record its accepting verdict | `halucinator/handoff/08-review-tests-<name>.toml` |
 | `live-conventions-read` | Record the permitted runner, setup and teardown conventions actually inspected | `halucinator/test-candidates/<name>/evidence/debug-live-conventions.md` |
 | `target-build-link` | Record the integrator's actual linked debug image | `halucinator/test-candidates/<name>/evidence/debug-target-build-link.log` |
@@ -316,11 +332,18 @@ included scope, `handoff.can_progress` is absent, `handoff.blockers` is empty,
 the `06-driver` named by `tests.api_handoff` is `ready` and current against
 `scope.revision` and `scope.decision`, the original failing `07-tests` FileRef
 is pinned in `handoff.inputs` under a filename different from this handoff's
-own, every applicable check is `passed`, every required reproduction completed
-with safe teardown, and the independent review accepted. Only
+own, every applicable check is `passed`, every required reproduction ran to
+completion under authorization with safe teardown and preserved raw
+observations, every observation is faithfully recorded in `tests.coverage` and
+`tests.hardware_runs`, and the independent review accepted. Only
 review.verdict=ready accepts; ready-with-fixes and not-ready do not. **Ready
 means the localization evidence is complete — not that the defect is fixed.**
-The repair belongs to another owner and is routed through **hal-coordinator**.
+A `failed` `tests.coverage` or `tests.hardware_runs` row therefore does not
+prevent `ready`: reproducing the defect is the point of the stage, and the
+reproduced failure is the evidence. `coverage.complete` and
+`coverage.incomplete` describe the localization scope this revision covered, not
+whether the device behaved. The repair belongs to another owner and is routed
+through **hal-coordinator**.
 
 ### partial
 
@@ -348,8 +371,11 @@ dispatches localization. The tester selects the run identifier `001`, giving the
 revision `schema-demo-debug-001` and the distinct handoff
 `halucinator/handoff/07-tests-schema-demo-debug-001.toml`. The consumed failing
 handoff, `halucinator/handoff/07-tests-schema-demo.toml`, stays pinned in
-`handoff.inputs` and is not replaced. The reproduction still fails and the
-review has not yet been obtained, so the handoff is `partial`:
+`handoff.inputs` and is not replaced. The reproduction ran correctly under
+authorization, within its deadline, with teardown performed — so
+`hardware-execution` is `passed` — and it reproduced the defect, so the
+`tests.coverage` and `tests.hardware_runs` rows are `failed`. The review has not
+yet been obtained, so the handoff is `partial`:
 
 ```toml
 [handoff]
@@ -430,7 +456,7 @@ evidence = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/
 
 [[checks]]
 id = "hardware-execution"
-status = "failed"
+status = "passed"
 evidence = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/debug-hardware-execution.log", sha256 = "8888888888888888888888888888888888888888888888888888888888888888" }
 
 [[checks]]
@@ -489,9 +515,16 @@ those three is the stage vocabulary, which is `ready`, `partial` or `blocked`.
 - **Skipping reconfirmation because the board was confirmed an hour ago.**
   Readiness and authorization are separate facts and both expire when anything
   changes — the fixture, the load mode, or simply the interval.
+- **Marking `hardware-execution` `failed` because the device failed.** The check
+  asks whether the execution procedure ran correctly; the device's misbehavior
+  belongs in `tests.coverage` and `tests.hardware_runs`. Conflating them makes a
+  correctly executed reproduction indistinguishable from a reproduction that
+  never ran, and puts `ready` permanently out of reach for the one outcome this
+  skill exists to produce.
 - **Marking an interrupted run `passed` because the observation looked right.**
-  An overlapping or interrupted run yields no `passed` result, and missing
-  teardown forces `blocked` with hardware state recorded as unknown.
+  An overlapping or interrupted run yields no `passed` result — not the check
+  and not any row — and missing teardown forces `blocked` with hardware state
+  recorded as unknown.
 - **Changing more than one variable per probe.** Two simultaneous changes
   produce an observation that excludes no owner, which is the same as no
   observation at all.

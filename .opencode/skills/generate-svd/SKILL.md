@@ -82,15 +82,20 @@ identity, `scope.current_revision`, `scope.current_decision`, and
 `roots.svd_inputs`.
 
 On the **`author-from-docs`** route additionally consume the validated
-`02-facts` leaves declared in the contract. **`hal-datasheet` already emits a
-typed `02-facts`; what this toolkit lacks is a template-conforming skill
-procedure for that stage** — one with the validator wiring, the deterministic
-publication sequence, the canonical check discharge and the typed exit
-predicates. Until that procedure lands, `hal-datasheet`'s agent contract is the
-interim procedure. The author route still cannot reach `ready` without a ready
-typed `02-facts`; when it is absent, record the capability gap as a named
-blocker, return it to **hal-coordinator**, and stop. Do not synthesize facts,
-and do not relabel the route to get past the gate.
+`02-facts` leaves declared in the contract. That handoff is produced by
+`extract-hardware-facts`, the sole `02-facts` emitter, run by **hal-datasheet**
+under its own typed gate. Validate it as step 2 requires, then admit it when it
+is `ready`.
+
+Block only for a reason the evidence actually shows: a `blocked` `02-facts`
+predecessor, which permits no consumption; a `02-facts` whose `facts.categories`
+do not cover the register, field, encoding, access, reset or interrupt scope
+this run must represent; or unresolved entries in `facts.contradictions` that
+bear on that scope. Record the named blocker, return it to **hal-coordinator**,
+and stop. A `partial` `02-facts` permits read-only inspection and disposable
+fresh-candidate work only. Never block on the ground that no producer exists —
+one does. Do not synthesize facts, and do not relabel the route to get past the
+gate.
 
 On the **`review-supplied`** route the run may start from accepted cited notes
 alone, but accessibility is never applicability. The `input-identity` evidence
@@ -270,7 +275,8 @@ replacement.
 Predicate: `handoff.can_progress=false`, `handoff.blockers` is nonempty, and
 either `coverage.incomplete` is nonempty or at least one applicable check is
 `unrun` or `failed`. A blocker names an external fact, tool or access action —
-including the absent fact-extraction capability on the author route.
+including a `blocked`, absent or scope-incomplete `02-facts` input on the author
+route.
 
 Never narrow the declared scope after a failed run to reach `ready`. A narrower
 scope is a new coordinator-owned scope decision with its own complete evidence.
@@ -377,10 +383,11 @@ corrections — never a sentinel value in place of a missing field.
 
 ## Common mistakes
 
-- **Reaching `ready` on the author route without `02-facts`.** No skill produces
-  `02-facts` yet. The correct outcome is a recorded capability gap and a return
-  to `hal-coordinator`, not an SVD authored from a vendor file read as if it
-  were a manual.
+- **Reaching `ready` on the author route without `02-facts`.**
+  `extract-hardware-facts` produces it; admit a `ready` one. When it is absent,
+  `blocked`, or does not cover this run's scope, the correct outcome is a named
+  blocker and a return to `hal-coordinator`, not an SVD authored from a vendor
+  file read as if it were a manual.
 - **Treating an accessible SVD as an applicable one.** `input-identity` must
   name the exact FileRef and source ID, and the applicability review is
   procedural, not optional judgement.

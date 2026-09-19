@@ -16,24 +16,31 @@ handoff", for every location — not a policy relative to the skill installation
 Prefer an explicit user-supplied path, then a previously recorded path for the
 same target, then the default.
 
-Record placement is **profile-conditional**, because `.opencode/ownership.toml`
-registers exactly two paths in the `driver-records` class:
+Record placement follows the `driver-records` class in
+`.opencode/ownership.toml`, which registers three patterns:
 
 | Selected profile | Durable record |
 |---|---|
-| GPIO | `notes/GPIO.md` in the selected documentation directory, class `driver-records`, materialized by **hal-integrator** |
-| Time driver | `notes/TIME-DRIVER.md` in the selected documentation directory, class `driver-records`, materialized by **hal-integrator** |
-| Bus, or no profile on a positive finding | the typed `06` itself, hashed `handoff.notes` records under the driver's own candidate root, check evidence, and citations |
+| GPIO | `notes/GPIO.md` in the selected documentation directory |
+| Time driver | `notes/TIME-DRIVER.md` in the selected documentation directory |
+| Bus, or no profile on a positive finding | `notes/drivers/<name>.md` in the selected documentation directory |
 
-There is no `notes/DRIVER-<name>.md`. Creating one would require adding a
-pattern to the ownership registry, which is an agent-layer change: return that
-need to **hal-coordinator** rather than writing an unowned file.
+All three are class `driver-records`, owned and materialized by
+**hal-integrator**. There is no `notes/DRIVER-<name>.md`: the registered generic
+pattern is `notes/drivers/**`, and a record written anywhere else is an unowned
+file. If a driver genuinely needs a path outside those three patterns, that is
+an ownership-registry change and therefore an agent-layer change: return the
+need to **hal-coordinator** rather than writing the file.
 
-Where a `driver-records` path applies, **hal-driver** authors the semantic
-delta and **hal-coordinator** dispatches **hal-integrator** to materialize it
-and return its FileRef. Link it from `SOURCES.md`, from the authoritative
-roadmap, and from any supporting scaffold record instead of duplicating those
-records; each of those links is itself a cross-owner delta on the same route.
+The durable record never replaces the typed `06` handoff, its hashed
+`handoff.notes`, its check evidence or its citations. Those remain the
+machine-readable record; this note is the human-readable companion.
+
+**hal-driver** authors the semantic delta for whichever path applies and
+**hal-coordinator** dispatches **hal-integrator** to materialize it and return
+its FileRef. Link it from `SOURCES.md`, from the authoritative roadmap, and from
+any supporting scaffold record instead of duplicating those records; each of
+those links is itself a cross-owner delta on the same route.
 
 ## Identity and scope
 
