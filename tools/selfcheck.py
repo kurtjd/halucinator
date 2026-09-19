@@ -1257,7 +1257,17 @@ def _ast_eval(node: ast.AST, symbols: dict[str, ast.AST], depth: int = 0):
     raise RegistryError(f"unsupported AST node {type(node).__name__} in schema declaration")
 
 
-def _enumerate(spec, prefix: str, out: set[str], depth: int = 0) -> None:
+def _enumerate(spec, prefix: str, out: set[str], depth: int = 0,
+               arrays: set[str] | None = None) -> None:
+    """Flatten a validator field declaration into dotted leaf paths.
+
+    `arrays`, when supplied, additionally collects every prefix the schema
+    declares with `type == "array"`. That type information is what lets the
+    typed-example analyzer tell an empty ARRAY (a legal "known-empty
+    collection") from an empty array standing where the schema requires a
+    struct or a tagged union - `driver.build_contract` and `review.lineage`
+    are both composite parents, and both reject `[]`.
+    """
     if depth > MAX_AST_DEPTH:
         raise RegistryError("field tree nests deeper than the evaluator bound")
     if not isinstance(spec, dict) or "type" not in spec:
@@ -1269,10 +1279,12 @@ def _enumerate(spec, prefix: str, out: set[str], depth: int = 0) -> None:
         if not isinstance(fields, dict):
             raise RegistryError(f"struct at {prefix} has non-mapping fields")
         for name, decl in fields.items():
-            _enumerate(_decl_spec(decl), f"{prefix}.{name}", out, depth + 1)
+            _enumerate(_decl_spec(decl), f"{prefix}.{name}", out, depth + 1, arrays)
         return
     if kind == "array":
-        _enumerate(spec.get("items"), prefix, out, depth + 1)
+        if arrays is not None:
+            arrays.add(prefix)
+        _enumerate(spec.get("items"), prefix, out, depth + 1, arrays)
         return
     if kind == "tagged":
         out.add(f"{prefix}.kind")
@@ -1283,7 +1295,7 @@ def _enumerate(spec, prefix: str, out: set[str], depth: int = 0) -> None:
             if not isinstance(vfields, dict):
                 continue
             for name, decl in vfields.items():
-                _enumerate(_decl_spec(decl), f"{prefix}.{name}", out, depth + 1)
+                _enumerate(_decl_spec(decl), f"{prefix}.{name}", out, depth + 1, arrays)
         return
     out.add(prefix)
 
@@ -1313,14 +1325,16 @@ def derive_registry(validator: Path) -> dict[str, dict]:
             raise RegistryError(f"validator declares no {required}; the structural registry cannot be derived")
 
     common: set[str] = set()
+    common_arrays: set[str] = set()
     for name, table in (("handoff", "HANDOFF_TABLE"), ("scope", "SCOPE_TABLE"), ("coverage", "COVERAGE_TABLE")):
         value = _ast_eval(symbols[table], symbols)
         if not isinstance(value, dict):
             raise RegistryError(f"{table} did not evaluate to a mapping")
         for field, decl in value.items():
-            _enumerate(_decl_spec(decl), f"{name}.{field}", common)
+            _enumerate(_decl_spec(decl), f"{name}.{field}", common, arrays=common_arrays)
     for leaf in ("id", "status", "evidence", "reason"):
         common.add(f"checks.{leaf}")
+    common_arrays.add("checks")
 
     kinds_value = _ast_eval(symbols["KINDS"], symbols)
     if not isinstance(kinds_value, dict) or not kinds_value:
@@ -1334,14 +1348,17 @@ def derive_registry(validator: Path) -> dict[str, dict]:
         if not isinstance(table, str) or not isinstance(fields, dict):
             raise RegistryError(f"KINDS[{kind!r}] has no evaluable table/fields")
         paths: set[str] = set()
+        kind_arrays: set[str] = set()
         for field, decl in fields.items():
-            _enumerate(_decl_spec(decl), f"{table}.{field}", paths)
+            _enumerate(_decl_spec(decl), f"{table}.{field}", paths, arrays=kind_arrays)
         checks = spec.get("checks")
         registry[kind] = {
             "stage": spec.get("stage"),
             "table": table,
             "paths": paths,
+            "arrays": kind_arrays,
             "common": common,
+            "common_arrays": common_arrays,
             "checks": sorted(checks) if isinstance(checks, dict) else [],
         }
     return registry
@@ -1901,7 +1918,13 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-integrator",
         "kind": "05-platform",
         "filename": "halucinator/handoff/05-platform.toml",
-        "consumes": {"04-pac": _leaves(CONSUMED_04)},
+        # The consolidator starts the chain's evidence from the PAC and, as the
+        # FINAL platform slice, also consumes the 05-platform snapshot the
+        # preceding slices published. Without that second edge a `ready`
+        # platform needs no typed evidence that the slices ran at all. Same
+        # whole-predecessor sentinel the other slices declare, so the two sides
+        # cannot drift into disagreeing literal copies.
+        "consumes": {"04-pac": _leaves(CONSUMED_04), "05-platform": CONSUME_ALL},
         "writes": {
             "hal-architect|architecture-spec", "hal-coordinator|roadmap", "hal-driver|clock-modules",
             "hal-integrator|build-generation", "hal-integrator|chip-modules", "hal-integrator|ci",
@@ -1924,7 +1947,8 @@ SKILL_SPEC: dict[str, dict] = {
         "consumes": {"05-platform": _leaves(CONSUMED_05)},
         "writes": {
             "hal-driver|clock-modules", "hal-driver|driver-candidates",
-            "hal-driver|driver-handoff", "hal-driver|peripheral-modules",
+            "hal-driver|driver-evidence", "hal-driver|driver-handoff",
+            "hal-driver|peripheral-modules",
         },
         "supplies-delta": {
             "hal-driver|driver-records", "hal-driver|platform-notes",
@@ -2543,35 +2567,36 @@ _FIXTURE_CASES: tuple[tuple[str, str, str], ...] = (
 MAX_TOML_EXAMPLE_BYTES = 64 * 1024
 
 
-def _toml_leaf_paths(value, prefix: str, known: frozenset[str], depth: int = 0) -> set[tuple[str, bool]]:
-    """Flatten a parsed TOML example into (path, is_empty_collection) pairs.
+def _toml_leaf_paths(value, prefix: str, known: frozenset[str], depth: int = 0) -> set[tuple[str, str]]:
+    """Flatten a parsed TOML example into (path, emptiness shape) pairs.
 
     Descent STOPS at any prefix already known to be a leaf, so opaque schema
     scalars that happen to be TOML tables or arrays of tables - FileRef,
     ArtifactRef, and the like - are not mistaken for structs and reported as
     invented fields.
 
-    The second element is True only when the value AT that path is an empty
-    TOML collection (`[]` or an empty table). An empty composite collection has
-    no sub-keys to flatten, so it can only ever surface as its own bare parent
-    path, which is never itself a schema leaf; the flag is what lets the caller
-    tell that prescribed known-empty form apart from an invented field.
+    The second element is "" for an ordinary value, "array" when the value AT
+    that path is an empty list, and "table" when it is an empty table. An empty
+    composite collection has no sub-keys to flatten, so it can only ever
+    surface as its own bare parent path, which is never itself a schema leaf;
+    recording WHICH empty shape it was is what lets the caller tell the
+    prescribed known-empty form from a wrong container type.
     """
     if depth > MAX_AST_DEPTH:
-        return {(prefix, False)}
+        return {(prefix, "")}
     if prefix and prefix in known:
-        return {(prefix, False)}
+        return {(prefix, "")}
     if isinstance(value, dict):
-        out: set[tuple[str, bool]] = set()
+        out: set[tuple[str, str]] = set()
         for key, sub in value.items():
             out |= _toml_leaf_paths(sub, f"{prefix}.{key}" if prefix else str(key), known, depth + 1)
-        return out or {(prefix, True)}
+        return out or {(prefix, "table")}
     if isinstance(value, list):
         out = set()
         for item in value:
             out |= _toml_leaf_paths(item, prefix, known, depth + 1)
-        return out or {(prefix, True)}
-    return {(prefix, False)}
+        return out or {(prefix, "array")}
+    return {(prefix, "")}
 
 
 def _is_composite_parent(path: str, known: frozenset[str]) -> bool:
@@ -2579,7 +2604,31 @@ def _is_composite_parent(path: str, known: frozenset[str]) -> bool:
     return any(leaf.startswith(path + ".") for leaf in known)
 
 
-def analyze_typed_example(text: str, stage: str | None, kind: str | None, known: frozenset[str]) -> list[tuple[str, str]]:
+def _permits_empty(path: str, shape: str, known: frozenset[str], arrays: frozenset[str]) -> bool:
+    """True only for an empty ARRAY standing where the schema declares an array.
+
+    `docs/skill-template.md` - "Optional means key absence; known-empty means
+    an empty collection" - makes `x = []` the spelling for a known-empty
+    collection, and for a COMPOSITE collection the bare parent path is the only
+    path it can produce. The allowance is bounded by the schema's own type:
+
+      * the path must be a proper prefix of a known leaf (not a typo), AND
+      * the schema must declare that path `type == "array"`.
+
+    So an empty array is accepted at an array-of-struct path and rejected at a
+    struct or tagged path. `driver.build_contract` is a struct and
+    `review.lineage` is a tagged union; `[]` at either is a wrong container
+    type that `.opencode/schema/validate.py` rejects, so the worked example
+    must not show it. An empty TABLE is never a known-empty collection.
+    """
+    if shape != "array":
+        return False
+    return path in arrays and _is_composite_parent(path, known)
+
+
+def analyze_typed_example(text: str, stage: str | None, kind: str | None,
+                          known: frozenset[str],
+                          arrays: frozenset[str] = frozenset()) -> list[tuple[str, str]]:
     """Assert the '## Application example' shows the skill's emitted handoff as TOML.
 
     M3 makes these five skills emit typed TOML handoffs, so the worked example
@@ -2629,17 +2678,15 @@ def analyze_typed_example(text: str, stage: str | None, kind: str | None, known:
     for doc in handoffs:
         # A path that is not itself a schema leaf is accepted ONLY in the one
         # form the template prescribes for "this collection is known to be
-        # empty": an empty collection sitting at a proper prefix of a known
-        # leaf. `docs/skill-template.md` - "Optional means key absence;
-        # known-empty means an empty collection" - makes `x = []` the required
-        # spelling, and for a COMPOSITE collection the bare parent path is the
-        # only path it can produce. Every other shape stays rejected: an
-        # unknown scalar, a misspelled field, a non-empty composite carrying an
-        # unknown sub-key, and an empty collection at a path that prefixes no
-        # known leaf.
+        # empty", and only where the SCHEMA'S OWN TYPE says a collection
+        # belongs. `_permits_empty` carries that type through, so every other
+        # shape stays rejected: an unknown scalar, a misspelled field, a
+        # non-empty composite carrying an unknown sub-key, an empty collection
+        # at a path that prefixes no known leaf, and - the type-blind hole -
+        # an empty array standing at a struct or tagged path.
         unknown = sorted(
-            p for p, empty in _toml_leaf_paths(doc, "", known)
-            if p not in known and not (empty and _is_composite_parent(p, known))
+            p for p, shape in _toml_leaf_paths(doc, "", known)
+            if p not in known and not _permits_empty(p, shape, known, arrays)
         )
         if unknown:
             out.append(("SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD",
@@ -2652,7 +2699,17 @@ _EXAMPLE_KNOWN = frozenset({
     # a COMPOSITE collection: its schema leaves are sub-keys, so the collection
     # itself ('alpha.items') is a proper prefix and never a leaf.
     "alpha.items.id", "alpha.items.value",
+    # Two composite parents that are NOT arrays, mirroring the real schema:
+    # `driver.build_contract` is a struct and `review.lineage` is a tagged
+    # union (.opencode/schema/validate.py). Both are proper prefixes of a known
+    # leaf, so only the schema's type distinguishes them from `alpha.items`.
+    "driver.build_contract.cargo_chip_feature", "driver.build_contract.init_calls",
+    "review.lineage.kind", "review.lineage.previous",
 })
+# The subset of the above composite parents the schema declares `type ==
+# "array"`. `driver.build_contract` and `review.lineage` are deliberately
+# absent: they are a struct and a tagged union.
+_EXAMPLE_ARRAYS = frozenset({"alpha.items"})
 _EXAMPLE_GOOD = """# Fixture
 
 ## Application example
@@ -2693,6 +2750,16 @@ _EXAMPLE_CASES: tuple[tuple[str, str, str], ...] = (
      _EXAMPLE_NONEMPTY_COMPOSITE.replace('value = "b"', 'value = "b"\nnope = "c"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
     ("non-empty composite whose sub-keys are all unknown",
      _EXAMPLE_NONEMPTY_COMPOSITE.replace('id = "a"\nvalue = "b"', 'wrong = "a"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    # --- the known-empty allowance must be TYPE-aware, not merely name-aware -
+    ("empty array at a STRUCT composite path",
+     _EXAMPLE_GOOD.replace("items = []", "items = []\n\n[driver]\nbuild_contract = []"),
+     "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("empty array at a TAGGED composite path",
+     _EXAMPLE_GOOD.replace("items = []", "items = []\n\n[review]\nlineage = []"),
+     "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("empty table at an ARRAY composite path",
+     _EXAMPLE_GOOD.replace("items = []", "\n[alpha.items]"),
+     "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
 )
 
 # Shapes that must be ACCEPTED: the conforming fixture itself carries the
@@ -2714,15 +2781,15 @@ def structure_fixture_failures() -> list[str]:
         codes = [c for c, _ in analyze_structure(text, _FIXTURE_CHECKS)]
         if expected not in codes:
             problems.append(f"malformed near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
-    clean = analyze_typed_example(_EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN)
+    clean = analyze_typed_example(_EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)
     if clean:
         problems.append(f"the conforming typed example was rejected with {[c for c, _ in clean]}")
     for name, text in _EXAMPLE_CLEAN_CASES:
-        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN)]
+        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)]
         if codes:
             problems.append(f"conforming typed example {name!r} was rejected with {codes}")
     for name, text, expected in _EXAMPLE_CASES:
-        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN)]
+        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)]
         if expected not in codes:
             problems.append(f"typed-example near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
     return problems
@@ -3016,7 +3083,8 @@ def check_skill_structure(root: Path, report: Report) -> None:
             for code, message in analyze_structure(text, checks):
                 report.bad(r, "structure", code, message)
             known = frozenset(registry[kind]["paths"] | registry[kind]["common"]) if kind else frozenset()
-            for code, message in analyze_typed_example(text, stage, kind, known):
+            arrays = frozenset(registry[kind]["arrays"] | registry[kind]["common_arrays"]) if kind else frozenset()
+            for code, message in analyze_typed_example(text, stage, kind, known, arrays):
                 report.bad(r, "Application example", code, message)
             ok += 1
         report.ok("skill-structure", f"{ok} skills carry the ten template sections, assertable procedural form, and a typed TOML worked example matching their emitted kind (analyzer self-tested against {len(_FIXTURE_CASES) + len(_EXAMPLE_CASES)} near-misses)", mark)
@@ -3264,34 +3332,123 @@ def review_gated_skills(root: Path, skills: dict[str, Path]) -> list[str]:
     return gated
 
 
+REVIEW_KIND = "08-review"
+
+
+def verdict_subject_skills(root: Path, skills: dict[str, Path],
+                           contracts: dict[str, dict[str, list[str]]]) -> tuple[list[str], list[str]]:
+    """(review-gated consumers, verdict producers) - both parsed, never listed.
+
+    Two disjoint reasons a skill must state the accepting-verdict sentence:
+
+      * it CONSUMES a review gate, declared by the `independent-review` check
+        in its own contract fence -> `review_gated_skills`; and
+      * it PRODUCES the verdict, declared by its own `emits:` kind being
+        08-review -> `skills_emitting_kind`.
+
+    The producer is not in the gated set and should not be: it obtains no
+    review of itself. That derivation is sound, but it left the corpus with a
+    hole - the one skill that DEFINES which verdict accepts could delete the
+    sentence, and its `| Review gate |` row with it, while the suite stayed
+    green. That is the M4 defect's shape, so the emitter is asserted too.
+    """
+    gated = review_gated_skills(root, skills)
+    producers = [n for n in skills_emitting_kind(contracts, REVIEW_KIND) if n in skills]
+    return gated, sorted(producers)
+
+
 def check_skill_verdict(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_VERDICT_ABORT"):
         skills = in_scope_skills(root)
-        gated = review_gated_skills(root, skills)
+        contracts = skill_contracts(root)
+        gated, producers = verdict_subject_skills(root, skills, contracts)
         if not gated:
             report.bad(".opencode/skills", "0", "SKILL_VERDICT_NO_TARGETS",
                        f"no discovered skill declares the {REVIEW_GATED_CHECK!r} check in its contract fence; the accepting verdict sentence is asserted against nothing")
             return
-        for name in gated:
+        if not producers:
+            report.bad(".opencode/skills", "0", "SKILL_VERDICT_NO_PRODUCER",
+                       f"no discovered skill declares an 'emits:' kind of {REVIEW_KIND!r}; the skill that defines "
+                       "which verdict accepts is asserted against nothing, so that sentence could be deleted with "
+                       "the suite green")
+            return
+        subjects = sorted(set(gated) | set(producers))
+        for name in subjects:
             path = skills[name]
             for target in [path] + skill_reference_paths(root, path):
                 tr = rel(root, target)
                 flat = norm_ws(read_text(target))
                 if target == path and norm_ws(VERDICT_SENTENCE) not in flat:
+                    role = "the skill emitting " + REVIEW_KIND if name in producers else "review-gated skill"
                     report.bad(tr, "0", "SKILL_VERDICT_SENTENCE_MISSING",
-                               f"review-gated skill does not state the exact accepting sentence {VERDICT_SENTENCE!r}")
+                               f"{role} does not state the exact accepting sentence {VERDICT_SENTENCE!r}")
                 for legacy in LEGACY_VERDICT_TOKENS:
                     if legacy in flat:
                         report.bad(tr, "0", "SKILL_VERDICT_LEGACY_TOKEN",
                                    f"legacy spaced verdict wording {legacy!r} is present in gate prose; use the typed tokens ready / ready-with-fixes / not-ready")
-        report.ok("skill-verdict", f"{len(gated)} review-gated skills state the exact accepting verdict sentence with no spaced legacy tokens", mark)
+        report.ok("skill-verdict",
+                  f"{len(gated)} review-gated skill(s) and {len(producers)} {REVIEW_KIND} emitter(s) state the exact "
+                  "accepting verdict sentence with no spaced legacy tokens", mark)
 
 
 # --- check 27: skill-validator-wiring ---------------------------------------
 
 VALIDATOR_STEM = "python .opencode/schema/validate.py"
 VALIDATOR_ALL = "--kind all"
+
+PROCEDURE_STEP_RE = re.compile(r"^\s*(\d+)[.)]\s")
+STEP_TITLE_RE = re.compile(r"\*\*(.+?)\*\*")
+PUBLISH_VERB_RE = re.compile(r"\b(?:re)?publish(?:es|ed|ing)?\b")
+
+
+def procedure_steps(proc: str) -> list[tuple[int, str]]:
+    """Split a '## Procedure' body into (step number, whole step text).
+
+    Continuation lines belong to the step that opened them, so a multi-line
+    step is judged whole.
+    """
+    steps: list[list] = []
+    for line in proc.split("\n"):
+        if PROCEDURE_STEP_RE.match(line):
+            steps.append([line])
+        elif steps:
+            steps[-1].append(line)
+    out: list[tuple[int, str]] = []
+    for lines in steps:
+        m = PROCEDURE_STEP_RE.match(lines[0])
+        if m:
+            out.append((int(m.group(1)), norm_ws(" ".join(lines))))
+    return out
+
+
+def handoff_publication_steps(steps: list[tuple[int, str]]) -> list[int]:
+    """Indices of steps that PUBLISH A HANDOFF, derived from the step's own form.
+
+    Two conjuncts, because either alone misclassifies real procedure text:
+
+      * the step's bold TITLE must name a publish verb. Nearly every skill's
+        step 1 mentions publishing somewhere in its body ("do not publish
+        ..."), so body-level keyword matching selects step 1 everywhere and is
+        useless; the title is the step's own statement of what it does.
+      * some sentence of the step must bind that publish verb to a `handoff`.
+        This drops publication of things that are not the typed handoff - e.g.
+        a step titled "Publish the verified crate and rebuild at the final
+        path" publishes a crate, and validating the handoff there would assert
+        nothing.
+
+    Returns list indices into `steps` (not step numbers), ascending.
+    """
+    out: list[int] = []
+    for i, (_, text) in enumerate(steps):
+        low = text.lower()
+        title = STEP_TITLE_RE.search(low)
+        if not title or not PUBLISH_VERB_RE.search(title.group(1)):
+            continue
+        if any(PUBLISH_VERB_RE.search(s) and "handoff" in s
+               for s in re.split(r"(?<=[.!?])\s+", low)):
+            out.append(i)
+    return out
 
 
 def check_skill_validator_wiring(root: Path, report: Report) -> None:
@@ -3322,10 +3479,44 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
                 report.bad(r, "Procedure", "SKILL_VALIDATOR_NO_PROCEDURE",
                            "no '## Procedure' section, so validation cannot be placed before consumption and at publication")
             else:
-                sites = sum(1 for line in proc.split("\n") if "validate.py" in line)
-                if sites < 2:
-                    report.bad(r, "Procedure", "SKILL_VALIDATOR_PLACEMENT",
-                               f"the procedure names validate.py at {sites} step(s); it must validate before consuming predecessors AND after writing the preliminary and final handoff")
+                # The old assertion was a bare cardinality - `sites >= 2` -
+                # while the PASS message reported a TOPOLOGY of three named
+                # positions. They disagreed, and the gap was demonstrable:
+                # deleting a skill's publication-time invocation left three
+                # other sites standing and the suite green. The assertion now
+                # binds each invocation to the position the message names,
+                # derived from the procedure's own step structure rather than
+                # from any step-number literal.
+                steps = procedure_steps(proc)
+                pubs = handoff_publication_steps(steps)
+                validating = [i for i, (_, t) in enumerate(steps) if "validate.py" in t]
+                all_gates = [i for i, (_, t) in enumerate(steps) if VALIDATOR_ALL in t]
+                if not steps:
+                    report.bad(r, "Procedure", "SKILL_VALIDATOR_NO_STEPS",
+                               "the '## Procedure' section contains no numbered steps, so no validation position "
+                               "can be derived; the placement assertion must not pass vacuously")
+                elif not pubs:
+                    report.bad(r, "Procedure", "SKILL_VALIDATOR_NO_PUBLICATION_STEP",
+                               "no procedure step publishes a handoff (a step whose bold title names a publish verb "
+                               "and whose prose binds that verb to a 'handoff'); publication-time and final-gate "
+                               "validation cannot be located, so the placement assertion would pass vacuously")
+                else:
+                    first_pub, last_pub = pubs[0], pubs[-1]
+                    if not any(i < first_pub for i in validating):
+                        report.bad(r, "Procedure", "SKILL_VALIDATOR_PRE_CONSUMPTION_MISSING",
+                                   f"no validate.py invocation precedes the first handoff-publishing step "
+                                   f"(step {steps[first_pub][0]}); the predecessor must be validated before it is "
+                                   "consumed, not only after this skill has written its own handoff")
+                    if first_pub not in validating:
+                        report.bad(r, "Procedure", "SKILL_VALIDATOR_PUBLICATION_MISSING",
+                                   f"the first handoff-publishing step (step {steps[first_pub][0]}) does not invoke "
+                                   "validate.py; a handoff published without validation is unchecked at exactly the "
+                                   "moment it becomes a predecessor for the next stage")
+                    if not any(i >= last_pub for i in all_gates):
+                        report.bad(r, "Procedure", "SKILL_VALIDATOR_FINAL_GATE_POSITION",
+                                   f"no step at or after the last handoff-publishing step (step {steps[last_pub][0]}) "
+                                   f"names the {VALIDATOR_ALL!r} gate; the all-gate must run on the final state, not "
+                                   "before the final handoff exists")
             low = flat.lower()
             if "honor system" not in low and "honor-system" not in low:
                 report.bad(r, "0", "SKILL_VALIDATOR_HONOR_SYSTEM",
@@ -3334,7 +3525,10 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
                 report.bad(r, "0", "SKILL_VALIDATOR_HONOR_SYSTEM",
                            "skill does not state that validate.py cannot attest to an earlier invocation")
             ok += 1
-        report.ok("skill-validator-wiring", f"{ok} skills wire the validator before consumption, at publication, and at the final all-gate, and disclose the honor-system limit", mark)
+        report.ok("skill-validator-wiring",
+                  f"{ok} skills place a validate.py invocation before their first handoff-publishing step, at that "
+                  f"publishing step, and the {VALIDATOR_ALL!r} gate at or after their last one, and disclose the "
+                  "honor-system limit", mark)
 
 
 # --- check 28: skill-note-paths ---------------------------------------------
@@ -3759,14 +3953,134 @@ CANDIDATE_ONLY_MARKER = "candidate-only"
 # English word for the parsed role that `platform_roles()` computes, so it
 # stays correct when the consolidating skill is renamed or replaced.
 CONSOLIDATOR_ROLE_TOKEN = "consolidator"
-# Cues by which a sentence declines the responsibility rather than claiming it.
-DISCLAIMER_CUES = ("no ", "not ", "never", "without", "reserved", "belongs to", "pending")
+# Cues by which a unit declines the composite-evidence responsibility rather
+# than claiming it. These are NOT scanned as bare substrings anywhere in the
+# unit - that was the demonstrated bypass, where "... does not alter the
+# status" laundered an outright claim. A negation counts only when
+# `_disclaims_composite` finds it BOUND to the act of creating composite
+# evidence.
+NEGATION_TOKENS = frozenset({"no", "not", "never", "without", "nor", "neither", "cannot"})
+# Cues that defer the responsibility to a later stage rather than negating it.
+DEFERRAL_TOKENS = frozenset({"pending", "reserved", "awaits", "awaiting", "deferred", "belongs"})
+# Verbs that carry the responsibility itself. A negation must govern one of
+# these, or the marker directly, to be a disclaimer.
+RESPONSIBILITY_VERBS = frozenset({
+    "create", "creates", "created", "creating",
+    "produce", "produces", "produced", "producing",
+    "assemble", "assembles", "assembled", "assembling",
+    "author", "authors", "authored", "authoring",
+    "generate", "generates", "generated", "generating",
+    "compose", "composes", "composed", "composing",
+    "publish", "publishes", "published", "publishing",
+    "perform", "performs", "performed", "performing",
+    "hold", "holds", "held", "holding",
+    "own", "owns", "owned", "owning",
+    "make", "makes", "made", "making",
+    "do", "does", "did", "done",
+})
+# Binding windows, in intervening tokens. Tight by intent: the cue has to sit
+# next to what it governs, not merely somewhere in the same sentence.
+NEG_TO_VERB_WINDOW = 3
+VERB_TO_MARKER_WINDOW = 2
+NEG_TO_MARKER_WINDOW = 2
+DEFERRAL_TO_MARKER_WINDOW = 4
+
 NEGATED_PLACEMENT = (
     "no canonical placement",
     "without canonical placement",
     "not perform canonical placement",
     "never perform canonical placement",
 )
+
+
+def _disclaims_composite(unit: str) -> bool:
+    """True when the unit binds a negation or deferral TO composite evidence.
+
+    The old rule accepted any of `"no "` / `"not "` anywhere in the unit, and a
+    reviewer duly bypassed it: "This slice creates composite evidence and does
+    not alter the status." negates ALTERING THE STATUS while claiming the
+    consolidator's exclusive work outright. The cue therefore has to be tied to
+    the verb-plus-object relationship. Four bindings count:
+
+      A. negation governing a responsibility verb that governs the marker
+         - "do not create composite evidence"
+      B. negation directly determining the marker
+         - "no composite evidence"
+      C. the marker as the antecedent of a TRAILING negated responsibility verb
+         - "... composite evidence ... that this slice never held."
+         Bounded to the end of the unit, so a negated verb that takes its own
+         explicit object ("does not create the report") does not qualify.
+      D. a table row whose OTHER cell negates the cell carrying the marker
+         - "| Never done here | composite evidence, ... |"
+         A row's cells are one assertion (see `prose_units`), so a label cell
+         is a genuine verb-object binding and not a stray neighbouring clause.
+
+    Neither reviewer bypass matches any of the four: in both the negation
+    governs a different noun phrase ("the status", "unrelated file") and the
+    trailing token is not a responsibility verb.
+    """
+    flat = norm_ws(unit).lower()
+
+    # D. table row: a negation or deferral in a cell that does not itself
+    # carry the marker binds to the cell that does.
+    if flat.startswith("|"):
+        cells = [c.strip() for c in flat.strip("|").split("|")]
+        marker_cells = [i for i, c in enumerate(cells) if COMPOSITE_EVIDENCE_MARKER in c]
+        if marker_cells:
+            for i, cell in enumerate(cells):
+                if i in marker_cells:
+                    continue
+                words = re.findall(r"[a-z]+", cell)
+                if any(w in NEGATION_TOKENS or w in DEFERRAL_TOKENS for w in words):
+                    return True
+
+    tokens: list[str] = []
+    spans: list[tuple[int, int]] = []
+    for mt in re.finditer(r"[a-z]+", flat):
+        tokens.append(mt.group(0))
+        spans.append(mt.span())
+    markers = [i for i in range(len(tokens) - 1)
+               if tokens[i] == "composite" and tokens[i + 1] == "evidence"]
+    if not markers:
+        return False
+
+    def clause_final(i: int) -> bool:
+        """True when token i ends its clause - nothing but punctuation follows.
+
+        This is what separates "...that this slice never held, so a `ready`
+        here is a claim about work nobody did." (the verb governs the marker
+        through the relative clause) from "...does not create the report."
+        (the verb has taken its own explicit object).
+        """
+        tail = flat[spans[i][1]:].lstrip()
+        return not tail or tail[0] in ",;.!?:)"
+
+    for m in markers:
+        # B. negation immediately determining the marker.
+        lo = max(0, m - 1 - NEG_TO_MARKER_WINDOW)
+        if any(t in NEGATION_TOKENS for t in tokens[lo:m]):
+            return True
+        # deferral determining the marker ("pending consolidation of the ...").
+        lo = max(0, m - 1 - DEFERRAL_TO_MARKER_WINDOW)
+        if any(t in DEFERRAL_TOKENS for t in tokens[lo:m]):
+            return True
+        # A. negation -> responsibility verb -> marker, each within its window.
+        vlo = max(0, m - 1 - VERB_TO_MARKER_WINDOW)
+        for k in range(vlo, m):
+            if tokens[k] not in RESPONSIBILITY_VERBS:
+                continue
+            nlo = max(0, k - 1 - NEG_TO_VERB_WINDOW)
+            if any(t in NEGATION_TOKENS for t in tokens[nlo:k]):
+                return True
+        # C. the marker as antecedent of a clause-final negated responsibility
+        # verb somewhere after it.
+        for k in range(m + 2, len(tokens)):
+            if tokens[k] not in RESPONSIBILITY_VERBS or not clause_final(k):
+                continue
+            nlo = max(m + 2, k - NEG_TO_VERB_WINDOW)
+            if any(t in NEGATION_TOKENS for t in tokens[nlo:k]):
+                return True
+    return False
 
 
 def prose_units(text: str) -> list[str]:
@@ -3826,19 +4140,25 @@ def unattributed_composite_claims(text: str, consolidators: list[str]) -> list[s
         from `platform_roles(...)[1]`, i.e. the platform-stage skill whose own
         ready predicate is reachable, never from a literal written here; or
       * names the consolidating ROLE; or
-      * disclaims the work outright ("no composite evidence", "never", ...).
+      * disclaims the work with a negation BOUND to the act of creating
+        composite evidence - see `_disclaims_composite`. A negation bound to
+        anything else ("... and does not alter the status") is not a
+        disclaimer, and was a demonstrated bypass of the earlier rule.
 
     Anything else - a unit that states composite evidence in its own voice with
     no attribution and no disclaimer - is the violation.
     """
-    tokens = [n.lower() for n in consolidators] + [CONSOLIDATOR_ROLE_TOKEN] + list(DISCLAIMER_CUES)
+    tokens = [n.lower() for n in consolidators] + [CONSOLIDATOR_ROLE_TOKEN]
     offenders: list[str] = []
     for unit in prose_units(text):
         flat = norm_ws(unit).lower()
         if COMPOSITE_EVIDENCE_MARKER not in flat:
             continue
-        if not any(t in flat for t in tokens):
-            offenders.append(_one_line(unit, 160))
+        if any(t in flat for t in tokens):
+            continue
+        if _disclaims_composite(unit):
+            continue
+        offenders.append(_one_line(unit, 160))
     return offenders
 
 
@@ -3853,6 +4173,18 @@ _COMPOSITE_CLAIMS: tuple[tuple[str, str], ...] = (
     ("attribution stranded in a neighbouring bullet",
      "- The final consolidator owns the whole platform.\n"
      "- This step assembles composite evidence over every slice-local log.\n"),
+    # --- the two bypasses a reviewer demonstrated against the substring rule --
+    # Both state the claim outright and then negate something else entirely.
+    # Under the old DISCLAIMER_CUES the bare tokens "not " / "no " matched and
+    # the whole suite stayed green.
+    ("claim laundered by an unrelated negated verb",
+     "This slice creates composite evidence and does not alter the status.\n"),
+    ("claim laundered by a negation of a different noun phrase",
+     "This slice creates composite evidence; no unrelated file is touched.\n"),
+    # Near-misses of the new binding: a negated responsibility verb that takes
+    # its own explicit object is not a disclaimer of the marker.
+    ("negated responsibility verb governing a different object",
+     "This slice creates composite evidence and does not publish the roadmap.\n"),
 )
 
 # Units that must PASS: the phrase is named but attributed or disclaimed.
@@ -3865,8 +4197,19 @@ _COMPOSITE_ATTRIBUTIONS: tuple[tuple[str, str], ...] = (
     ("disclaimed in a table row", "| Never done here | composite evidence, canonical placement |\n"),
     ("disclaimed by a trailing negation",
      "The `ready` platform asserts composite evidence and an accepting review that this slice never held.\n"),
+    ("disclaimed by a mid-sentence negated clause that the sentence continues past",
+     "The `ready` platform asserts composite evidence and an accepting review that this slice never "
+     "held, so a `ready` here is a claim about work nobody did.\n"),
     ("deferred as pending consolidation",
      "Complete-platform checks stay unrun here, pending consolidation of the composite evidence.\n"),
+    # Shapes taken from the shipped slices, so a reword of the binding rule
+    # cannot silently start rejecting conforming prose.
+    ("disclaimed as one item in a negated list",
+     "State explicitly that no canonical placement, no composite evidence and no independent review was performed.\n"),
+    ("disclaimed by a table label cell",
+     "| Never done here | composite evidence, independent review, canonical placement, `ready` |\n"),
+    ("deferred by a table label cell",
+     "| Reserved to the final skill | composite evidence, independent review |\n"),
 )
 
 
@@ -4106,6 +4449,20 @@ def check_debug_lineage(root: Path, report: Report) -> None:
 #   3. literal skill-directory scan root  root / ".opencode/skills/write-examples"
 #   4. mapping-key membership             if n in SKILL_NOTE_PATHS
 #
+# SCOPE, stated honestly because an overclaimed guard is worse than a narrow
+# one: this catches the four AST forms above and nothing else. It is a
+# regression guard over the shapes that have actually occurred, NOT a proof
+# that every check derives its subjects. It does not see, and will not flag:
+#
+#   * selection hidden inside a helper the check calls, since only `check_*`
+#     bodies are walked;
+#   * a name assembled component-wise ("write-" + "driver") or reached through
+#     an alias bound to a name collection;
+#   * `.keys()` / `.values()` membership, `startswith`/`endswith` predicates,
+#     regex matches, or any other comparison that is not `==`/`in` against a
+#     recognised literal;
+#   * a literal that is not a KNOWN skill name at audit time.
+#
 # An expectation mapping keyed by skill name stays legal when the lookup
 # happens AFTER the discovered subject is selected and the mapping does not
 # filter applicability - i.e. subscript and .get() are fine, membership tests,
@@ -4113,7 +4470,11 @@ def check_debug_lineage(root: Path, report: Report) -> None:
 
 SKILL_DIR_PREFIX = ".opencode/skills/"
 COLLECTION_COERCIONS = ("sorted", "set", "frozenset", "list", "tuple", "any", "all")
-_MIN_LITERAL_NAMES = 2
+# One literal skill name in a collection is enough. A single-name tuple used
+# for filtering is the most plausible regression - it is what a hurried
+# "just this one skill" exception looks like - and it is exactly the M4 defect
+# with one element instead of six.
+_MIN_LITERAL_NAMES = 1
 
 
 def known_skill_names(root: Path) -> set[str]:
@@ -4306,6 +4667,17 @@ _SUBJECT_CASES: tuple[tuple[str, str, str], ...] = (
      '    targets = [n for n in skill_paths(root) if n in NOTES]\n'
      '    report.ok("x", str(targets))\n',
      "SKILL_SUBJECT_MAPPING_KEYS"),
+    ("ONE-element literal name collection iterated",
+     'ONLY = ("alpha-skill",)\n'
+     'def check_x(root, report):\n'
+     '    for name in ONLY:\n'
+     '        report.ok(name, "x")\n',
+     "SKILL_SUBJECT_LITERAL_COLLECTION"),
+    ("ONE-element inline literal collection used for membership",
+     'def check_x(root, report):\n'
+     '    targets = [n for n in skill_paths(root) if n in ("beta-skill",)]\n'
+     '    report.ok("x", str(targets))\n',
+     "SKILL_SUBJECT_LITERAL_COLLECTION"),
 )
 
 
@@ -4354,9 +4726,12 @@ def check_skill_subject_derivation(root: Path, report: Report) -> None:
                       if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
                       and n.name.startswith("check_") and n.name not in SUBJECT_DERIVATION_EXEMPT)
         report.ok("skill-subject-derivation",
-                  f"{audited} check functions select their subjects from discovery and parsed contract fields, with "
-                  f"no literal skill name, collection, directory or mapping-key filter across {len(names)} known "
-                  f"skill names (analyzer self-tested against {len(_SUBJECT_CASES)} near-misses)", mark)
+                  f"{audited} check functions carry none of the {len(_SUBJECT_CASES)} literal subject-selection AST "
+                  f"forms this guard tests for - literal name comparison, literal name collection (down to one "
+                  f"element), literal skill directory, mapping-key membership - across {len(names)} known skill "
+                  "names. This is a regression guard over those forms, not a proof that every check derives its "
+                  "subjects: selection inside a called helper, a component-wise or aliased name, and "
+                  "startswith/.keys() predicates are outside what it can see", mark)
 
 
 # --- M4 check: skill-discovery-closure --------------------------------------
