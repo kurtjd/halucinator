@@ -126,19 +126,17 @@ tokens and loses fields.
   declared admission matches the producer's declared emission field for
   field, verified against the AST-derived registry from
   `.opencode/schema/validate.py`. The `unresolved` source route correctly
-  admits nothing. The chain still stalls in two places. At `01 → 02`, on
-  the `author-from-docs` route, `generate-svd` cannot reach `ready` without
-  a ready `02-facts`. At `05 → 06`, no retrofitted procedure produces a
-  typed `06-driver`, so `write-examples` must not be invoked as a
-  typed-ready continuation from `05`. It is not that no typed producer
-  exists: M2 already made `hal-datasheet` a typed `02-facts` emitter and
-  `hal-driver` a typed `06-driver` emitter in their agent contracts. What
-  is missing at both boundaries is a template-conforming skill procedure —
-  one carrying the validator wiring, deterministic publication sequence,
-  canonical check discharge and typed exit predicates. M5 owns the facts
-  procedure; M4 owns the driver procedure. Given a valid ready `06-driver`,
-  `write-examples`'s `06 → 07` admission is already field-correct. Owner:
-  M4 and M5 for the two missing procedures.*
+  admits nothing. M4 closed the second stall: `05 → 06 → 07` now flows.
+  `write-driver` is the template-conforming typed `06-driver` producer for
+  every peripheral, A19 binds a `07-tests-<name>`'s `tests.api_handoff` to
+  the exact `06-driver` handoff by path with readiness checked against that
+  driver rather than against whichever `06` happened to be discovered first,
+  and `write-examples` remains the sole `07` emitter, now consuming a
+  tester-safe validation profile instead of a driver skill. One stalled
+  boundary remains: at `01 → 02`, on the `author-from-docs` route,
+  `generate-svd` cannot reach `ready` without a ready `02-facts`, and no
+  template-conforming facts procedure exists to produce one. Owner: M5 for
+  that remaining procedure.*
 - [x] **A15** `halucinator/test-candidates/` is an M2-local convention. The
   tester's committed test revisions live there because `.run/` is gitignored
   and therefore neither reviewable nor durable across clones, but M2 may not
@@ -165,37 +163,57 @@ tokens and loses fields.
   agents and the old tester-only permission keys, and describes none of the
   thirteen topology checks M2 added to `tools/selfcheck.py`. *(Closed by the
   rewritten self-check reference: eight agents with one primary, generic
-  heterogeneous permission parsing, all 32 invoked checks, the AST-derived
-  registry, raw-fence parsing, bounds and timeouts, the uniform allowlist,
-  and the honour-system limitation.)*
+  heterogeneous permission parsing, every invoked check, the AST-derived
+  registry, raw-fence parsing, bounds and timeouts, and the honour-system
+  limitation. M4 retired the two-generation allowlist section with the file
+  itself and documented the 33 checks that now run.)*
 - [ ] **A18** An arbitrary `state.decisions.destination_crate` defeats the
   static permission globs. The tester's blinding denies `embassy-*/**` and
   the driver and integrator are bounded by `embassy-*/` patterns; a HAL crate
   placed anywhere else is outside all of them, and agent frontmatter cannot
   interpolate a runtime path. Investigate destination-aware policy without
   claiming dynamic frontmatter generation. *Owner: M3 to investigate.*
-- [ ] **A19** **ESCALATED — validator soundness defect.**
-  `.opencode/schema/validate.py:1525-1527` stores only the first discovered
-  handoff per stage in `world.by_stage`, so multiple `06-driver-<name>`
-  handoffs collapse into one entry. Ready dependency admission at
-  `.opencode/schema/validate.py:1068-1091` then looks up only that first
-  entry, and no rule proves `tests.api_handoff` names the
-  `06-driver-<name>.toml` matching `tests.name`. With multiple drivers, a
-  `07-tests-<name>` handoff can therefore become `ready` against the wrong
-  driver's API handoff. This was found by exercising the M1 schema against
-  a real M3 consumer, exactly what this milestone's sequencing was designed
-  to surface. Reviewer assessment: repair needs no field name, diagnostic
-  code, wire-format or schema-version change. Validator matching logic
-  should resolve `tests.api_handoff` to the exact named and hash-matching
-  `06`, with multi-driver fixtures proving correct and incorrect pairings.
-  M3 was forbidden from editing the validator, so it remains untouched and
-  is disclosed in `write-examples/SKILL.md`. *Recommended owner: M4, which
-  authors the generic typed `06` producer and must make that boundary
-  operational.*
-- [ ] **A20** Architect terminology remains in
-  `.opencode/schema/validate.py:1049-1066` after A16 corrected the prose.
-  This is attribution only, with no field change. M3 could not edit the
-  validator. *Owner: M4, with A19, since both are validator edits.*
+- [x] **A19** **ESCALATED — validator soundness defect.** *(Closed by M4 in
+  `.opencode/schema/validate.py`: a `World.by_path` index now supplements
+  `by_stage`, so `06-driver-<name>` handoffs no longer collapse into one
+  entry. `07-tests` resolves `tests.api_handoff` by path to a real
+  `06-driver` at any status, emitting `ILLEGAL_ENUM` when the binding
+  resolves to nothing or to another kind, and when the `07` is `ready` it
+  requires that exact driver handoff to be ready with `DEPENDENCY_NOT_READY`.
+  `write-tests` was removed from the generic `by_stage` dependency map and
+  exact singleton filenames are enforced for `01`–`05`. No
+  `tests.name == driver.name` rule was added: two reviews rejected it
+  because `write-examples`'s own canonical example binds
+  `tests.name = "uart-loopback"` to `06-driver-uart.toml`. No new diagnostic
+  code; `schema = 1` unchanged. Fixtures 30, 31 and 32 and the second
+  accepted root `fixtures/valid-multi-driver/` prove correct and incorrect
+  pairings. The stale disclosure in `write-examples/SKILL.md` was corrected.)*
+- [x] **A20** Architect terminology in
+  `.opencode/schema/validate.py:1049-1066` and in
+  `.opencode/schema/validate.md`'s dependency-graph clause. *(Closed by M4:
+  attribution only, no field, code or schema change. The validator prose and
+  the `PAC requires ready SVD plus current coordinator decisions` clause in
+  `validate.md` now name `hal-coordinator`.)*
+- [ ] **A21** No typed peripheral inventory in `02-facts`.
+  `.opencode/schema/02-facts.md` carries cited fact notes, categories and
+  contradictions, but no typed list of the peripherals the reference manual
+  actually describes. `write-driver` therefore has no typed source for "which
+  peripherals exist on this part" and must degrade to
+  `state.decisions.first_peripheral` and `peripheral:*` scope IDs chosen by
+  the coordinator. M4 deliberately invented no field: adding one is a schema
+  change and belongs with the facts procedure. *Owner: M5, with A14's
+  remaining `01 → 02` boundary.*
+- [ ] **A22** No typed peripheral-taxonomy or profile discriminator.
+  `write-driver` selects a GPIO, Embassy-time-service or bus profile, and
+  that choice determines its architecture, lifecycle and scheduling rules —
+  but `schema = 1` is frozen and no `06-driver` leaf can encode it.
+  `driver.capabilities` and `driver.public_api` are free-form strings, and
+  `driver.scope_kind` admits only `full|scaffold-support`. The only guard
+  that the declared profile matches the implementation is hashed prose plus
+  independent review, which is **advisory, not mechanical**: a driver can
+  claim a bus profile and implement a time service without any typed
+  contradiction. *Owner: M5, and it needs the schema-version transition in
+  `.opencode/schema/handoff-common.md`.*
 
 ---
 
@@ -252,13 +270,23 @@ tokens and loses fields.
   compiler/macro/build-script output, LSP, generated docs, glob/list
   filenames, and the uncovered destination crate. The residual permission
   gap is tracked as A18.)*
-- [ ] **B8** Loading `write-gpio` or `write-time-driver` loads the full
-  implementation procedure into the tester's context before the "stop
-  reading here" row can take effect (`write-gpio/SKILL.md:17-32`). Heading
-  order cannot fix this because loading a skill exposes the whole body
-  before any stop-reading row takes effect. *Owner: M4, which must make
-  implementation and validation role-safe so the tester loads validation
-  only.*
+- [x] **B8** Loading a driver skill loaded the full implementation procedure
+  into the tester's context before any "stop reading here" row could take
+  effect. *(Closed by M4: `write-gpio` and `write-time-driver` are deleted,
+  their validation matrices migrated to tester-safe profiles under
+  `.opencode/skills/write-examples/references/profiles/`, and the tester now
+  loads `write-examples` and nothing else. `hal-tester.md` states "Never load
+  `write-driver`, its implementation procedure, private checklist, or driver
+  record", and the new `validation-guidance-isolation` self-check is a
+  **bounded lexical tripwire** over everything under `write-examples/`: it
+  rejects a relative link that resolves into `.opencode/skills/write-driver/`
+  and fourteen concrete implementation tokens, and is self-tested against seven
+  near-misses. It is the same shape as the two-token `DRIVER_API_LEAK` tripwire
+  in `.opencode/schema/06-driver.md`, with the same limit — it catches the named
+  links and tokens and nothing else. Semantic implementation guidance written as
+  plain prose ("write the control register, then enable its interrupt") matches
+  no token and passes. The tripwire raises the cost of the cheap, mechanical
+  leak; human review remains the real boundary.)*
 - [x] **B9** No `hal-integrator`. Nothing owns wiring tester-authored
   test modules into the crate, nor the serialized commit point. *(Closed by
   `.opencode/agents/hal-integrator.md`: sole writer of 21 shared file
@@ -362,20 +390,42 @@ Verified as grep-absences across all agents and skills.
 - [~] **C10** Regression across chips. `hal-driver.md:127-128` requires
   building every chip feature combination; no stage, owner, or CI wiring
   exists. *Deferred with C9.*
+- [ ] **C11** No registered ownership class for driver evidence.
+  `.opencode/ownership.toml` gives `driver-candidates` the pattern
+  `halucinator/candidates/driver-*/src/**` and `peripheral-modules` the
+  patterns `embassy-*/src/**` and `halucinator/candidates/driver-*/src/**`,
+  so `halucinator/candidates/driver-*/evidence/**` matches **no**
+  `[[file_classes]]` entry — verified against the registry. The comparable
+  integrator class `integration-candidates` covers
+  `halucinator/candidates/integration-*/**`, the whole subtree. `write-driver`'s
+  evidence logs and its profile-classification record therefore have no
+  registered owner, while the tester's equivalent
+  (`test-candidate-evidence`) does. Widening the pattern or adding a class
+  is an ownership-registry change. *Owner: M5.*
+- [ ] **C12** No generic durable driver-record path. `driver-records` registers
+  exactly `halucinator/docs/*/notes/GPIO.md` and
+  `halucinator/docs/*/notes/TIME-DRIVER.md`. A bus driver, or any driver whose
+  profile is not one of those two, has no durable record file to be written
+  into and relies entirely on the typed `06-driver`, the hashed
+  `handoff.notes`, evidence FileRefs and citations. A generic path — a
+  per-peripheral `notes/drivers/<name>.md`, say — needs an ownership-registry
+  change, which M4 was not scoped to make. *Owner: M5, with C11.*
 
 ---
 
 ## D. Skills
 
-- [ ] **D1** Per-driver skills do not scale. Two of ~14 peripherals have
-  skills. The documented fallback — read `embassy-mcxa/src/i2c/` — is the
-  exact behavior both checklists warn against
-  (`gpio-checklist.md:22-23`, `time-checklist.md:97-98`).
-- [ ] **D2** The tester is self-blocked for unskilled peripherals.
-  `write-examples/SKILL.md:22-23` says missing required references block
-  the work and forbids falling back to a remembered procedure. Read
-  literally, a UART tester is blocked by its own skill — and
-  `scaffold-hal/SKILL.md:78-80` uses UART as its worked example.
+- [x] **D1** Per-driver skills do not scale. *(Closed by M4: the two
+  per-peripheral skills are replaced by one generic
+  `.opencode/skills/write-driver/`, which applies the universal driver
+  obligations to every peripheral and then selects a GPIO, Embassy-time-service
+  or bus profile from `references/profiles/`. The documented fallback is no
+  longer "read `embassy-mcxa/src/i2c/` and improvise" but a template-conforming
+  procedure with a private checklist and driver record.)*
+- [x] **D2** The tester is self-blocked for unskilled peripherals. *(Closed by
+  M4: `write-examples` now carries a `universal` tester-safe validation profile
+  alongside `gpio`, `time-driver` and `bus`, so a UART tester has a required
+  reference to load and is no longer blocked by its own skill.)*
 - [x] **D3** No common skill template. Only `scaffold-hal` has an example,
   quick reference, and common-mistakes section (`:237-277`). Checklists
   are checkboxes in one place (`scaffold-record.md:107-131`) and prose in
@@ -406,8 +456,37 @@ Verified as grep-absences across all agents and skills.
 - [ ] **D10** Missing skill: runtime + linker integration (`memory.x`).
 - [ ] **D11** Missing skill: DMA subsystem.
 - [ ] **D12** Missing skill: artifact review (the reviewer's own skill).
-- [ ] **D13** Missing skill: generic driver scaffolding, replacing the
-  per-peripheral skills.
+- [x] **D13** Missing skill: generic driver scaffolding, replacing the
+  per-peripheral skills. *(Closed by M4: `.opencode/skills/write-driver/`
+  with `references/driver-checklist.md`, `references/driver-record.md` and
+  `references/profiles/{gpio,time-driver,bus}.md`. It is mapped in
+  `SKILL_SPEC` as the typed `06-driver` producer consuming `05-platform`,
+  and passes all thirteen skill-contract checks. This also retired M3's
+  time-boxed exemption: `tools/skill-template-allowlist.tsv` existed only to
+  let `write-gpio` and `write-time-driver` lag the template, and with them
+  gone the file, its parser, the `M3_CHECKS` registry, the `m3_check`
+  decorator, every `excluded: frozenset[str]` parameter and the
+  `skill-generation-allowlist` check were all deleted together. Deleting the
+  data alone would have been unsafe — `skill_exclusions()` failed **open to
+  the empty set**, so a check reading a vanished file would have kept
+  reporting `PASS` while asserting nothing. The thirteen remaining
+  skill-contract checks are now ordinary functions invoked directly from
+  `main()`. Eleven scan every discovered skill; two are narrowed by an explicit
+  documented predicate rather than by any exemption file — `skill-note-paths`
+  applies only to `generate-svd` and `generate-pac`, the two stages with a
+  deterministic first-note path, and `skill-verdict` applies only to skills
+  declaring the `independent-review` check. Each check was shown to reject a
+  deliberately non-conforming skill **within its applicability class**, rather
+  than merely to pass today. The applicability classes were not initially
+  correct: the compliance review of M4 found that the review-gated set was a
+  hard-coded tuple omitting `write-driver`, so the review gate `write-driver`
+  declares was asserted against nothing and both of its accepting-verdict
+  sentences could be deleted with the suite still exiting 0. Recorded because it
+  happened, not because it did not. The fix derives the gated set from each
+  skill's parsed `checks:` declaration, fails with `SKILL_VERDICT_NO_TARGETS`
+  if that set is ever empty, and was proven by a negative mutation in a
+  throwaway copy: with both sentences removed the suite exits 1 with
+  `SKILL_VERDICT_SENTENCE_MISSING`.)*
 - [ ] **D14** Missing skill: hardware debugging of a failing driver.
 - [~] **D15** Missing skill: upstream PR preparation. *Deferred with C8.*
 - [~] **D16** Missing skill: chip-family expansion. *Deferred with C9.*
@@ -423,7 +502,7 @@ Verified as grep-absences across all agents and skills.
   raw-colon lock filename case is individually safe but not worth a separate
   mechanism before the operational tooling exists. Owner: M6, with F10/F11,
   which introduce that tooling.*
-- [ ] **D18** Skill ownership text contradicts the agent contracts. M2 could
+- [x] **D18** Skill ownership text contradicts the agent contracts. M2 could
   not edit a `SKILL.md`, so nine verified conflicts remain, enumerated once
   in `README.md` and referenced by ID from each affected agent: skills still
   assign shared files and clocks to `hal-architect`, binaries and CI to
@@ -431,13 +510,15 @@ Verified as grep-absences across all agents and skills.
   records to `hal-driver`/`hal-architect`, `SCAFFOLD.md` and the roadmap to
   `hal-architect`, dispatch to `hal-architect` rather than
   `hal-coordinator`, and the legacy spaced rejection spelling rather than
-  the typed verdict tokens. *Progress: the retrofit resolves the skill-layer
-  conflicts in the five retrofitted skills. Two remain: conflict 6 assigns
-  the GPIO and time durable records jointly to `hal-driver` and
-  `hal-architect`, and conflict 9 routes their tester and reviewer handoffs
-  through `hal-architect` and uses the legacy spaced verdict spellings.
-  Both cite `write-gpio` and `write-time-driver`, which M3 deliberately did
-  not touch and M4 replaces. Owner: M4.*
+  the typed verdict tokens. *(Closed by M4: the retrofit resolved the
+  skill-layer conflicts in the five retrofitted skills, and M4 resolved the
+  last two by deleting the skills they cited. Conflicts 6 and 9 are now
+  recorded in `README.md` as historical text with no dangling links: the
+  GPIO and time durable records and their routing/verdict prose lived in
+  `write-gpio` and `write-time-driver`, which `write-driver` replaces. Every
+  conflict ID and its identifying text is preserved, so the eight agents'
+  declared conflict-ID sets still match the inventory. D20's per-conflict
+  audit and citation refresh remain open with M7.)*
 - [ ] **D19** Unratified evidence-path conventions. The retrofitted skills'
   validation tables cite evidence path categories such as
   `halucinator/candidates/integration-<id>/evidence/…` and
@@ -480,21 +561,25 @@ Verified as grep-absences across all agents and skills.
 - [ ] **E5** `hal-driver.md:102-105` tells the agent to read the MCXA
   implementation *before* target analysis, priming NXP register
   assumptions into a model about to interpret a different vendor's PDF.
-- [ ] **E6** No transitive invalidation. Every record says dependent
+- [~] **E6** No transitive invalidation. Every record says dependent
   evidence must be invalidated, but it is manual and local
-  (`scaffold-record.md:88-90`, `gpio-record.md:77-81`,
+  (`scaffold-record.md:88-90`, `driver-record.md`,
   `test-record.md:101-105`). Stale records stay labelled
-  `software verified` / `passed`. *Progress: hash-pinned evidence now
-  makes stale records detectable via `STALE_EVIDENCE` / `STALE_REVIEW`,
-  and `.opencode/schema/handoff-common.md` defines a re-attestation
-  protocol. The five retrofitted skills now carry the sequence from
-  `.opencode/schema/handoff-common.md:59-61` as executable steps, including
-  "never delete old evidence or old review records to regain validation".
-  The `write-gpio` and `write-time-driver` records are not retrofitted, and
-  nothing mechanically detects a false claim. Owner: M4 for the remaining
-  records; the false-claim mechanism remains E7.*
+  `software verified` / `passed`. *Partial. Hash-pinned evidence makes stale
+  records detectable via `STALE_EVIDENCE` / `STALE_REVIEW`,
+  `.opencode/schema/handoff-common.md` defines a re-attestation protocol,
+  the retrofitted skills carry it as executable steps including "never
+  delete old evidence or old review records to regain validation", and M4's
+  `write-driver/references/driver-record.md` carries hashing and the
+  normative re-attestation clauses, so the last unretrofitted record is
+  gone. Remaining: there is still **no transitive dependency graph** — an
+  invalidated `05-platform` does not mechanically mark every `06-driver` and
+  `07-tests` derived from it — and still **no false-claim detector**.
+  Detection improved; propagation did not. Owner: M6, alongside E7.*
 - [ ] **E7** No mechanism makes a false verification claim detectable.
   Records are ordinary Markdown written by the same agent doing the work.
+  *Unchanged by M4: hashing the driver record improves stale-evidence
+  detection, not claim truthfulness. Owner: M6, with E6's residual.*
 - [ ] **E8** `AGENTS.md`'s dual-purpose framing is unsafe. `:15-19`
   requires `embassy-mcxa/` paths to resolve or work stops; in this
   checkout none resolve, so literal compliance halts even toolkit
@@ -513,6 +598,17 @@ Verified as grep-absences across all agents and skills.
 - [ ] **E12** Implemented but unexercised validator surface: resource
   limits, reparse-point refusal, Windows reserved-name rejection, and
   live-lock classification. No fixture reaches any of them. *Owner: M3.*
+- [ ] **E13** Fixture assertion strength is not uniform. M4 gave the fixture
+  harness **opt-in exact-diagnostic assertion** — code plus file plus field,
+  and no extra diagnostics — and uses it for the three new multi-driver
+  fixtures 30, 31 and 32. Fixtures 01–29 keep the legacy contains-code
+  behavior, because `EXPECTATIONS.md` documents cases where one malformed
+  artifact unavoidably raises several codes. A fixture that merely contains
+  its declared code can pass while also emitting an unrelated regression, so
+  the older fixtures assert less than they appear to. Tightening them means
+  auditing each multi-code case and recording the full expected set, which is
+  a separate normalization pass rather than a side effect of any milestone's
+  feature work. *Owner: M6.*
 
 ---
 
@@ -533,7 +629,12 @@ Zero concurrency vocabulary exists across all agents and skills:
   (`hal-integrator.md`, sections "Integration lock" and "Frozen candidate
   order"). The retrofitted skills now defer to that discipline and no longer
   describe in-place production edits. Residual: durable journalling, owner
-  fencing and cross-clone crash markers are still required. Owner: M6.*
+  fencing and cross-clone crash markers are still required. M4 makes this
+  worse, not better: `write-driver` is dispatched once per peripheral, so
+  N concurrent drivers now contend for the same shared clock files.
+  Per-driver candidate path locking reduces cooperative overlap but converts
+  what was a crash window into an **active writer race** on
+  `embassy-*/src/clocks/**`. Still open. Owner: M6.*
 - [ ] **F2** `ci.sh` and `examples/<chip>/Cargo.toml` are shared write
   targets with no merge discipline. `[[bin]]` and `Cargo.toml` are zero
   hits across all nine tester-side files. *Progress: both are now registry
@@ -584,7 +685,10 @@ Zero concurrency vocabulary exists across all agents and skills:
   committed candidate roots and no longer describe in-place production edits.
   Residual: durable journalling, owner fencing, cross-clone crash markers and
   a mechanical tie from `SCAFFOLD.md` to the bytes it describes are still
-  required. Owner: M6.*
+  required. M4 makes this worse for the same reason as F1: one `write-driver`
+  dispatch per peripheral means N concurrent drivers, and per-driver candidate
+  path locking turns the shared clock-file crash window into an active writer
+  race rather than removing it. Still open. Owner: M6.*
 - [ ] **F10** Locks are gitignored, so crash evidence does not survive a
   fresh clone or a second machine. `.opencode/schema/layout.md` states
   this limitation explicitly; a durable record outside `.run/` is
@@ -615,11 +719,16 @@ Zero concurrency vocabulary exists across all agents and skills:
   fresh session sees a stage lock with no handoff and can only guess. The
   ROADMAP is prose and is not a transaction ledger. Recording in-progress
   dispatch typedly needs `schema = 2` and belongs with F10/F11's recovery
-  work. *Owner: M6, with F10/F11.*
+  work. M4 mitigates identity but increases frequency: the ROADMAP now
+  enumerates every expected `write-driver:<name>` dispatch, so a returned
+  handoff can be tied to the dispatch that asked for it — but more
+  concurrent named drivers make a missing durable dispatch record **more
+  frequent**, not less. Still open. *Owner: M6, with F10/F11.*
 - [ ] **F12** `state.toml` compare-and-swap protects cooperating writers
   only. An uncooperative writer can overwrite it with valid TOML and a
   plausible generation, and the validator cannot reconstruct the prior
-  value. Recorded in `.opencode/schema/validate.md` limits. *Owner: M6.*
+  value. Recorded in `.opencode/schema/validate.md` limits. *Unchanged by
+  M4. Owner: M6.*
 
 ---
 
@@ -644,8 +753,8 @@ Zero concurrency vocabulary exists across all agents and skills:
   removed from `hal-architect.md`. Scope now lives in `hal-coordinator`'s
   `state.toml`, an immutable scope decision, and the ROADMAP, and contains
   user-requested items only — an unsupported workflow is excluded or
-  blocked, never silently accepted. The remaining gap is capability, not
-  documentation: only GPIO and time have driver skills — see H1 and D13.)*
+  blocked, never silently accepted. M4 closed the residual capability gap
+  too: `write-driver` covers every peripheral — see H1 and D13.)*
 - [x] **G5** Terminology drift: stage / phase / step / milestone used
   interchangeably; target / chip / part / exact-MCU for overlapping
   identities; `type-state` (`README.md:146`) vs `Typestate`
@@ -691,8 +800,14 @@ Zero concurrency vocabulary exists across all agents and skills:
 
 Asserted capabilities with no procedure sufficient to perform them.
 
-- [ ] **H1** General peripheral-driver generation
-  (`README.md:127-132`) — only GPIO and time exist.
+- [x] **H1** General peripheral-driver generation
+  (`README.md`'s pipeline) — *(Closed by M4: `write-driver` is the generic
+  per-peripheral procedure. It applies the universal driver obligations to
+  every peripheral and selects a GPIO, Embassy-time-service or bus profile,
+  so a bus shape is never presented as universal. README now says so
+  directly under the pipeline's peripheral-drivers row. The claim is now
+  true of the toolkit; A21 and A22 record that the peripheral inventory and
+  the profile discriminator are still untyped.)*
 - [ ] **H2** PAC generator setup (`generate-pac/SKILL.md:4-8`) ships no
   generator, schema, templates or tooling; it instructs the agent to
   author "minimal tooling" after inspecting NXP
@@ -736,7 +851,10 @@ Asserted capabilities with no procedure sufficient to perform them.
   those instructions are present, but nothing proves an agent ran them and
   the validator cannot attest to its own prior execution. This limitation is
   recorded in `.opencode/schema/selfcheck.md` and `docs/skill-template.md`;
-  no M3 text describes the wiring as runtime enforcement. *Owner: M6.*
+  no M3 text describes the wiring as runtime enforcement. *Unchanged by M4:
+  `write-driver` and the validation profiles wire the validator at the same
+  required points and disclose the same limit, and retiring the allowlist
+  changed coverage, not enforcement. Owner: M6.*
 
 ---
 
