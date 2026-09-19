@@ -2543,29 +2543,40 @@ _FIXTURE_CASES: tuple[tuple[str, str, str], ...] = (
 MAX_TOML_EXAMPLE_BYTES = 64 * 1024
 
 
-def _toml_leaf_paths(value, prefix: str, known: frozenset[str], depth: int = 0) -> set[str]:
-    """Flatten a parsed TOML example into schema leaf paths.
+def _toml_leaf_paths(value, prefix: str, known: frozenset[str], depth: int = 0) -> set[tuple[str, bool]]:
+    """Flatten a parsed TOML example into (path, is_empty_collection) pairs.
 
     Descent STOPS at any prefix already known to be a leaf, so opaque schema
     scalars that happen to be TOML tables or arrays of tables - FileRef,
     ArtifactRef, and the like - are not mistaken for structs and reported as
     invented fields.
+
+    The second element is True only when the value AT that path is an empty
+    TOML collection (`[]` or an empty table). An empty composite collection has
+    no sub-keys to flatten, so it can only ever surface as its own bare parent
+    path, which is never itself a schema leaf; the flag is what lets the caller
+    tell that prescribed known-empty form apart from an invented field.
     """
     if depth > MAX_AST_DEPTH:
-        return {prefix}
+        return {(prefix, False)}
     if prefix and prefix in known:
-        return {prefix}
+        return {(prefix, False)}
     if isinstance(value, dict):
-        out: set[str] = set()
+        out: set[tuple[str, bool]] = set()
         for key, sub in value.items():
             out |= _toml_leaf_paths(sub, f"{prefix}.{key}" if prefix else str(key), known, depth + 1)
-        return out
+        return out or {(prefix, True)}
     if isinstance(value, list):
         out = set()
         for item in value:
             out |= _toml_leaf_paths(item, prefix, known, depth + 1)
-        return out or {prefix}
-    return {prefix}
+        return out or {(prefix, True)}
+    return {(prefix, False)}
+
+
+def _is_composite_parent(path: str, known: frozenset[str]) -> bool:
+    """True when `path` is a PROPER prefix of at least one known schema leaf."""
+    return any(leaf.startswith(path + ".") for leaf in known)
 
 
 def analyze_typed_example(text: str, stage: str | None, kind: str | None, known: frozenset[str]) -> list[tuple[str, str]]:
@@ -2616,14 +2627,32 @@ def analyze_typed_example(text: str, stage: str | None, kind: str | None, known:
                     f"no toml example block is the emitted handoff: one must contain a [handoff] table with schema = 1 and stage = {stage!r}"))
         return out
     for doc in handoffs:
-        unknown = sorted(p for p in _toml_leaf_paths(doc, "", known) if p not in known)
+        # A path that is not itself a schema leaf is accepted ONLY in the one
+        # form the template prescribes for "this collection is known to be
+        # empty": an empty collection sitting at a proper prefix of a known
+        # leaf. `docs/skill-template.md` - "Optional means key absence;
+        # known-empty means an empty collection" - makes `x = []` the required
+        # spelling, and for a COMPOSITE collection the bare parent path is the
+        # only path it can produce. Every other shape stays rejected: an
+        # unknown scalar, a misspelled field, a non-empty composite carrying an
+        # unknown sub-key, and an empty collection at a path that prefixes no
+        # known leaf.
+        unknown = sorted(
+            p for p, empty in _toml_leaf_paths(doc, "", known)
+            if p not in known and not (empty and _is_composite_parent(p, known))
+        )
         if unknown:
             out.append(("SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD",
                         f"{kind}: the typed example names field(s) {', '.join(unknown[:8])} that are not schema leaves of that kind; the worked example must not drift from the contract"))
     return out
 
 
-_EXAMPLE_KNOWN = frozenset({"handoff.schema", "handoff.stage", "handoff.status", "handoff.notes", "alpha.name"})
+_EXAMPLE_KNOWN = frozenset({
+    "handoff.schema", "handoff.stage", "handoff.status", "handoff.notes", "alpha.name",
+    # a COMPOSITE collection: its schema leaves are sub-keys, so the collection
+    # itself ('alpha.items') is a proper prefix and never a leaf.
+    "alpha.items.id", "alpha.items.value",
+})
 _EXAMPLE_GOOD = """# Fixture
 
 ## Application example
@@ -2637,8 +2666,14 @@ notes = [{ path = "notes/PAC.md", sha256 = "ab" }]
 
 [alpha]
 name = "x"
+items = []
 ```
 """
+
+_EXAMPLE_NONEMPTY_COMPOSITE = _EXAMPLE_GOOD.replace(
+    "items = []",
+    '\n[[alpha.items]]\nid = "a"\nvalue = "b"',
+)
 
 _EXAMPLE_CASES: tuple[tuple[str, str, str], ...] = (
     ("no Application example section", "# Fixture\n\n## Procedure\n1. Inspect it.\n", "SKILL_STRUCTURE_EXAMPLE_MISSING"),
@@ -2647,6 +2682,25 @@ _EXAMPLE_CASES: tuple[tuple[str, str, str], ...] = (
     ("wrong stage", _EXAMPLE_GOOD.replace('stage = "generate-pac"', 'stage = "scaffold-hal"'), "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF"),
     ("schema not 1", _EXAMPLE_GOOD.replace("schema = 1", "schema = 2"), "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF"),
     ("field absent from the kind's leaf set", _EXAMPLE_GOOD.replace('name = "x"', 'name = "x"\nbogus = "y"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    # --- known-empty composite acceptance must not open a hole ---------------
+    ("misspelled composite collection, empty",
+     _EXAMPLE_GOOD.replace("items = []", "itemz = []"), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("empty collection at a path prefixing no known leaf",
+     _EXAMPLE_GOOD.replace("items = []", "items = []\nzeta = []"), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("empty TABLE at a path prefixing no known leaf",
+     _EXAMPLE_GOOD.replace("items = []", "items = []\n\n[alpha.zeta]"), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("non-empty composite carrying an unknown sub-key",
+     _EXAMPLE_NONEMPTY_COMPOSITE.replace('value = "b"', 'value = "b"\nnope = "c"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+    ("non-empty composite whose sub-keys are all unknown",
+     _EXAMPLE_NONEMPTY_COMPOSITE.replace('id = "a"\nvalue = "b"', 'wrong = "a"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
+)
+
+# Shapes that must be ACCEPTED: the conforming fixture itself carries the
+# known-empty composite collection ('items = []'), and the populated form of
+# the same collection must stay legal.
+_EXAMPLE_CLEAN_CASES: tuple[tuple[str, str], ...] = (
+    ("known-empty composite collection", _EXAMPLE_GOOD),
+    ("non-empty composite collection", _EXAMPLE_NONEMPTY_COMPOSITE),
 )
 
 
@@ -2663,6 +2717,10 @@ def structure_fixture_failures() -> list[str]:
     clean = analyze_typed_example(_EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN)
     if clean:
         problems.append(f"the conforming typed example was rejected with {[c for c, _ in clean]}")
+    for name, text in _EXAMPLE_CLEAN_CASES:
+        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN)]
+        if codes:
+            problems.append(f"conforming typed example {name!r} was rejected with {codes}")
     for name, text, expected in _EXAMPLE_CASES:
         codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN)]
         if expected not in codes:
@@ -3697,6 +3755,12 @@ LINKER_CLASS = "linker"
 COMPOSITE_EVIDENCE_MARKER = "composite evidence"
 CANONICAL_PLACEMENT_MARKER = "canonical placement"
 CANDIDATE_ONLY_MARKER = "candidate-only"
+# Generic role noun for the final consolidator. Not a skill name: it is the
+# English word for the parsed role that `platform_roles()` computes, so it
+# stays correct when the consolidating skill is renamed or replaced.
+CONSOLIDATOR_ROLE_TOKEN = "consolidator"
+# Cues by which a sentence declines the responsibility rather than claiming it.
+DISCLAIMER_CUES = ("no ", "not ", "never", "without", "reserved", "belongs to", "pending")
 NEGATED_PLACEMENT = (
     "no canonical placement",
     "without canonical placement",
@@ -3705,8 +3769,118 @@ NEGATED_PLACEMENT = (
 )
 
 
+def prose_units(text: str) -> list[str]:
+    """Split Markdown into sentence-sized attribution units.
+
+    A unit is the span a reader would judge a claim in. Markdown table rows are
+    kept whole (a row's cells are one assertion and carry no sentence
+    terminator), headings and list-item markers start a new unit so a
+    neighbouring bullet's attribution cannot leak into this one, and ordinary
+    paragraph text is joined across soft line breaks then split on sentence
+    terminators.
+    """
+    segments: list[str] = []
+    buf: list[str] = []
+
+    def flush() -> None:
+        if buf:
+            segments.append(" ".join(buf))
+            buf.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        if line.startswith("|") or line.startswith("#"):
+            flush()
+            segments.append(line)
+            continue
+        if re.match(r"^(?:[-*+]\s|\d+[.)]\s)", line):
+            flush()
+        buf.append(line)
+    flush()
+
+    units: list[str] = []
+    for segment in segments:
+        if segment.startswith("|"):
+            units.append(segment)
+            continue
+        units.extend(part for part in re.split(r"(?<=[.!?])\s+", segment) if part.strip())
+    return units
+
+
 def _writes_class(cmap: dict[str, list[str]], cid: str) -> bool:
     return any(v.count("|") == 1 and v.split("|")[1] == cid for v in cmap.get("writes", []))
+
+
+def unattributed_composite_claims(text: str, consolidators: list[str]) -> list[str]:
+    """Units that state the composite-evidence marker while claiming it.
+
+    Absence of the phrase was the old rule, and it was the wrong one: it pushed
+    a slice author into vaguer prose that no longer names what the slice is
+    declining to do. The assertion is about the CLAIM, not the phrase. A unit
+    is legal when it does one of:
+
+      * attributes the work to the final consolidator BY NAME - the names come
+        from `platform_roles(...)[1]`, i.e. the platform-stage skill whose own
+        ready predicate is reachable, never from a literal written here; or
+      * names the consolidating ROLE; or
+      * disclaims the work outright ("no composite evidence", "never", ...).
+
+    Anything else - a unit that states composite evidence in its own voice with
+    no attribution and no disclaimer - is the violation.
+    """
+    tokens = [n.lower() for n in consolidators] + [CONSOLIDATOR_ROLE_TOKEN] + list(DISCLAIMER_CUES)
+    offenders: list[str] = []
+    for unit in prose_units(text):
+        flat = norm_ws(unit).lower()
+        if COMPOSITE_EVIDENCE_MARKER not in flat:
+            continue
+        if not any(t in flat for t in tokens):
+            offenders.append(_one_line(unit, 160))
+    return offenders
+
+
+_COMPOSITE_CONSOLIDATORS = ["omega-consolidate"]
+
+# Units that must FAIL: the slice states composite evidence in its own voice.
+_COMPOSITE_CLAIMS: tuple[tuple[str, str], ...] = (
+    ("bare claim", "This slice creates composite evidence for all ten canonical checks.\n"),
+    ("claim in a numbered step",
+     "12. **Publish.** Create the composite evidence, then publish the handoff.\n"),
+    ("claim in a table row", "| Done here | composite evidence, independent review |\n"),
+    ("attribution stranded in a neighbouring bullet",
+     "- The final consolidator owns the whole platform.\n"
+     "- This step assembles composite evidence over every slice-local log.\n"),
+)
+
+# Units that must PASS: the phrase is named but attributed or disclaimed.
+_COMPOSITE_ATTRIBUTIONS: tuple[tuple[str, str], ...] = (
+    ("attributed by consolidator name",
+     "Return the logs to `omega-consolidate`, which alone creates the composite evidence.\n"),
+    ("attributed by role", "Only the final consolidator creates the composite evidence.\n"),
+    ("disclaimed in a step",
+     "13. **Return.** Do not publish `ready`, do not create composite evidence, do not request review.\n"),
+    ("disclaimed in a table row", "| Never done here | composite evidence, canonical placement |\n"),
+    ("disclaimed by a trailing negation",
+     "The `ready` platform asserts composite evidence and an accepting review that this slice never held.\n"),
+    ("deferred as pending consolidation",
+     "Complete-platform checks stay unrun here, pending consolidation of the composite evidence.\n"),
+)
+
+
+def composite_analyzer_failures() -> list[str]:
+    """Self-test `unattributed_composite_claims`. Empty when it discriminates."""
+    problems: list[str] = []
+    for name, text in _COMPOSITE_CLAIMS:
+        if not unattributed_composite_claims(text, _COMPOSITE_CONSOLIDATORS):
+            problems.append(f"composite CLAIM near-miss {name!r} was not caught; the rule permits an unattributed claim")
+    for name, text in _COMPOSITE_ATTRIBUTIONS:
+        offenders = unattributed_composite_claims(text, _COMPOSITE_CONSOLIDATORS)
+        if offenders:
+            problems.append(f"composite ATTRIBUTION {name!r} was rejected ({offenders[0]!r}); the rule forbids naming what the slice declines to do")
+    return problems
 
 
 def check_skill_platform_slices(root: Path, report: Report) -> None:
@@ -3722,6 +3896,8 @@ def check_skill_platform_slices(root: Path, report: Report) -> None:
     with guard(report, ".opencode/skills", "SKILL_PLATFORM_ABORT"):
         paths = skill_paths(root)
         contracts = skill_contracts(root)
+        for problem in composite_analyzer_failures():
+            report.bad(".opencode/skills", "0", "SKILL_PLATFORM_ANALYZER_UNSOUND", problem)
         slices, final = platform_roles(root, contracts)
         if not slices:
             report.bad(".opencode/skills", "0", "SKILL_PLATFORM_NO_SLICES",
@@ -3770,10 +3946,12 @@ def check_skill_platform_slices(root: Path, report: Report) -> None:
                 report.bad(r, "Procedure", "SKILL_PLATFORM_NO_PARTIAL",
                            "the procedure never names the 'partial' status it must publish; a non-final slice "
                            "publishes only a partial 05-platform and returns to the consolidator")
-            if COMPOSITE_EVIDENCE_MARKER in flat:
+            offenders = unattributed_composite_claims(text, final)
+            if offenders:
                 report.bad(r, "Procedure", "SKILL_PLATFORM_SLICE_COMPOSITE",
-                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r}; composite evidence "
-                           "across all slices belongs only to the final consolidator")
+                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r} in its own voice, with "
+                           f"neither attribution to the final platform consolidator nor a disclaimer: "
+                           f"{offenders[0]!r}; composite evidence across all slices belongs only to the consolidator")
 
             if PAC_KIND in kinds and PLATFORM_KIND in kinds:
                 report.bad(r, "consumes", "SKILL_PLATFORM_CHAIN",
@@ -3803,8 +3981,10 @@ def check_skill_platform_slices(root: Path, report: Report) -> None:
                        "one first slice starts the chain from the PAC")
         report.ok("skill-platform-slices",
                   f"{len(slices)} non-final platform slice(s) publish only partial, start once from {PAC_KIND} and "
-                  f"otherwise consume the {PLATFORM_KIND} snapshot, and {len(final)} final consolidator carries "
-                  "composite evidence, review and canonical placement", mark)
+                  f"otherwise consume the {PLATFORM_KIND} snapshot, attribute or disclaim every mention of "
+                  f"{COMPOSITE_EVIDENCE_MARKER!r}, and {len(final)} final consolidator carries "
+                  "composite evidence, review and canonical placement "
+                  f"(analyzer self-tested against {len(_COMPOSITE_CLAIMS)} claims and {len(_COMPOSITE_ATTRIBUTIONS)} attributions)", mark)
 
 
 # --- M5 check: debug-lineage ------------------------------------------------
