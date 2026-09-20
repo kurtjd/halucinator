@@ -18,7 +18,7 @@ compatibility: opencode
 stage: gather-documentation
 participants: hal-datasheet
 emitter: hal-datasheet
-emits: 01-sources|halucinator/handoff/01-sources.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,sources.available,sources.catalog,sources.cited_notes,sources.route,sources.source_ids
+emits: 01-sources|halucinator/handoff/01-sources.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,sources.catalog,sources.cited_notes,sources.documents.document,sources.documents.format,sources.documents.revision,sources.documents.source,sources.documents.source_id,sources.route
 checks: available-content-resolves,local-source-hashes,requested-inputs-accounted,svd-search-complete
 consumes: none|none
 writes: hal-datasheet|vendor-source-bytes
@@ -92,8 +92,9 @@ and absence rules restated below.
   one directory per source ID, with originals never moved or deleted.
 - A `SOURCES.md` delta authored here and materialized by **hal-integrator**.
 - `halucinator/handoff/01-sources.toml`, carrying `sources.catalog`,
-  `sources.route`, `sources.source_ids`, `sources.available`,
-  `sources.cited_notes`, the four canonical checks, coverage and scope.
+  `sources.route`, `sources.documents` (one binding entry per source, each
+  carrying `source_id`, `document`, `revision`, `format` and a hash-pinned
+  `source`), `sources.cited_notes`, the four canonical checks, coverage and scope.
 
 `sources.route` is producer-evaluable and is exactly one of `review-supplied`,
 `author-from-docs` or `unresolved`. Supplied means an accessible SVD exists;
@@ -163,15 +164,15 @@ Applicability is a downstream judgement and is never asserted here.
 9. **Record the identities and hashes.** Record each source's stable ID,
    title and document number, revision or date, provenance, covered parts and
    relative local path, and compute a tool-computed SHA-256 for every local
-   byte stream to discharge `local-source-hashes`. When `sources.available` is
+   byte stream to discharge `local-source-hashes`. When `sources.documents` is
    empty, record that check as `not-applicable` with a reason instead. Never
    invent a digest, and keep credentials and temporary authenticated URLs out of
    the record.
 10. **Record the gaps and the route.** Record, for every missing or uncertain
     input, what it blocks and the next action, then select `sources.route`.
     On `review-supplied` the route evidence must identify the accessible SVD
-    both as a FileRef in `sources.available` and by its source ID in
-    `sources.source_ids`, and must record the remaining applicability
+    as one `sources.documents` entry binding its source ID to the hash-pinned
+    file, and must record the remaining applicability
     uncertainty; accessibility is never applicability. On `author-from-docs`
     the search evidence proves the search completed, not that any fact was
     extracted. `unresolved` can never be `ready`.
@@ -194,7 +195,7 @@ Applicability is a downstream judgement and is never asserted here.
     new path rather than overwriting one, rerun only the affected checks, and
     never delete an old evidence record to regain validation.
 15. **Publish the final handoff and run the final gate.** Publish the final
-    `halucinator/handoff/01-sources.toml`, validate it, let **hal-coordinator**
+    `halucinator/handoff/01-sources.toml`, run `python .opencode/schema/validate.py <repository-root> --kind all` over it, let **hal-coordinator**
     update `state.toml` through the compare-and-swap sequence — state is never
     updated before the handoff validates — and run the final `--kind all` gate.
 16. **Return to hal-coordinator.** Return the target, the repository-relative
@@ -207,7 +208,7 @@ Applicability is a downstream judgement and is never asserted here.
 | Check ID | Discharging action | Evidence artifact |
 |---|---|---|
 | `available-content-resolves` | Inspect each available source's actual content and file type, not its extension | `<documentation>/notes/intake-availability.md` |
-| `local-source-hashes` | Record a tool-computed SHA-256 for every locally stored source byte stream | `<documentation>/notes/intake-hashes.md`, or `reason (no evidence FileRef)` when `sources.available` is empty |
+| `local-source-hashes` | Record a tool-computed SHA-256 for every locally stored source byte stream | `<documentation>/notes/intake-hashes.md`, or `reason (no evidence FileRef)` when `sources.documents` is empty |
 | `requested-inputs-accounted` | Compare the requested input list against the completion inventory | `<documentation>/notes/intake-inventory.md` |
 | `svd-search-complete` | Record the sites searched, the date and the outcome for the SVD lookup | `<documentation>/notes/intake-svd-search.md`, or `reason (no evidence FileRef)` off the author route |
 
@@ -225,7 +226,7 @@ Predicate: `coverage.incomplete` is empty, `coverage.complete` equals the
 included scope, `handoff.can_progress` is absent, `handoff.blockers` is empty,
 `sources.route` is not `unresolved`, and every applicable check
 (`requested-inputs-accounted`, `available-content-resolves`,
-`local-source-hashes` where `sources.available` is nonempty, and
+`local-source-hashes` where `sources.documents` is nonempty, and
 `svd-search-complete` on the `author-from-docs` route) is `passed`. Ready means
 the requested intake is accounted for; it does not mean a hardware fact is
 established or that `02-facts` exists.
@@ -255,7 +256,7 @@ stage = "gather-documentation"
 status = "ready"
 inputs = []
 notes = [
-  { path = "halucinator/docs/acme-ax100/notes/intake-inventory.md", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-inventory.md", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
 ]
 blockers = []
 
@@ -268,34 +269,43 @@ complete = ["foundation:documentation-intake"]
 incomplete = []
 
 [sources]
-catalog = { path = "halucinator/docs/acme-ax100/SOURCES.md", sha256 = "7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e" }
+catalog = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md", sha256 = "7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e" }
 route = "author-from-docs"
-source_ids = ["doc-001", "doc-002"]
-available = [
-  { path = "halucinator/docs/acme-ax100/sources/doc-001/ax100-rm-rev3.pdf", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" },
-  { path = "halucinator/docs/acme-ax100/sources/doc-002/ax100-ds-rev2.pdf", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
-]
 cited_notes = []
+
+[[sources.documents]]
+source_id = "doc-001"
+document = "FICTIONAL FIXTURE REFERENCE MANUAL"
+revision = "fixture-1"
+format = "pdf"
+source = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/doc-001/fictional-reference-manual.pdf", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
+
+[[sources.documents]]
+source_id = "doc-002"
+document = "FICTIONAL FIXTURE DATASHEET"
+revision = "fixture-1"
+format = "pdf"
+source = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/doc-002/fictional-datasheet.pdf", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
 
 [[checks]]
 id = "requested-inputs-accounted"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/intake-inventory.md", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-inventory.md", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
 
 [[checks]]
 id = "available-content-resolves"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/intake-availability.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-availability.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
 
 [[checks]]
 id = "local-source-hashes"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/intake-hashes.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-hashes.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
 
 [[checks]]
 id = "svd-search-complete"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/intake-svd-search.md", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-svd-search.md", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 ```
 
 A silicon revision the user could not supply is represented by the absence of
@@ -325,8 +335,9 @@ never a field whose value is the word for missing.
 - **Returning questions to the architect.** The architect is not in this
   stage's topology. Everything routes through `hal-coordinator`.
 - **Calling an accessible SVD applicable.** `review-supplied` requires the file
-  as a FileRef in `sources.available` *and* its source ID in
-  `sources.source_ids`, with the remaining uncertainty recorded. Accessibility
+  as a hash-pinned `source` FileRef on a `sources.documents` entry whose
+  `source_id` is the catalog ID, with the remaining uncertainty recorded.
+  Accessibility
   is not applicability, and relabelling an unsuitable file is the one intake
   error that survives all the way to generated Rust.
 - **Publishing `ready` on the `unresolved` route.** The route is part of the

@@ -332,7 +332,8 @@ access or an invented constant.
     commit. Any contention or changed baseline aborts this phase and restarts
     from fresh validation and review. Publish the final
     `halucinator/handoff/05-platform.toml` — the only `ready` `05-platform` this
-    stage produces — validate it, let **hal-coordinator** update `state.toml`
+    stage produces — run `python .opencode/schema/validate.py <repository-root> --kind all` over it,
+    let **hal-coordinator** update `state.toml`
     through the compare-and-swap sequence, run the final `--kind all` gate, and
     return the record paths, status and next action. State that no peripheral
     driver, publication or hardware operation was performed.
@@ -393,11 +394,11 @@ stage can supply.
 
 ## Application example
 
-For exact MCU `AX100`, `SOURCES.md` and the cited notes cover reset, the
+For exact MCU `unobtainium-circuits-uc-not-a-real-mcu-0001`, `SOURCES.md` and the cited notes cover reset, the
 internal-oscillator startup path, the SRAM layout, UART0 pins and its DMA
 request, while the generated PAC covers those foundation registers but lacks ADC
 metadata. The coordinator selects UART0 in blocking and DMA modes as the first
-driver. Scaffold only `AX100`, the documented internal-oscillator path, the
+driver. Scaffold only `unobtainium-circuits-uc-not-a-real-mcu-0001`, the documented internal-oscillator path, the
 central gate, reset and frequency plumbing, pin mux and DMA support; the ADC gap
 does not block. The three ordered slices have already run in integration
 candidate `001`, so this stage admits their final snapshot
@@ -414,8 +415,8 @@ inputs = [
   { path = "halucinator/candidates/integration-001/snapshots/05-platform-after-runtime.toml", sha256 = "5d2f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f709" },
 ]
 notes = [
-  { path = "halucinator/docs/acme-ax100/notes/SCAFFOLD.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
-  { path = "halucinator/docs/acme-ax100/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" },
 ]
 blockers = []
 
@@ -428,31 +429,31 @@ complete = ["foundation:init-api", "foundation:clock-gate", "subsystem:pin-mux",
 incomplete = []
 
 [platform]
-crate_manifest = { path = "embassy-acme/Cargo.toml", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
-pac_manifest = { path = "halucinator/pac/acme/acme-pac/Cargo.toml", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
-roadmap = { path = "halucinator/docs/acme-ax100/notes/ROADMAP.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
-startup_clock_contract = { path = "halucinator/docs/acme-ax100/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+crate_manifest = { path = "embassy-unobtainium/Cargo.toml", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
+pac_manifest = { path = "halucinator/pac/unobtainium/unobtainium-pac/Cargo.toml", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
+roadmap = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+startup_clock_contract = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
 foundation_api = [
   "pub fn init(config: Config) -> Peripherals",
-  "pub trait Gate { fn enable_and_reset(&self) -> Hertz; }",
+  "target lifecycle contract: owners; acquire/init; reset arbitration; lifetime accounting/absence; teardown/quiescence; frequency; cancellation",
 ]
 supporting_subsystems = ["subsystem:pin-mux", "subsystem:dma"]
 first_driver = "uart"
 first_driver_modes = ["blocking", "dma"]
 source_ids = ["doc-001", "doc-002"]
 cited_notes = [
-  { path = "halucinator/docs/acme-ax100/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" },
 ]
 
 [[platform.dependencies]]
-crate = "acme-pac"
+crate = "unobtainium-pac"
 identity = "0.1.0"
-features = ["ax100", "rt"]
+features = ["uc-not-a-real-mcu-0001", "rt"]
 
 [[checks]]
 id = "live-reference-read"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ARCHITECTURE.md", sha256 = "7e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d" }
 
 [[checks]]
 id = "foundation-coverage"
@@ -560,7 +561,7 @@ sentinel word.
   build-only link check.** The link check compiles and links; it operates no
   device.
 - **Quoting only the rejecting verdict.** Stating what does not accept, without
-  stating what does, turns the gate into advice. Use the exact sentence.
+  stating what does, turns the review gate into advice. Use the exact sentence.
 - **Calling a missing tool an inapplicable check.** It is `unrun`, which blocks
   readiness.
 - **Treating `cargo check` as a target link, or a checkbox as an exit

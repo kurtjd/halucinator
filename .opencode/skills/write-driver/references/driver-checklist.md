@@ -66,12 +66,14 @@ Requirement IDs belong to the coordinator's dispatch, not to this file.
 
 ## Clocks, reset and shared resources
 
-- Keep gating, reset and power policy in the `clocks` subsystem, reached through
-  the established `Gate` and `enable_and_reset` contract at the owning
-  initialization layer. A peripheral module that pokes a clock or reset register
-  has put the policy in two places that can disagree.
-- Retain any required lifetime or wake guard with the resource owner for as long
-  as the resource is live.
+- Keep clock, reset and power policy in one owning layer and verify every
+  minimum lifecycle element: policy owners, acquisition/initialization, reset
+  arbitration, lifetime accounting or its explicit absence, teardown/quiescence,
+  frequency source or irrelevance, and cancellation behavior. A peripheral module
+  that configures the same resource has put the policy in two places that can
+  disagree.
+- Retain lifetime or wake ownership only when the contract requires it; record
+  its explicit absence otherwise.
 - Reset module-global mutable state — descriptor rings, flags, waker tables — at
   the top of construction, and only within the resource actually owned. An
   ownership token proves you own the live peripheral; it does not prove this is
@@ -108,9 +110,13 @@ Requirement IDs belong to the coordinator's dispatch, not to this file.
   poll inside an `async fn` is not. Endless-pending stubs, panic placeholders and
   timer-polled replacements for supported interrupt-driven hardware are all
   rejected.
-- **Clear all error flags before returning.** An early return on the first flag
-  leaves the others latched and the peripheral wedged. Read every flag, clear
-  them in one write, then decide what to return.
+- **Observe and account for every relevant error condition according to cited
+  read and clear semantics before returning.** Preserve unrelated and control
+  bits and leave no recoverable condition latched. Read-to-clear state need not
+  and sometimes cannot be snapshotted first: a W1C flag clears on writing one, a
+  W0C flag on writing zero, and a read-to-clear flag on the read itself. An
+  early return on the first condition leaves the others latched and the
+  peripheral wedged.
 
 ## Cancellation, drop and reuse
 

@@ -223,7 +223,7 @@ registers from emitted Rust.
     records, create replacement evidence at a new path rather than overwriting
     one, rerun only the affected checks, and obtain a new review where the
     reviewed bytes changed — then publish the final
-    `halucinator/handoff/04-pac.toml`, validate it, let **hal-coordinator**
+    `halucinator/handoff/04-pac.toml`, run `python .opencode/schema/validate.py <repository-root> --kind all` over it, let **hal-coordinator**
     update `state.toml` through the compare-and-swap sequence, run the final
     `--kind all` gate, and return the record path, status and next action. State
     that no HAL implementation, publication or hardware operation was performed.
@@ -294,7 +294,7 @@ inputs = [
   { path = "halucinator/handoff/03-svd.toml", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
 ]
 notes = [
-  { path = "halucinator/docs/acme-ax100/notes/PAC.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
 ]
 blockers = []
 
@@ -307,15 +307,15 @@ complete = ["foundation:init-api", "peripheral:schema-demo"]
 incomplete = []
 
 [pac]
-crate_manifest = { path = "halucinator/pac/acme/acme-pac/Cargo.toml", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
-package = "acme-pac"
-cargo_chip_feature = "ax100"
+crate_manifest = { path = "halucinator/pac/unobtainium/unobtainium-pac/Cargo.toml", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
+package = "unobtainium-pac"
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
 runtime_features = ["rt"]
 metadata_features = ["metadata"]
 rust_compilation_target = "thumbv8m.main-none-eabihf"
 source_ids = ["doc-001", "doc-002"]
 cited_notes = [
-  { path = "halucinator/docs/acme-ax100/notes/SVD.md", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
 ]
 temporary_fork = false
 
@@ -325,39 +325,39 @@ kind = "workspace"
 [[pac.foundation]]
 id = "foundation:init-api"
 kind = "api"
-location = "acme_pac::SCHEMADEMO"
+location = "unobtainium_pac::SCHEMADEMO"
 status = "covered"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/expected-inventory.log", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/expected-inventory.log", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
 
 [[checks]]
 id = "input-identity"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/identity.log", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/identity.log", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
 
 [[checks]]
 id = "expected-inventory"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/expected-inventory.log", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/expected-inventory.log", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
 
 [[checks]]
 id = "representation-limits"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/PAC.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
 
 [[checks]]
 id = "target-build-api"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/target-build-api.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/target-build-api.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 
 [[checks]]
 id = "host-metadata-api"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/host-metadata-api.log", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/host-metadata-api.log", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
 
 [[checks]]
 id = "negative-chip-selection"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/negative-chip-selection.log", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/negative-chip-selection.log", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
 
 [[checks]]
 id = "pure-host-tests"
@@ -367,17 +367,17 @@ reason = "The generator emits no authored layout or encoding logic for this scop
 [[checks]]
 id = "format-lint"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/format-lint.log", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/format-lint.log", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
 
 [[checks]]
 id = "generation-replay"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/replay/replay-diff.log", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/replay/replay-diff.log", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
 
 [[checks]]
 id = "final-path-build"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/pac/acme-ax100/run-001/candidate/final-path-build.log", sha256 = "2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70819" }
+evidence = { path = "halucinator/pac/unobtainium/derived/pac/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/candidate/final-path-build.log", sha256 = "2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70819" }
 
 [[checks]]
 id = "independent-review"

@@ -20,8 +20,8 @@ participants: hal-svd
 emitter: hal-svd
 emits: 03-svd|halucinator/handoff/03-svd.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,svd.extraction_mode,svd.includes,svd.namespace_mode,svd.prepared_manifest,svd.representation_limits,svd.route,svd.source,svd.transforms,svd.unresolved_facts
 checks: correction-effects,information-limits,input-identity,preparation-replay,schema-validation,source-fact-comparison,structural-inventory,xml-well-formed
-consumes: 01-sources|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,sources.catalog,sources.route,sources.source_ids,sources.available,sources.cited_notes
-consumes: 02-facts|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,facts.notes,facts.citations.source_id,facts.citations.document,facts.citations.revision,facts.citations.locator,facts.citations.note,facts.categories,facts.contradictions
+consumes: 01-sources|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,sources.catalog,sources.route,sources.cited_notes,sources.documents.source_id,sources.documents.document,sources.documents.revision,sources.documents.format,sources.documents.source
+consumes: 02-facts|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,facts.notes,facts.citations.source_id,facts.citations.note,facts.categories,facts.contradictions,facts.citations.assertion_id,facts.citations.scope_item,facts.citations.claim,facts.citations.source,facts.citations.location.kind,facts.citations.location.page,facts.citations.location.line_start,facts.citations.location.line_end,facts.citations.locator.kind,facts.citations.locator.value,facts.citations.excerpt
 writes: hal-svd|pac-project
 writes: hal-svd|svd-handoff
 writes: hal-svd|svd-pac-notes
@@ -75,8 +75,9 @@ emit Rust, set Cargo features, or assemble metapac metadata.
 Always consume the validated `01-sources` leaves declared in the contract:
 `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`,
 `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete`,
-`sources.catalog`, `sources.route`, `sources.source_ids`, `sources.available`
-and `sources.cited_notes`. Also read coordinator-owned state: the `target.*`
+`sources.catalog`, `sources.route`, `sources.documents` (each entry binding a
+`source_id` to a `document` title, `revision`, `format` and a hash-pinned
+`source`) and `sources.cited_notes`. Also read coordinator-owned state: the `target.*`
 identity, `scope.current_revision`, `scope.current_decision`, and
 `roots.documentation`, `roots.sources`, `roots.pac_project` and
 `roots.svd_inputs`.
@@ -99,8 +100,8 @@ gate.
 
 On the **`review-supplied`** route the run may start from accepted cited notes
 alone, but accessibility is never applicability. The `input-identity` evidence
-must identify the accessible SVD both as an exact FileRef and by its source ID
-from `sources.source_ids`, so an unsuitable-but-accessible file cannot be
+must identify the accessible SVD through its `sources.documents` entry, which
+binds that source ID to the exact hash-pinned file, so an unsuitable-but-accessible file cannot be
 quietly relabelled. A coordinator-dispatched independent review of the route's
 applicability is required procedurally before any downstream admission; it is
 recorded as a hashed note and a `handoff.inputs` dependency, not as an invented
@@ -222,7 +223,7 @@ rules restated below.
     new applicability review where the reviewed bytes changed, and never delete
     an old record to regain validation.
 17. **Publish the final handoff and run the final gate.** Publish the final
-    `halucinator/handoff/03-svd.toml`, validate it, let **hal-coordinator**
+    `halucinator/handoff/03-svd.toml`, run `python .opencode/schema/validate.py <repository-root> --kind all` over it, let **hal-coordinator**
     update `state.toml` through the compare-and-swap sequence — state is never
     updated before the handoff validates — and run the final `--kind all` gate.
 18. **Return to hal-coordinator.** Return the record path, the target and scope,
@@ -294,7 +295,7 @@ inputs = [
   { path = "halucinator/handoff/01-sources.toml", sha256 = "3c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
 ]
 notes = [
-  { path = "halucinator/docs/acme-ax100/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
 ]
 blockers = []
 
@@ -308,12 +309,12 @@ incomplete = []
 
 [svd]
 route = "review-supplied"
-source = { path = "halucinator/pac/acme/data/svd/acme-ax100/sources/ax100.svd", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
+source = { path = "halucinator/pac/unobtainium/data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fictional-fixture.svd", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" }
 transforms = [
-  { path = "halucinator/pac/acme/data/svd/acme-ax100/transforms/ax100.yaml", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
+  { path = "halucinator/pac/unobtainium/data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/transforms/fictional-fixture.yaml", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
 ]
 includes = []
-prepared_manifest = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/prepared/INVENTORY.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+prepared_manifest = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/prepared/INVENTORY.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
 extraction_mode = "block"
 namespace_mode = "block-with-regs-vals"
 representation_limits = [
@@ -324,42 +325,42 @@ unresolved_facts = []
 [[checks]]
 id = "input-identity"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/baseline/identity.log", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/baseline/identity.log", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
 
 [[checks]]
 id = "xml-well-formed"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/baseline/xml-well-formed.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/baseline/xml-well-formed.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 
 [[checks]]
 id = "schema-validation"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/baseline/schema-validation.log", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/baseline/schema-validation.log", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
 
 [[checks]]
 id = "source-fact-comparison"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
 
 [[checks]]
 id = "correction-effects"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/prepared/correction-effects.log", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/prepared/correction-effects.log", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
 
 [[checks]]
 id = "structural-inventory"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/prepared/structural-inventory.log", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/prepared/structural-inventory.log", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
 
 [[checks]]
 id = "information-limits"
 status = "passed"
-evidence = { path = "halucinator/docs/acme-ax100/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" }
 
 [[checks]]
 id = "preparation-replay"
 status = "passed"
-evidence = { path = "halucinator/pac/acme/derived/svd/acme-ax100/run-001/replay/replay-diff.log", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
+evidence = { path = "halucinator/pac/unobtainium/derived/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/run-001/replay/replay-diff.log", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
 ```
 
 With zero transforms, `transforms` is `[]` and the `correction-effects` entry

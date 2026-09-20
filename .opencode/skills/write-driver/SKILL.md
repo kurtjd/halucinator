@@ -21,7 +21,7 @@ compatibility: opencode
 stage: write-driver
 participants: hal-driver
 emitter: hal-driver
-emits: 06-driver|halucinator/handoff/06-driver-<name>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.name,driver.owned_files,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts.document,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.test_hardware_facts.revision,driver.test_hardware_facts.source_id,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
+emits: 06-driver|halucinator/handoff/06-driver-<name>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.facts_handoff,driver.name,driver.owned_files,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
 checks: format-lint-build,generated-mappings,independent-review,live-reference-read,pure-host-tests,target-link-ci,trait-conformance
 consumes: 05-platform|coverage.complete,coverage.incomplete,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
 writes: hal-driver|clock-modules
@@ -300,7 +300,7 @@ not. Never bridge either gap with raw register access or an invented constant.
     rather than overwriting one, rerun only the affected checks, and obtain a new
     review where the reviewed bytes changed. **Never delete old evidence or old
     review records to regain validation.** Then rewrite the final
-    `halucinator/handoff/06-driver-<name>.toml`, validate it, let
+    `halucinator/handoff/06-driver-<name>.toml`, run `python .opencode/schema/validate.py <repository-root> --kind all` over it, let
     **hal-coordinator** update `state.toml` through the compare-and-swap
     sequence — upserting the single `state.stages[]` entry whose ID is
     `write-driver:<name>` **by ID, never blindly appending**, because duplicate
@@ -364,7 +364,7 @@ this stage can supply. A missing tool never silently lowers the gate.
 
 ## Application example
 
-For exact MCU `AX100` the coordinator dispatches `uart` in blocking and DMA
+For exact MCU `unobtainium-circuits-uc-not-a-real-mcu-0001` the coordinator dispatches `uart` in blocking and DMA
 modes against a `ready` `05-platform`. The subsystem is classified positively as
 a stream bus, so `profiles/bus.md` is selected and the finding is recorded; the
 GPIO and time-service profiles are recorded as rejected with reasons. The baud
@@ -406,23 +406,25 @@ public_api = [
   "pub async fn write(&mut self, buf: &[u8]) -> Result<usize, SendError>",
 ]
 owned_files = [
-  { path = "embassy-acme/src/uart/mod.rs", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" },
-  { path = "embassy-acme/src/uart/config.rs", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
+  { path = "embassy-unobtainium/src/uart/mod.rs", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" },
+  { path = "embassy-unobtainium/src/uart/config.rs", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" },
 ]
 requirement_ids = ["UART-01", "UART-02", "UART-03"]
-public_test_record = { path = "halucinator/docs/acme-ax100/notes/tests/uart.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+public_test_record = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/uart.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+facts_handoff = { path = "halucinator/handoff/02-facts.toml", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
+test_hardware_facts = ["fixture.uart.fifo-depth", "fixture.uart.reset-value"]
 
 [driver.build_contract]
-cargo_chip_feature = "ax100"
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
 rust_compilation_target = "thumbv8m.main-none-eabihf"
-init_calls = ["embassy_acme::init(Default::default())"]
-memory_runtime = { path = "embassy-acme/memory.x", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
+init_calls = ["embassy_unobtainium::init(Default::default())"]
+memory_runtime = { path = "embassy-unobtainium/memory.x", sha256 = "c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3" }
 observation = "A linked image calling init and constructing Uart in blocking and DMA modes."
 
 [[driver.dependencies]]
-crate = "acme-pac"
+crate = "unobtainium-pac"
 identity = "0.1.0"
-features = ["ax100", "rt"]
+features = ["uc-not-a-real-mcu-0001", "rt"]
 
 [[driver.trait_obligations]]
 dependency_crate = "embedded-io-async"
@@ -431,13 +433,6 @@ obligations = [
   "write returns Ok(0) only when buf is empty",
   "flush completes only after the transmitter is idle",
 ]
-
-[[driver.test_hardware_facts]]
-source_id = "doc-001"
-document = "AX100 Reference Manual, document AX100RM"
-revision = "Rev 3"
-locator = "Section 42.5.3, Table 42-18"
-note = { path = "halucinator/docs/acme-ax100/notes/facts/uart.md", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 
 [[checks]]
 id = "live-reference-read"

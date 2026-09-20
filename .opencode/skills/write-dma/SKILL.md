@@ -17,7 +17,7 @@ compatibility: opencode
 stage: write-driver
 participants: hal-driver
 emitter: hal-driver
-emits: 06-driver|halucinator/handoff/06-driver-dma.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.name,driver.owned_files,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts.document,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.test_hardware_facts.revision,driver.test_hardware_facts.source_id,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
+emits: 06-driver|halucinator/handoff/06-driver-dma.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.facts_handoff,driver.name,driver.owned_files,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
 checks: format-lint-build,generated-mappings,independent-review,live-reference-read,pure-host-tests,target-link-ci,trait-conformance
 consumes: 05-platform|coverage.complete,coverage.incomplete,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,platform.cited_notes,platform.crate_manifest,platform.dependencies.crate,platform.dependencies.features,platform.dependencies.identity,platform.first_driver,platform.first_driver_modes,platform.foundation_api,platform.pac_manifest,platform.roadmap,platform.source_ids,platform.startup_clock_contract,platform.supporting_subsystems,scope.decision,scope.revision
 writes: hal-driver|driver-candidates
@@ -74,9 +74,9 @@ materialized by **hal-integrator**, and for `roadmap`, owned and materialized by
 which dispatches the registry owner and returns its FileRef. Never write a file
 in those classes directly.
 
-Clock gating and reset for the DMA controller are reached through the `Gate`
-trait and `enable_and_reset` in the clocks subsystem, never hand-rolled in the
-DMA module. A DMA module poking a clock-control register means the gating policy
+Clock, reset and power bring-up for the DMA controller use the selected target
+lifecycle contract in the owning layer, never a duplicate in the DMA module. Do
+not invent a gate/guard where none exists. A DMA module poking a clock-control register means the gating policy
 now lives in two places that can disagree.
 
 The coherency policy is recorded here and materialized elsewhere. When the design
@@ -212,16 +212,19 @@ downstream `ready`.
    as pure value-to-value functions free of registers, `async` and HAL types, and
    keep the register-touching shell nearly branch-free. Encoding a value you were
    able to construct is total; decoding a register pattern the silicon can
-   produce is partial and returns a `Result`. Reach clock gating and reset only
-   through the `Gate` trait and `enable_and_reset`.
+   produce is partial and returns a `Result`. Use only that contract for clock,
+   reset and power bring-up. Do not invent a gate/guard where none exists.
 9. **Author cancellation and memory ordering.** Guard the armed region with
    `OnDrop` and `defuse` only on the success path, so a dropped transfer future
    disables the peripheral request, quiesces the channel, waits for the channel
    to leave its active state without busy-waiting on an async path, applies the
    required barriers in the cited order, and resets the shared channel state so
-   the next claimant starts clean. Clear **all** error flags before returning, not
-   just the first one found; an early return leaves the rest latched and the
-   channel wedged.
+   the next claimant starts clean. **Account for every relevant error condition
+   using cited per-register read/clear semantics before returning**, preserving
+   unrelated and control bits and leaving no recoverable condition latched; a
+   W1C, a W0C and a read-to-clear flag each clear differently, and read-to-clear
+   state cannot always be snapshotted first. An early return on the first
+   condition found leaves the rest latched and the channel wedged.
 10. **Record the coherency policy and route its delta.** Record explicitly, in a
     hashed Markdown record referenced from `handoff.notes`, whether the design
     requires cache maintenance around buffers, a non-cacheable section, or a
@@ -501,8 +504,9 @@ fictional and carries no hardware claim.
   wedges.
 - **Busy-waiting for a channel to go idle on an async path.** On a
   single-threaded executor it stalls every task, watchdog included.
-- **Hand-rolling the DMA clock gate.** Reach it through the `Gate` trait and
-  `enable_and_reset`, or the gating policy exists in two places that disagree.
+- **Duplicating the DMA clock/reset policy.** Use that contract, or the policy
+  exists in two places that disagree. Do not invent a gate/guard where none
+  exists.
 - **Leaking `pac::` or `unsafe {` into `driver.public_api`.** The tester is
   blinded on purpose and consumes that projection directly.
 - **Deleting superseded evidence to make a rerun pass.** It converts a traceable

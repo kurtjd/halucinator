@@ -64,9 +64,9 @@ a missing live reference blocks the affected implementation.
 
 ## Clock bring-up and configuration
 
-- Exactly **one** call to the central `enable_and_reset` for the instance.
-  Retain the returned frequency for the baud and timing arithmetic, and retain
-  any wake or lifetime guard for the driver's lifetime. Never poke a clock or
+- Make exactly the lifecycle calls the target contract requires for the
+  instance. Retain a returned frequency for the baud and timing arithmetic, and
+  retain wake or lifetime ownership, only when the contract requires it. Never poke a clock or
   reset register from the bus module.
 - The baud or clock divisor derivation is functional core: a pure function from
   the source frequency and the requested rate to an encoded divisor and the
@@ -83,9 +83,12 @@ a missing live reference blocks the affected implementation.
   each `#[non_exhaustive]`, and define no module `Result` alias. A user matching
   on a variant the operation cannot produce is a defect in the type, not in the
   user.
-- **Read every error flag, clear all of them in one write, then decide what to
-  return.** Returning on the first flag leaves the others latched and wedges the
-  peripheral for the next transaction.
+- **Observe and account for every relevant error condition according to cited
+  read and clear semantics before returning.** Preserve unrelated and control
+  bits and leave no recoverable condition latched. Read-to-clear state need not
+  and sometimes cannot be snapshotted first: W1C, W0C and read-to-clear
+  registers each clear differently. Returning on the first condition leaves the
+  others latched and wedges the peripheral for the next transaction.
 - The handler masks the enable bits it owns and wakes. It does **not** advance
   the transfer. The future re-arms the source inside its wait predicate and
   re-checks the real condition. Where one interrupt backs several waiters, a

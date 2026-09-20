@@ -18,9 +18,9 @@ compatibility: opencode
 stage: extract-facts
 participants: hal-datasheet
 emitter: hal-datasheet
-emits: 02-facts|halucinator/handoff/02-facts.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,facts.categories,facts.citations.document,facts.citations.locator,facts.citations.note,facts.citations.revision,facts.citations.source_id,facts.contradictions,facts.notes,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
-checks: citations-complete,field-encodings-exhaustive,pdf-layout-extraction,summary-field-cross-check
-consumes: 01-sources|coverage.complete,coverage.incomplete,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,scope.decision,scope.revision,sources.available,sources.catalog,sources.cited_notes,sources.route,sources.source_ids
+emits: 02-facts|halucinator/handoff/02-facts.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,facts.categories,facts.citations.assertion_id,facts.citations.claim,facts.citations.excerpt,facts.citations.location.kind,facts.citations.location.line_end,facts.citations.location.line_start,facts.citations.location.page,facts.citations.locator.kind,facts.citations.locator.value,facts.citations.note,facts.citations.scope_item,facts.citations.source,facts.citations.source_id,facts.contradictions,facts.notes,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision
+checks: citations-complete,citations-verified,field-encodings-exhaustive,pdf-layout-extraction,summary-field-cross-check
+consumes: 01-sources|coverage.complete,coverage.incomplete,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,scope.decision,scope.revision,sources.catalog,sources.cited_notes,sources.route,sources.documents.source_id,sources.documents.document,sources.documents.revision,sources.documents.format,sources.documents.source
 writes: hal-datasheet|fact-notes
 writes: hal-datasheet|facts-handoff
 writes: hal-datasheet|vendor-extractions
@@ -73,8 +73,9 @@ Every question, review request, gate and next-stage dispatch routes through
 Consume the validated `01-sources` leaves declared in the contract:
 `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`,
 `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete`,
-`sources.catalog`, `sources.route`, `sources.source_ids`, `sources.available`
-and `sources.cited_notes`. Also read coordinator-owned state: the `target.*`
+`sources.catalog`, `sources.route`, `sources.documents` (each entry binding a
+`source_id` to a `document` title, `revision`, `format` and a hash-pinned
+`source`) and `sources.cited_notes`. Also read coordinator-owned state: the `target.*`
 identity, `scope.current_revision`, `scope.current_decision`, and the
 `roots.documentation` and `roots.sources` bindings.
 
@@ -96,12 +97,13 @@ with different jobs; a locator must name the one it came from.
   `pdftotext -layout` command log naming input, page range and output.
 - The cited fact record at `<documentation>/notes/FACTS.md` and the per-topic
   notes under `<documentation>/notes/facts/`, each assertion carrying its source
-  identity, document revision, locator and a quoted supporting excerpt.
+  assertion ID, bound source ID, printed locator and the quoted excerpt the
+  verifier will re-derive.
 - The cross-check record at `<documentation>/notes/fact-checks.md`.
 - A `SOURCES.md` delta authored here and materialized by **hal-integrator**.
 - `halucinator/handoff/02-facts.toml`, carrying `facts.notes`,
-  `facts.citations`, `facts.categories`, `facts.contradictions`, the four
-  canonical checks, coverage and scope.
+  `facts.citations` in the v2 CitationRef shape, `facts.categories`,
+  `facts.contradictions`, the five canonical checks, coverage and scope.
 
 ## Procedure
 
@@ -125,8 +127,9 @@ with different jobs; a locator must name the one it came from.
    an unrelated stale artifact or an ambiguous unrelated lock as a named blocker
    rather than stepping over it.
 3. **Load the admitted sources.** Load exactly the contract leaves, resolve each
-   admitted document through its source ID in `sources.source_ids`, and confirm
-   it is accessible at the recorded path with the recorded hash. Reject an
+   admitted document through its `sources.documents` entry, and confirm its
+   `source` FileRef is accessible at the recorded path with the recorded hash.
+   Only `format = "pdf"` and `format = "utf8-text"` are mechanically citable. Reject an
    `unresolved` route, stop on a `blocked` predecessor, and restrict a `partial`
    predecessor to fresh disposable extraction.
 4. **Select the cited scope.** Select only the register, clock/reset/power
@@ -140,13 +143,15 @@ with different jobs; a locator must name the one it came from.
    `not-applicable` with a reason only when no input path ends `.pdf`. If a
    table is still mangled after `-layout`, quote the raw extraction and record
    the defect — never reconstruct the intended alignment.
-6. **Record cited assertions.** Record every assertion into the hashed fact
-   notes with its source ID, document title, document revision, locator
-   (section, table or page), the scope item it applies to, the claim itself, and
-   a **quoted supporting excerpt** copied from the layout-preserving extraction.
-   The excerpt is the evidence a later citation-verification stage will check;
-   it is carried here and is not mechanically verified here. Record locators as
-   you go, not afterwards from memory.
+6. **Record each assertion in the v2 CitationRef.** Record `assertion_id`,
+   `scope_item`, `claim`, `source_id`, the bound `source` FileRef, the tagged
+   `location` (`pdf-page` with a one-based physical `page`, or `text-lines` with
+   `line_start`/`line_end`), the printed `locator` (`kind` plus `value`), the
+   quoted `excerpt`, and the reasoning `note`. Title and revision come from the
+   bound `sources.documents` entry and are never duplicated here. Do not provide
+   or trust an extraction path: `validate.py` regenerates the selected location
+   from the bound source bytes. Record locators as you go, not afterwards from
+   memory.
 7. **Compare summaries and field detail.** Compare each register summary table
    against the per-register and per-field descriptions — offset, width, reset
    value, access — and discharge `summary-field-cross-check` from the comparison
@@ -168,8 +173,8 @@ with different jobs; a locator must name the one it came from.
     `facts.contradictions` with every disagreement found between documents,
     between a summary and its detail, or between a document and a generated PAC,
     and discharge `citations-complete` by comparing each recorded assertion
-    against its source identity, locator and supporting note. An assertion
-    without all five CitationRef fields is not complete.
+    against its bound source, location, locator, excerpt and supporting note. An
+    assertion missing any required CitationRef field is not complete.
 11. **Request catalog materialization.** Request, through **hal-coordinator**,
     that registry owner **hal-integrator** materialize the `SOURCES.md` delta
     registering the new extraction and fact-note locations, and return its
@@ -180,14 +185,28 @@ with different jobs; a locator must name the one it came from.
     deterministic handoff `state.toml` currently pins before replacing it,
     publish the preliminary `02-facts`, and run
     `python .opencode/schema/validate.py <repository-root> --kind all` again.
-13. **Re-attest and publish the final handoff.** Preserve the superseded
+13. **Run the citation gate.** Run
+    `python .opencode/schema/validate.py <repository-root> --kind all` and
+    discharge `citations-verified` from its output; record it `not-applicable`
+    with a reason only when `facts.citations` is empty. The validator itself
+    re-derives the cited location from the bound source bytes - for a PDF by
+    running `pdftotext -layout -f <page> -l <page> <source> -`, for UTF-8 text by
+    slicing the inclusive line range - and matches the normalized excerpt. A
+    missing, failing or timing-out `pdftotext` fails closed with
+    `CITATION_UNVERIFIED` and the remedy: install `poppler-utils` (or
+    `xpdf-utils` where that package supplies `pdftotext`), then rerun
+    `pdftotext -layout -f <page> -l <page> <source> -`. Never edit an excerpt to
+    make the gate pass.
+14. **Re-attest and publish the final handoff.** Preserve the superseded
     evidence and review records, create replacement evidence at a **new** path
     rather than overwriting one, rerun only the affected checks, publish the
-    final `halucinator/handoff/02-facts.toml`, validate it, let
+    final `halucinator/handoff/02-facts.toml`, run
+    `python .opencode/schema/validate.py <repository-root> --kind all` over it,
+    let
     **hal-coordinator** update `state.toml` through the compare-and-swap
     sequence — state is never updated before the handoff validates — and run the
     final `--kind all` gate. Never delete an old record to regain validation.
-14. **Return to hal-coordinator.** Return the record paths, the target and
+15. **Return to hal-coordinator.** Return the record paths, the target and
     scope, the categories recorded, the contradictions, the checks including
     every `unrun` one, the status and the next action. State explicitly that no
     representation was chosen, no code was emitted and no hardware was operated.
@@ -195,7 +214,7 @@ with different jobs; a locator must name the one it came from.
 `pdftotext -layout` is mandatory because register-table meaning lives entirely
 in the column alignment; without it the extraction interleaves columns and
 produces noise that still looks like data, which is how invented offsets reach
-code. The validator wiring in steps 2, 12 and 13 is an **honor system**: the
+code. The validator wiring in steps 2, 12, 13 and 14 is an **honor system**: the
 self-check can prove this skill contains the instruction, but it cannot prove an
 agent ran it, and `validate.py` cannot attest to its own earlier invocation. It
 is evidence discipline, never enforcement.
@@ -204,18 +223,23 @@ is evidence discipline, never enforcement.
 
 | Check ID | Discharging action | Evidence artifact |
 |---|---|---|
-| `citations-complete` | Compare every assertion with its source identity, locator and supporting note | `<documentation>/notes/fact-checks.md` |
+| `citations-complete` | Compare every assertion with its bound source, location, locator, excerpt and supporting note | `<documentation>/notes/fact-checks.md` |
+| `citations-verified` | Run the validator so it re-derives each cited location from the bound source bytes and matches the normalized excerpt | `<documentation>/notes/fact-checks.md`, or `reason (no evidence FileRef)` when `facts.citations` is empty |
 | `field-encodings-exhaustive` | Compare every described field with all legal and reserved encodings | `<documentation>/notes/facts/field-encodings.md`, or `reason (no evidence FileRef)` when the category is absent |
 | `pdf-layout-extraction` | Run `pdftotext -layout` and record the command, input and page range | `<documentation>/extracted/pdf-layout-extraction.log`, or `reason (no evidence FileRef)` when no input is PDF |
 | `summary-field-cross-check` | Compare register summaries with detailed register and field descriptions | `<documentation>/notes/fact-checks.md`, or `reason (no evidence FileRef)` when register layout is absent |
 
-Typed evidence hashes freshness, not relevance. None of these checks establishes
-that a locator names a section that exists or that an excerpt was copied rather
-than composed. **This skill claims no mechanical citation verification.** What it
-guarantees is that `02-facts` *carries* the material such verification needs: a
-per-fact source ID, document revision and locator in the CitationRef, and a
-quoted supporting excerpt in the hashed fact note. The residual gap is named
-under Common mistakes and is a confirmed escalation, not an oversight.
+**What `citations-verified` proves:** either exact normalized substring
+occurrence, or exact ordered-token occurrence within the declared gap bounds, at
+the selected location, derived by the verifier from the hash-pinned authoritative
+bytes bound to the cited source ID.
+
+**What it cannot prove:** visual contiguity, semantic entailment, OCR
+correctness, title or revision truth beyond the catalog record, vendor truth, or
+that an agent invoked the validator at all. Aggressive normalization raises the
+false-match risk, so independent review must still compare claim, excerpt,
+rendered source and printed locator. Typed evidence hashes freshness, not
+relevance.
 
 When a required tool, target, formatter, schema, linker utility, probe, runner
 or reviewer is unavailable, record the attempted command, discovered identity,
@@ -295,11 +319,20 @@ categories = ["dependencies", "field-encodings", "interrupts", "register-layout"
 contradictions = []
 
 [[facts.citations]]
+assertion_id = "fixture.schema-demo.reset-value"
+scope_item = "peripheral:schema-demo"
+claim = "The fictional demonstration register has a fictional reset value."
 source_id = "doc-001"
-document = "FICTIONAL FIXTURE REFERENCE MANUAL"
-revision = "fixture-1"
-locator = "Fictional section 1, fictional page 1"
+source = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/doc-001/fictional-reference-manual.pdf", sha256 = "2222222222222222222222222222222222222222222222222222222222222222" }
+location = { kind = "pdf-page", page = 1 }
+locator = { kind = "section", value = "Fictional section 1" }
+excerpt = "This fictional register has a fictional reset value."
 note = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/facts/schema-demo.md", sha256 = "5555555555555555555555555555555555555555555555555555555555555555" }
+
+[[checks]]
+id = "citations-verified"
+status = "passed"
+evidence = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md", sha256 = "6666666666666666666666666666666666666666666666666666666666666666" }
 
 [[checks]]
 id = "citations-complete"
@@ -338,9 +371,9 @@ checks when `register-layout` or `field-encodings` is absent from
 | Emitted handoff | `halucinator/handoff/02-facts.toml`, kind `02-facts` |
 | First note | `<documentation>/notes/FACTS.md` |
 | Consumes | `01-sources` |
-| Checks | `citations-complete`, `field-encodings-exhaustive`, `pdf-layout-extraction`, `summary-field-cross-check` |
+| Checks | `citations-complete`, `citations-verified`, `field-encodings-exhaustive`, `pdf-layout-extraction`, `summary-field-cross-check` |
 | Categories | `register-layout`, `field-encodings`, `dependencies`, `interrupts`, `errata`, `pin-mux`, `memory-runtime` |
-| Mandatory tool | `pdftotext -layout`, with page ranges and a recorded command log |
+| Mandatory tool | `pdftotext -layout`, with page ranges and a recorded command log; when absent, install `poppler-utils` |
 | Catalog | `SOURCES.md`, class `sources-catalog`, owned by `hal-integrator`; this skill supplies the delta |
 | Routing | every question, review request, gate and dispatch returns to `hal-coordinator` |
 | Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write; honor system |
@@ -365,12 +398,15 @@ checks when `register-layout` or `field-encodings` is absent from
 - **Resolving a contradiction by choosing.** Picking the reading that looks
   right discards exactly the signal the next stage needs. Record both and say
   which document each came from.
-- **Treating a complete CitationRef as a verified one.** Every field can be
-  nonempty and syntactically plausible while the section number is fabricated.
-  Schema 1 also has no field binding one assertion to one excerpt — the excerpt
-  lives in the hashed note, and only a human or a later stage can compare the
-  two. Full citation verification is escalated, not implemented; do not write
-  prose implying this stage performs it.
+- **Treating a verified CitationRef as a supported one.** `citations-verified`
+  proves the normalized excerpt occurs at the cited location in the bound bytes.
+  It does not prove the excerpt supports the claim, that the printed locator is
+  right, or that the OCR was faithful. Column-interleaved text can produce an
+  ordered token match that is not one visual quotation. Review still owns
+  support.
+- **Editing an excerpt until the gate passes.** The excerpt is evidence, not a
+  parameter. If it does not occur at the cited location, the location or the
+  claim is wrong.
 - **Marking an `unrun` check `not-applicable` to reach `ready`.** A missing
   extraction tool makes a check `unrun` and the handoff `partial`. Relabelling
   it as inapplicable deletes the remedy record.

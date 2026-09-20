@@ -10,8 +10,9 @@ contract. That contract is the typed `01-sources` handoff at
 [the common handoff contract](../../../schema/handoff-common.md), and it is what
 every downstream stage admits against. The catalog carries prose, provenance and
 the search log; the handoff carries `sources.catalog`, `sources.route`,
-`sources.source_ids`, `sources.available`, `sources.cited_notes` and the four
-canonical checks. Keep the two consistent and do not invent a third index.
+`sources.documents` - one entry per source binding its `source_id` to a
+`document` title, a `revision`, a `format` and a hash-pinned `source` FileRef -
+`sources.cited_notes` and the four canonical checks. Keep the two consistent and do not invent a third index.
 
 `SOURCES.md` is ownership class `sources-catalog` and is materialized by
 **hal-integrator**. `gather-documentation` authors its delta and routes

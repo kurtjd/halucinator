@@ -20,9 +20,9 @@ compatibility: opencode
 stage: write-tests
 participants: hal-tester
 emitter: hal-tester
-emits: 07-tests|halucinator/handoff/07-tests-<name>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.review_input_manifest,tests.setup_record
+emits: 07-tests|halucinator/handoff/07-tests-<name>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.board_interlock.authorization,tests.board_interlock.board_id,tests.board_interlock.check_token,tests.board_interlock.lease_epoch,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.lease_epoch,tests.hardware_runs.operation_attempt,tests.hardware_runs.operation_id,tests.hardware_runs.post_safe_state,tests.hardware_runs.pre_safe_state,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.recovery_attempts,tests.review_input_manifest,tests.safe_state_procedure.assertion_ids,tests.safe_state_procedure.board_id,tests.safe_state_procedure.facts_handoff,tests.safe_state_procedure.procedure,tests.setup_record
 checks: build-only-ci,format-lint,hardware-admission,hardware-execution,independent-review,live-conventions-read,target-build-link,workflow-references-read
-consumes: 06-driver|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,driver.name,driver.scope_kind,driver.capabilities,driver.public_api,driver.dependencies.crate,driver.dependencies.identity,driver.dependencies.features,driver.trait_obligations.dependency_crate,driver.trait_obligations.trait,driver.trait_obligations.obligations,driver.test_hardware_facts.source_id,driver.test_hardware_facts.document,driver.test_hardware_facts.revision,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.build_contract.cargo_chip_feature,driver.build_contract.rust_compilation_target,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.requirement_ids,driver.public_test_record
+consumes: 06-driver|handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,driver.name,driver.scope_kind,driver.capabilities,driver.public_api,driver.dependencies.crate,driver.dependencies.identity,driver.dependencies.features,driver.trait_obligations.dependency_crate,driver.trait_obligations.trait,driver.trait_obligations.obligations,driver.build_contract.cargo_chip_feature,driver.build_contract.rust_compilation_target,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.requirement_ids,driver.public_test_record,driver.facts_handoff,driver.test_hardware_facts
 writes: hal-tester|test-candidate-evidence
 writes: hal-tester|test-candidate-manifests
 writes: hal-tester|test-candidate-source
@@ -110,13 +110,17 @@ not. If one is seen, say so: the run is invalid and **hal-coordinator** must
 dispatch a fresh tester context. Nothing enforces that, which is why it has to
 be said.
 
-`state.decisions.destination_crate` can name an arbitrary path, so a static deny
-glob cannot be guaranteed to cover the HAL source, and agent frontmatter cannot
-interpolate a runtime path. The mechanism that would close this is **deferred**;
-there is no dynamic frontmatter generation. The review-only mitigation is that
-**hal-coordinator** and **hal-integrator** compare the resolved destination crate
-against the tester's deny globs, disclose any uncovered path in the dispatch, and
-the tester must not read it. That is mitigation, not closure.
+Schema 2 constrains `destination_crate` to a repository-root one-segment
+`embassy-<vendor_id>`; a named root, a nested path or an alias is rejected with
+`ILLEGAL_ENUM`. That root is covered by the deny glob `embassy-*/**`. This
+closes configured-path coverage, not perfect blindness: `bash` is `ask`, `grep`
+is matched against the query rather than the path, and filenames, compiler and
+build-script diagnostics, history and tools remain leak paths; observed body
+text invalidates the run.
+
+**hal-coordinator** and **hal-integrator** still compare the resolved destination
+crate against the tester's deny globs and disclose any uncovered path in the
+dispatch. This is a strong default and a statement of intent, not a sandbox.
 
 Respect the selected peripheral, modes and execution scope. No automatic
 hardware CI, no new peripheral introduced merely to provide logging or timeouts,
@@ -134,7 +138,7 @@ admission vocabulary is exactly the producer's field names:
 | Public surface | `driver.public_api` |
 | Dependencies | `driver.dependencies.crate`, `driver.dependencies.identity`, `driver.dependencies.features` |
 | Upstream obligations | `driver.trait_obligations.dependency_crate`, `driver.trait_obligations.trait`, `driver.trait_obligations.obligations` |
-| Cited hardware facts | `driver.test_hardware_facts.source_id`, `.document`, `.revision`, `.locator`, `.note` |
+| Cited hardware facts | `driver.facts_handoff` plus the verified assertion IDs in `driver.test_hardware_facts`; the claim, source, location, printed locator, excerpt and note are resolved through that validator-checked handoff, never restated by the driver |
 | Build contract | `driver.build_contract.cargo_chip_feature`, `.rust_compilation_target`, `.init_calls`, `.memory_runtime`, `.observation` |
 | Requirements and record | `driver.requirement_ids`, `driver.public_test_record` |
 | Lineage | `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`, `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete` |
@@ -290,7 +294,8 @@ Resolve two decisions at intake and record them:
     where the reviewed bytes changed — then, after **hal-integrator** places and
     commits the reviewed bytes, republish the final
     `halucinator/handoff/07-tests-<name>.toml` with canonical ArtifactRefs,
-    validate it, let **hal-coordinator** update `state.toml` through the
+    run `python .opencode/schema/validate.py <repository-root> --kind all` over it, let
+    **hal-coordinator** update `state.toml` through the
     compare-and-swap sequence, run the final `--kind all` gate, and return the
     record path, status and next action. Limit every runtime claim to the
     hardware and cases actually observed.
@@ -370,7 +375,7 @@ Never downgrade a required hardware-validation scope to build-only to clear one.
 
 ## Application example
 
-For driver `uart` on `AX100` with a loopback fixture, the coordinator dispatches
+For driver `uart` on `unobtainium-circuits-uc-not-a-real-mcu-0001` with a loopback fixture, the coordinator dispatches
 `hardware-validation` for both an example and assertion-based validation. The
 emitted handoff, published at `halucinator/handoff/07-tests-uart-loopback.toml`
 because `tests.name` is `uart-loopback`:
@@ -384,7 +389,7 @@ inputs = [
   { path = "halucinator/handoff/06-driver-uart.toml", sha256 = "5c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" },
 ]
 notes = [
-  { path = "halucinator/docs/acme-ax100/notes/tests/uart-loopback/TESTS.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
+  { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/uart-loopback/TESTS.md", sha256 = "6d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c" },
 ]
 blockers = []
 
@@ -402,16 +407,16 @@ output_kind = "both"
 execution_scope = "hardware-validation"
 api_handoff = { path = "halucinator/handoff/06-driver-uart.toml", sha256 = "5c1f0b7a2d4e6f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
 owned_files = [
-  { path = "tests/ax100/src/bin/uart_loopback.rs", sha256 = "8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f" },
-  { path = "examples/ax100/src/bin/uart_echo.rs", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" },
+  { path = "tests/uc-not-a-real-mcu-0001/src/bin/uart_loopback.rs", sha256 = "8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f" },
+  { path = "examples/uc-not-a-real-mcu-0001/src/bin/uart_echo.rs", sha256 = "91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f80" },
 ]
 setup_record = { path = "halucinator/test-candidates/uart-loopback/evidence/hardware-admission.md", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
 review_input_manifest = { path = "halucinator/test-candidates/uart-loopback/INVENTORY.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
 
 [[tests.dependencies]]
-crate = "embassy-acme"
+crate = "embassy-unobtainium"
 identity = "0.1.0"
-features = ["ax100", "defmt"]
+features = ["uc-not-a-real-mcu-0001", "defmt"]
 
 [[tests.coverage]]
 id = "requirement:uart-blocking-echo"

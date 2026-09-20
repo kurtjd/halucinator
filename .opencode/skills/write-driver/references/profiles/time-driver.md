@@ -38,9 +38,11 @@ calls.
   ownership must prevent conflicting user drivers. Coordinate singleton and
   feature availability and initialization ordering through **hal-coordinator**
   instead of taking an untracked second register handle.
-- Apply `Gate` and `enable_and_reset` and the power and frequency policy through
-  the central `clocks` layer at the owning initialization boundary. Retain any
-  necessary lifetime guard with the service, not with a user's timer future. Do
+- Use the selected lifecycle contract at the service-owning boundary, and record
+  the frequency source, continuity across power transitions, teardown, and the
+  explicit presence or absence of lifetime accounting. Retain any lifetime
+  ownership the contract requires with the service, not with a user's timer
+  future. Do
   not reset shared hardware or discard another client's state on repeated
   scheduling.
 - Establish a fault-free pre-initialization timestamp path and a defined

@@ -37,10 +37,9 @@ hardware cannot reach and deletes the ones it can.
   gates, reset lines and power guards behind it. Construction, reconfiguration
   or drop of one pin must not reset the bank, discard another waiter's state,
   mask its shared interrupt, or release a clock a sibling still needs.
-- Keep gating, reset and power policy in `clocks` through the established `Gate`
-  and `enable_and_reset` contract at the owning initialization layer. Do **not**
-  call bank reset from every pin constructor. Retain the required shared
-  lifetime guards with the resource owner. Changes to the owning initialization
+- Use the selected lifecycle contract at the owning bank/initialization
+  boundary, and specify shared reset arbitration and lifetime accounting or its
+  explicit absence. Do **not** call bank reset from every pin constructor. Changes to the owning initialization
   layer or to build policy return through **hal-coordinator**.
 - Reset stale state only within the resource actually owned. A per-pin token
   does not authorize clearing a global waker table. Shared-resource teardown

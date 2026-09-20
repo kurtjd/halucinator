@@ -2,9 +2,11 @@
 name: write-clocks
 description: >-
   Use when hal-coordinator dispatches the first scaffold-hal platform slice for
-  clock-tree, power-domain, gate, reset, frequency-calculation, Gate and
-  enable_and_reset work. Dispatch and search terms: clock tree, power domains,
-  clock gates, resets, Gate, enable_and_reset, startup clock contract,
+  clock-tree, power-domain, gate, reset, frequency-calculation, and
+  target-specific clock/reset/power lifecycle work; MCXA Gate and
+  enable_and_reset are search examples only. Dispatch and search terms: clock
+  tree, power domains, clock gates, resets, lifecycle contract, startup clock
+  contract,
   platform slice, partial 05-platform handoff. Wrong for publishing a ready
   platform, canonical placement, peripheral-local clock pokes, interrupts,
   linker/runtime integration, DMA, tests, or uncited hardware claims.
@@ -32,9 +34,11 @@ This is the **first of three ordered platform slices** that together prepare one
 interrupt slice, then the runtime and linker slice, then `scaffold-hal` as the
 sole final consolidator. This slice establishes the clock subsystem that
 [HAL-RULE-04](../../../AGENTS.md) points every peripheral driver at: the clock
-tree, power domains, gates, resets, frequency calculation, and the `Gate` trait
-and `enable_and_reset` entry point through which all gating and reset policy is
-reached. A driver that pokes a gating register directly is configuring the same
+tree, power domains, gates, resets, frequency calculation, and the
+target-specific ownership/lifecycle contract containing every minimum element
+above; it may be shared, split, reference-counted, initialization-only, or
+always-on. MCXA's `Gate` and `enable_and_reset` are one example of such a
+contract, not required names. A driver that pokes a gating register directly is configuring the same
 policy in a second place that can disagree with this one.
 
 ## When to use
@@ -103,8 +107,8 @@ session before its mutable baseline is read.
 
 - The clock subsystem under `halucinator/candidates/driver-clocks/src/clocks/**`
   while the platform remains a candidate: the pure source, divider and frequency
-  calculations, the `Gate` trait, the power and reset sequencing, and
-  `enable_and_reset`.
+  calculations, the selected target lifecycle API, power/reset sequencing and
+  explicit ownership/absence rules.
 - Host-side unit tests of those pure calculations, exhaustive over the small
   legal clock domains.
 - Slice-local evidence under `halucinator/candidates/driver-clocks/evidence/`
@@ -182,9 +186,9 @@ session before its mutable baseline is read.
    partial and returns a `Result`; out-of-range values are rejected rather than
    masked; no import is a wildcard. Cite the manual section or table, or the PAC
    path, for every hardware constant.
-8. **Author the clock shell.** Author the `Gate` trait, the power and reset
-   sequencing, `enable_and_reset`, the frequency-return accessors and the
-   lifetime guards, keeping the register-touching shell nearly branch-free, and
+8. **Author the clock shell.** Author the selected lifecycle contract and every
+   minimum element, introducing a gate or a lifetime guard only when cited
+   semantics require it, keeping the register-touching shell nearly branch-free, and
    place every one of them **only in clock-owned files**. This is the single
    place gating and reset policy lives; no peripheral module may reimplement it.
 9. **Run the host tests over the clock calculations.** Run the host-side unit
@@ -287,7 +291,7 @@ coordinator dispatches the clock slice against a validated `04-pac`.
 **hal-integrator** acquires the platform session naming every clock module and
 candidate path; **hal-driver** authors the divider search and frequency
 calculation as the functional core, exhausts them on the host, and places
-`Gate`, the reset sequencing and `enable_and_reset` in the clock modules only.
+the selected target lifecycle implementation only in its owning modules.
 The five complete-platform checks are recorded `unrun` against pending records.
 The emitted handoff:
 
@@ -428,9 +432,10 @@ not evidence.
   Producing it early guarantees it is stale before the platform is complete.
 - **Requesting independent review from this slice.** Review is taken over the
   frozen complete candidate with no platform lock held, once.
-- **Hand-rolling a gate or a reset in a peripheral module later.** This slice
-  exists so that policy lives in exactly one place, reached through `Gate` and
-  `enable_and_reset`.
+- **Duplicating clock or reset policy in a peripheral module later.** This slice
+  exists so that policy lives in exactly one place, reached through the selected
+  lifecycle contract; copying MCXA names without matching hardware is also a
+  defect.
 - **Writing `notes/STARTUP.md` directly.** `platform-notes` is owned by
   **hal-integrator**; this slice authors the content and routes materialization
   through **hal-coordinator**.

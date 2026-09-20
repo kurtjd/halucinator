@@ -266,6 +266,11 @@ discipline, not runtime enforcement, and no skill may describe it as
 enforcement. Typed evidence hashes freshness, not relevance: a reviewer still
 has to judge whether the evidence discharges the check it is attached to.
 
+Hash and occurrence checks prove bytes and the bounded relation they state;
+the claimant may still have fabricated execution evidence. No external attester
+exists, and nothing here can detect a false claim about work that was never
+done.
+
 ## The ordered publication sequence
 
 Publish in exactly this order. Its purpose is to close the windows in which

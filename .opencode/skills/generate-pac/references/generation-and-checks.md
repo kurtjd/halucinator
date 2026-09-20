@@ -32,7 +32,7 @@ generated files come from the recorded generator, not manual shell rewrites.
 
 The reference is `nxp-pac` revision
 `0c2b68a1c1badce2cf09ba8bb3aae25e72776b2b`, used by the inspected
-[MCXA manifest](https://raw.githubusercontent.com/embassy-rs/embassy/main/embassy-mcxa/Cargo.toml).
+[MCXA manifest](https://raw.githubusercontent.com/embassy-rs/embassy/f8506dc5f0022ccb62c75bd2707da913c6979375/embassy-mcxa/Cargo.toml).
 Its normal PAC dependency enables runtime support; its build dependency disables
 defaults and enables metadata. MCXA256 and MCXA577 take the metapac route.
 Inspect the live consumer and selected project for the actual run; these are

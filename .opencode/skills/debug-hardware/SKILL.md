@@ -17,10 +17,10 @@ compatibility: opencode
 stage: write-tests
 participants: hal-tester
 emitter: hal-tester
-emits: 07-tests|halucinator/handoff/07-tests-<source-name>-debug-<run-id>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.review_input_manifest,tests.setup_record
+emits: 07-tests|halucinator/handoff/07-tests-<source-name>-debug-<run-id>.toml|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.board_interlock.authorization,tests.board_interlock.board_id,tests.board_interlock.check_token,tests.board_interlock.lease_epoch,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.lease_epoch,tests.hardware_runs.operation_attempt,tests.hardware_runs.operation_id,tests.hardware_runs.post_safe_state,tests.hardware_runs.pre_safe_state,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.recovery_attempts,tests.review_input_manifest,tests.safe_state_procedure.assertion_ids,tests.safe_state_procedure.board_id,tests.safe_state_procedure.facts_handoff,tests.safe_state_procedure.procedure,tests.setup_record
 checks: build-only-ci,format-lint,hardware-admission,hardware-execution,independent-review,live-conventions-read,target-build-link,workflow-references-read
-consumes: 06-driver|coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.name,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.test_hardware_facts.document,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.test_hardware_facts.revision,driver.test_hardware_facts.source_id,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,scope.decision,scope.revision
-consumes: 07-tests|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.review_input_manifest,tests.setup_record
+consumes: 06-driver|coverage.complete,coverage.incomplete,driver.build_contract.cargo_chip_feature,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.build_contract.rust_compilation_target,driver.capabilities,driver.dependencies.crate,driver.dependencies.features,driver.dependencies.identity,driver.name,driver.public_api,driver.public_test_record,driver.requirement_ids,driver.scope_kind,driver.trait_obligations.dependency_crate,driver.trait_obligations.obligations,driver.trait_obligations.trait,handoff.blockers,handoff.inputs,handoff.notes,handoff.status,scope.decision,scope.revision,driver.facts_handoff,driver.test_hardware_facts
+consumes: 07-tests|checks.evidence,checks.id,checks.reason,checks.status,coverage.complete,coverage.incomplete,handoff.blockers,handoff.can_progress,handoff.inputs,handoff.notes,handoff.schema,handoff.stage,handoff.status,scope.decision,scope.revision,tests.api_handoff,tests.board_interlock.authorization,tests.board_interlock.board_id,tests.board_interlock.check_token,tests.board_interlock.lease_epoch,tests.coverage.evidence,tests.coverage.id,tests.coverage.reason,tests.coverage.status,tests.coverage.test_case,tests.dependencies.crate,tests.dependencies.features,tests.dependencies.identity,tests.execution_scope,tests.hardware_runs.evidence,tests.hardware_runs.lease_epoch,tests.hardware_runs.operation_attempt,tests.hardware_runs.operation_id,tests.hardware_runs.post_safe_state,tests.hardware_runs.pre_safe_state,tests.hardware_runs.status,tests.hardware_runs.teardown,tests.hardware_runs.test_case,tests.name,tests.output_kind,tests.owned_files,tests.recovery_attempts,tests.review_input_manifest,tests.safe_state_procedure.assertion_ids,tests.safe_state_procedure.board_id,tests.safe_state_procedure.facts_handoff,tests.safe_state_procedure.procedure,tests.setup_record
 writes: hal-tester|test-candidate-evidence
 writes: hal-tester|test-candidate-manifests
 writes: hal-tester|test-candidate-source
@@ -122,7 +122,7 @@ Two validated predecessors, both consumed by exact path:
 | Failing lineage and inventory | `handoff.schema`, `handoff.stage`, `handoff.status`, `handoff.can_progress`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`, `coverage.complete`, `coverage.incomplete`, `scope.revision`, `scope.decision`, `tests.api_handoff`, `tests.owned_files`, `tests.review_input_manifest`, `tests.setup_record`, `tests.dependencies.crate`, `.identity`, `.features` |
 | Public surface under test | `driver.name`, `driver.scope_kind`, `driver.capabilities`, `driver.public_api`, `driver.requirement_ids`, `driver.public_test_record` |
 | Dependencies and obligations | `driver.dependencies.crate`, `.identity`, `.features`; `driver.trait_obligations.dependency_crate`, `.trait`, `.obligations` |
-| Cited hardware facts | `driver.test_hardware_facts.source_id`, `.document`, `.revision`, `.locator`, `.note` |
+| Cited hardware facts | `driver.facts_handoff` plus the verified assertion IDs in `driver.test_hardware_facts`; the claim, source, location, printed locator, excerpt and note are resolved through that validator-checked handoff, never restated by the driver |
 | Build contract | `driver.build_contract.cargo_chip_feature`, `.rust_compilation_target`, `.init_calls`, `.memory_runtime`, `.observation` |
 | Driver lineage | `handoff.status`, `handoff.inputs`, `handoff.notes`, `handoff.blockers`, `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete` |
 
@@ -228,20 +228,42 @@ names the exact `06-driver-*` handoff by path.
    implementation excerpt, and discharge `format-lint`, `target-build-link` and
    `build-only-ci` from them. Run none of those builds yourself: their
    diagnostics quote source and would defeat your blinding.
-10. **Request hardware admission.** Require that **hal-coordinator** permits at
-    most one hardware dispatch per named board, procedurally, because board
-    exclusion is a known unenforced limitation and no operational lease reader
-    exists. Reconfirm the exact board identity and its documented safe starting
+10. **Request hardware admission and acquire the interlock.** Require that
+    **hal-coordinator** permits at most one hardware dispatch per named board,
+    then take the **worktree-local, single-operator interlock** for that exact
+    device with `runtime.py acquire-board` before any target-affecting
+    operation, keeping the returned `lease_epoch` and `check_token`. It is a
+    strong default and a statement of intent, not a sandbox: it cannot see
+    another clone, another operator at the same bench, or a probe command typed
+    directly into a terminal, and `before-board-op` narrows but cannot close the
+    window between checking the token and using the device. Reconfirm the exact board identity and its documented safe starting
     state immediately before any target-affecting operation, identify the
     fixture, probe, runner and intended operations, give the user cited physical
     setup instructions, and obtain separate confirmation of physical readiness
     and explicit authorization for the named device and operations. Dispatch
     alone is not authorization. Discharge `hardware-admission` from that record,
     or record it `not-applicable` with a reason when the scope is `build-only`.
-11. **Run bounded reproductions.** Run only the authorized cases, under bounded
-    runners and per-case deadlines, capture raw logs into the revision's
-    `evidence/`, and follow the documented safe teardown for successful and
-    failing runs alike. Discharge `hardware-execution` from **whether the
+11. **Run bounded reproductions.** Revalidate with `before-board-op` and record
+    the operation and its probe/runner child with `begin-board-operation`
+    immediately before each target-affecting operation - attaching a debugger is
+    one - then run only the authorized cases under bounded runners and per-case
+    deadlines, capturing raw logs into the revision's `evidence/`. Call
+    `complete-board-operation` only after the child and all its descendants have
+    terminated and the observation channel is quiescent: **holder death is not
+    operation death**, and a surviving probe or runner session can still be
+    transferring or driving pins after the agent that started it has gone. Then
+    establish safe state in order - quiesce controllable activity, establish the
+    cited non-driving and reset or halt state, have the operator de-energize
+    external loads, collect all six hazard observations, classify safe, and only
+    then authorize a fixture change - keeping the **never join driven outputs**
+    and **configure input before output** rules additive rather than replaced.
+    Follow the documented safe teardown for successful and failing runs alike,
+    and `release-board` only after the safe-state record exists. If the run was
+    interrupted, declare the board state unknown **before** reconnecting and use
+    `begin-board-recovery`, appending an attempt for every try with
+    `append-recovery-attempt` until `verify-board-recovery` accepts a matching
+    safe-state observation; never infer teardown from a process exit or from
+    elapsed time. Discharge `hardware-execution` from **whether the
     execution procedure itself ran correctly** — authorized operations only, on
     the reconfirmed board, within the deadlines, with teardown performed and raw
     observations preserved. A successful load, empty output or a zero exit is

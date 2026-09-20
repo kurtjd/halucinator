@@ -178,9 +178,10 @@ These checklists are operator aids. A ticked box is never the exit predicate.
       advertised.
 - [ ] Foundation coverage and PAC provenance are verified and the temporary fork
       is cleared.
-- [ ] Real `init`, `Gate`, `enable_and_reset` and frequency plumbing exist in
+- [ ] Real `init` and the complete selected target lifecycle contract exist in
       `embassy-*/src/clocks/**`, authored by **hal-driver** against the
-      architect's contract.
+      architect's contract. MCXA names such as `Gate` and `enable_and_reset` are
+      examples, required only if that contract selects them.
 - [ ] Only the necessary supporting subsystems are complete; the first
       peripheral remains the next stage.
 - [ ] Every applicable check has current recorded evidence and a schema Check
