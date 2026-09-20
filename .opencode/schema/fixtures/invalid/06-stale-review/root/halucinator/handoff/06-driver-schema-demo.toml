@@ -1,45 +1,18 @@
+checks=[{id="live-reference-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}},{id="format-lint-build",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}},{id="pure-host-tests",status="not-applicable",reason="No pure driver logic is declared."},{id="trait-conformance",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}},{id="generated-mappings",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}},{id="target-link-ci",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}},{id="independent-review",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}}]
 [handoff]
-schema=1
+schema=2
 stage="write-driver"
 status="partial"
 can_progress=true
-inputs=[{path="halucinator/handoff/05-platform.toml",sha256="db7598ebb01be95198838aa3d11e735c4c568832651afa74495ccb31062797b0"}]
+inputs=[{path="halucinator/handoff/05-platform.toml",sha256="165c71db3e5c8993918c7c4e607ef86292326b494d9ee38c5e0202c52032d780"}]
 notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}]
 blockers=[]
 [scope]
 revision="scope-0123abcd"
-decision={path="halucinator/scope/scope-0123abcd.toml",sha256="75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b"}
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
 [coverage]
 complete=[]
 incomplete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
-[[checks]]
-id="live-reference-read"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
-[[checks]]
-id="format-lint-build"
-status="unrun"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
-[[checks]]
-id="pure-host-tests"
-status="not-applicable"
-reason="No pure driver logic is declared."
-[[checks]]
-id="trait-conformance"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
-[[checks]]
-id="generated-mappings"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
-[[checks]]
-id="target-link-ci"
-status="unrun"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
-[[checks]]
-id="independent-review"
-status="unrun"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md",sha256="7358530baa0897543b949cd0c4dc968c571a43991ed92e8c4a91697dc5b52b55"}
 [driver]
 name="schema-demo"
 scope_kind="full"
@@ -48,6 +21,7 @@ capabilities=["blocking"]
 public_api=["pub struct SchemaDemo<'d>","pub fn SchemaDemo::new(peripheral: Peripheral) -> SchemaDemo<'_>","impl embedded_hal::digital::ErrorType for SchemaDemo<'_>"]
 dependencies=[{crate="embedded-hal",identity="1.0.0",features=[]}]
 trait_obligations=[{dependency_crate="embedded-hal",trait="embedded_hal::digital::ErrorType",obligations=["Expose the public associated error type."]}]
-test_hardware_facts=[]
-build_contract={cargo_chip_feature="uc-not-a-real-mcu-0001",rust_compilation_target="thumbv7em-none-eabi",init_calls=["embassy_unobtainium::init(Config::default())"],memory_runtime={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md",sha256="85ee7bdfb9cbefcfb2286fcdb1a6c08e6e11ced03f6f023bd7881c3a912575b2"},observation="debugger-visible completion marker"}
+test_hardware_facts=["fact.schema-demo.reset-state"]
 requirement_ids=["SCHEMA-01"]
+facts_handoff={path="halucinator/handoff/02-facts.toml",sha256="f61bf8e62c98f00df19697cf401a5316527a7d7556aab549daf6deaae802ccc4"}
+build_contract={cargo_chip_feature="uc-not-a-real-mcu-0001",rust_compilation_target="thumbv7em-none-eabi",init_calls=["embassy_unobtainium::init(Config::default())"],observation="debugger-visible completion marker",memory_runtime={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md",sha256="85ee7bdfb9cbefcfb2286fcdb1a6c08e6e11ced03f6f023bd7881c3a912575b2"}}

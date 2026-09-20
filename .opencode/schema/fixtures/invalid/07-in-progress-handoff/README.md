@@ -2,15 +2,20 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `HANDOFF_IN_PROGRESS`
+Defect: the `07-in-progress-handoff` case. The validator must emit exactly 4 diagnostic(s):
+DEPENDENCY_NOT_READY, HANDOFF_IN_PROGRESS, ILLEGAL_ENUM
 
-- Expected file: `halucinator/handoff/02-facts.toml`
-- Expected field: `handoff.status`
-- Defect: `handoff.status` is `"in-progress"`, a lock-only status leaked into a handoff.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/02-facts.toml|handoff.status|HANDOFF_IN_PROGRESS`
+Expected diagnostic: `halucinator/handoff/02-facts.toml|handoff.status|ILLEGAL_ENUM`
+Expected diagnostic: `halucinator/handoff/06-driver-schema-demo.toml|driver.facts_handoff|DEPENDENCY_NOT_READY`
+Expected diagnostic: `halucinator/state.toml|stages.extract-facts.status|DEPENDENCY_NOT_READY`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

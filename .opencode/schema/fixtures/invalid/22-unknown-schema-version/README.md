@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `SCHEMA_VERSION`
+Defect: the `22-unknown-schema-version` case. The validator must emit exactly 1 diagnostic(s):
+SCHEMA_VERSION
 
-- Expected file: `halucinator/handoff/01-sources.toml`
-- Expected field: `handoff.schema`
-- Defect: `handoff.schema` is `2`; version 1 validators must fail closed.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/01-sources.toml|handoff.schema|SCHEMA_VERSION`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

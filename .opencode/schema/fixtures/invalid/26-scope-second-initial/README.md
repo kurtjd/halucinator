@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `SCOPE_SECOND_INITIAL`
+Defect: the `26-scope-second-initial` case. The validator must emit exactly 1 diagnostic(s):
+SCOPE_SECOND_INITIAL
 
-- Expected file: `halucinator/scope/scope-5555ffff.toml`
-- Expected field: `previous`
-- Defect: A second decision declares `previous = { kind = "initial" }`.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/scope/scope-5555ffff.toml|previous|SCOPE_SECOND_INITIAL`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

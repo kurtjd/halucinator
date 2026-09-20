@@ -2,32 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `UNKNOWN_FIELD`
+Defect: the `32-noncanonical-singleton-filename` case. The validator must emit exactly 1 diagnostic(s):
+UNKNOWN_FIELD
 
-- Expected file: `halucinator/handoff/05-platform-extra.toml`
-- Expected field: `-`
-- Expected diagnostics: exact
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Defect: `halucinator/handoff/` carries a stray `05-platform-extra.toml`
-alongside the canonical `05-platform.toml`. `05-platform` is a **singleton**
-kind: unlike `06-driver-<name>`, `07-tests-<name>` and `08-review-<artifact>`,
-its filename is not name-derived and is not repeatable.
+Expected diagnostic: `halucinator/handoff/05-platform-extra.toml|-|UNKNOWN_FIELD`
 
-`kind_of()` (`validate.py:786-790`) matches a handoff filename by **prefix**:
-`"05-platform-extra.toml".startswith("05-platform")` is true, so the stray file
-is admitted as a second `scaffold-hal` handoff and the fixture is accepted today
-(exit 0). Worse, `"05-platform-extra.toml"` sorts *before* `"05-platform.toml"`
-(`-` is 0x2D, `.` is 0x2E), so it is the entry that wins `world.by_stage`
-(`validate.py:1526-1527`).
-
-Discovery must enforce exact filenames for the five singleton kinds
-(`01-sources`, `02-facts`, `03-svd`, `04-pac`, `05-platform`) and emit the
-existing `UNKNOWN_FIELD` at field `-` for anything else, exactly as it already
-does for a filename matching no kind at all (`validate.py:1512-1516`).
-
-Derived from `fixtures/valid-multi-driver/` by adding one byte-identical copy of
-`05-platform.toml` under the non-canonical name, so no digest anywhere else in
-the tree changes.
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

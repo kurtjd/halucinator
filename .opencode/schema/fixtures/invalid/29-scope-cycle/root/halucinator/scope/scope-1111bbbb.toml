@@ -1,6 +1,9 @@
-schema = 1
-revision = "scope-1111bbbb"
-previous = { kind = "revision", revision = "scope-2222cccc", decision = { path = "halucinator/scope/scope-2222cccc.toml", sha256 = "717a1ecfa28f9c6086cdb32095a2ef24a746df2622fb6b6381979c295ba929c0" } }
-included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
-excluded = ["peripheral:adc"]
-reason = "Cycle node one"
+schema=2
+revision="scope-1111bbbb"
+included=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+excluded=["peripheral:adc"]
+reason="Cycle node one"
+[previous]
+kind="revision"
+revision="scope-2222cccc"
+decision={path="halucinator/scope/scope-2222cccc.toml",sha256="717a1ecfa28f9c6086cdb32095a2ef24a746df2622fb6b6381979c295ba929c0"}

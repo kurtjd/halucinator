@@ -1,5 +1,6 @@
+checks=[{id="applicable-references-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}},{id="artifact-identity",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}},{id="hardware-claims-cited",status="not-applicable",reason="The reviewed scope contains no hardware fact ID."},{id="upstream-contracts-reviewed",status="not-applicable",reason="The PAC artifact declares no upstream trait obligation."}]
 [handoff]
-schema=1
+schema=2
 stage="review"
 status="ready"
 inputs=[{root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="6ba1ab15513fe8cc00e756e656bf6516e3d9a33ea464d206bea92975227491d4"}]
@@ -7,32 +8,16 @@ notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes
 blockers=[]
 [scope]
 revision="scope-0123abcd"
-decision={path="halucinator/scope/scope-0123abcd.toml",sha256="75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b"}
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
 [coverage]
 complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
 incomplete=[]
-[[checks]]
-id="applicable-references-read"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}
-[[checks]]
-id="artifact-identity"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}
-[[checks]]
-id="hardware-claims-cited"
-status="not-applicable"
-reason="The reviewed scope contains no hardware fact ID."
-[[checks]]
-id="upstream-contracts-reviewed"
-status="not-applicable"
-reason="The PAC artifact declares no upstream trait obligation."
 [review]
 artifact_id="pac"
-artifact={root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="e155d741052b14dbdc565536191c4b5e044be2fc8985aea92ff7897f252285d3"}
 scope=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
 unreviewed=[]
 dependencies=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}]
 findings=[]
 verdict="ready"
+artifact={root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="e155d741052b14dbdc565536191c4b5e044be2fc8985aea92ff7897f252285d3"}
 lineage={kind="initial"}

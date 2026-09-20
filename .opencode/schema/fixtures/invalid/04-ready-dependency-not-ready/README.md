@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `DEPENDENCY_NOT_READY`
+Defect: the `04-ready-dependency-not-ready` case. The validator must emit exactly 1 diagnostic(s):
+DEPENDENCY_NOT_READY
 
-- Expected file: `halucinator/handoff/04-pac.toml`
-- Expected field: `handoff.inputs`
-- Defect: `03-svd` is honestly `partial` (`preparation-replay` unrun) and `state.stages` agrees, but `04-pac` is still `ready`.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/04-pac.toml|handoff.inputs|DEPENDENCY_NOT_READY`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

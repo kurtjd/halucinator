@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `FOUNDATION_PARTITION`
+Defect: the `24-foundation-partition-missing` case. The validator must emit exactly 1 diagnostic(s):
+FOUNDATION_PARTITION
 
-- Expected file: `halucinator/handoff/04-pac.toml`
-- Expected field: `pac.foundation`
-- Defect: `foundation:interrupt-metadata` is required in state but has no `[[pac.foundation]]` entry.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/04-pac.toml|pac.foundation|FOUNDATION_PARTITION`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

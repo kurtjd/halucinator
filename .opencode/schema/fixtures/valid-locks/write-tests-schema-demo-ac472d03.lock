@@ -1,4 +1,4 @@
-schema = 1
+schema = 2
 stage = "write-tests:schema-demo"
 status = "in-progress"
 kind = "stage"

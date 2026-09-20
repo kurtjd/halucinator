@@ -2,15 +2,18 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `SCOPE_ORPHAN`
+Defect: the `28-scope-orphan` case. The validator must emit exactly 2 diagnostic(s):
+PATH_INSPECTION, SCOPE_ORPHAN
 
-- Expected file: `halucinator/scope/scope-3333dddd.toml`
-- Expected field: `previous`
-- Defect: `scope-3333dddd` names predecessor `scope-4444eeee`, which was never minted; the node is unreachable from the initial node.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/scope/scope-3333dddd.toml|previous|SCOPE_ORPHAN`
+Expected diagnostic: `halucinator/scope/scope-3333dddd.toml|previous.decision|PATH_INSPECTION`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

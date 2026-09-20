@@ -1,0 +1,10 @@
+FICTIONAL FIXTURE REFERENCE MANUAL
+Unobtainium Circuits UC-NOT-A-REAL-MCU-0001
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Section 2.1 Schema-demo reset state
+
+The SCHEMA_DEMO block is an invented fixture peripheral that exists only to
+exercise this schema. After a fixture reset the block reports the invented
+value zero in every invented field. No sentence in this file describes real
+silicon, and nothing here may be copied into a driver.

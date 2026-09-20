@@ -2,15 +2,19 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `STALE_REVIEW`
+Defect: the `06-stale-review` case. The validator must emit exactly 3 diagnostic(s):
+REVIEW_NONACCEPTING, STALE_EVIDENCE, STALE_REVIEW
 
-- Expected file: `halucinator/handoff/08-review-pac.toml`
-- Expected field: `review.artifact`
-- Defect: `review.artifact` pins a canonical digest of different bytes than the PAC inventory it names.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/04-pac.toml|checks.independent-review|REVIEW_NONACCEPTING`
+Expected diagnostic: `halucinator/handoff/08-review-pac.toml|review.artifact|STALE_EVIDENCE`
+Expected diagnostic: `halucinator/handoff/08-review-pac.toml|review.artifact|STALE_REVIEW`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

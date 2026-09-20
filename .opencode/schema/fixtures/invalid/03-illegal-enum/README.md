@@ -2,15 +2,18 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `ILLEGAL_ENUM`
+Defect: the `03-illegal-enum` case. The validator must emit exactly 2 diagnostic(s):
+ILLEGAL_ENUM, ROUTE_INCOMPATIBILITY
 
-- Expected file: `halucinator/handoff/01-sources.toml`
-- Expected field: `sources.route`
-- Defect: `sources.route` is `"supplied"`, outside `review-supplied|author-from-docs|unresolved`.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/01-sources.toml|sources.route|ILLEGAL_ENUM`
+Expected diagnostic: `halucinator/handoff/03-svd.toml|svd.route|ROUTE_INCOMPATIBILITY`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

@@ -1,70 +1,29 @@
-schema = 1
-generation = 9
-
+schema=2
+generation=9
+stages=[{id="gather-documentation",status="ready",handoff={path="halucinator/handoff/01-sources.toml",sha256="22d992df1a365bd84ba18aa5fb544a4c663cd1ceb94047d1f8f85d4dd27501ae"}},{id="extract-facts",status="ready",handoff={path="halucinator/handoff/02-facts.toml",sha256="d5f812ed430dc043b13900cc58d62a526fa95eea9bdff0c0496b8f80c6089069"}},{id="generate-svd",status="ready",handoff={path="halucinator/handoff/03-svd.toml",sha256="ba067f465ed5464a5362922e169d2075f1bf5d799708c267f0a6cb4166e4d312"}},{id="generate-pac",status="ready",handoff={path="halucinator/handoff/04-pac.toml",sha256="11db7c0b4f5353c7bb04b28d5f8ea3041e532ee332b747ab905c01a6f04a1ebf"}},{id="scaffold-hal",status="partial",handoff={path="halucinator/handoff/05-platform.toml",sha256="bdec2a1883f2164152e85a0d0a75e806d86a01fc5c5c363caf79dd5a397e1004"}},{id="write-driver:schema-demo",status="partial",handoff={path="halucinator/handoff/06-driver-schema-demo.toml",sha256="f775afc5ee397ce5362bba378691d8f81179fdf0aff84b990411d47a24114c24"}},{id="write-tests:schema-demo",status="partial",handoff={path="halucinator/handoff/07-tests-schema-demo.toml",sha256="befc0eaaf0fcb1b4eacfbbb8108d6ddefcb39b230592ab2e8d338cb437a93031"}},{id="review:pac",status="ready",handoff={path="halucinator/handoff/08-review-pac.toml",sha256="3892b4b5f7d97e20b17e832ef3edf5a3dbef14c7a020707502c58d008a68698e"}}]
 [target]
-vendor = "Unobtainium Circuits"
-mcu_part_number = "UC-NOT-A-REAL-MCU-0001"
-target_id = "unobtainium-circuits-uc-not-a-real-mcu-0001"
-vendor_id = "unobtainium-circuits"
-package = { kind = "unknown" }
-core = "fictional-core"
-
+vendor="Unobtainium Circuits"
+mcu_part_number="UC-NOT-A-REAL-MCU-0001"
+target_id="unobtainium-circuits-uc-not-a-real-mcu-0001"
+vendor_id="unobtainium"
+core="fictional-core"
+package={kind="unknown"}
 [scope]
-current_revision = "scope-1111bbbb"
-current_decision = { path = "halucinator/scope/scope-1111bbbb.toml", sha256 = "a83d6f7f5f8193e8e9a4da433c8dd3de9145f4e9f2d10e7550bc293292330d6f" }
-
+current_revision="scope-1111bbbb"
+current_decision={path="halucinator/scope/scope-1111bbbb.toml",sha256="b093ec0b84ce38e706a2b5f7597d955de6807be09a543640b1e74e57d2aa1eb5"}
 [decisions]
-cargo_chip_feature = "uc-not-a-real-mcu-0001"
-rust_compilation_target = "thumbv7em-none-eabi"
-destination_crate = { path = "embassy-unobtainium" }
-first_peripheral = "schema-demo"
-first_peripheral_modes = ["blocking"]
-foundation_requirements = [
-  { id = "foundation:init-api", kind = "api", location = "embassy_unobtainium::init" },
-  { id = "foundation:interrupt-metadata", kind = "metadata", location = "metadata.interrupts" },
-]
-
+cargo_chip_feature="uc-not-a-real-mcu-0001"
+rust_compilation_target="thumbv7em-none-eabi"
+first_peripheral="schema-demo"
+first_peripheral_modes=["blocking"]
+foundation_requirements=[{id="foundation:init-api",kind="api",location="embassy_unobtainium::init"},{id="foundation:interrupt-metadata",kind="metadata",location="metadata.interrupts"}]
+destination_crate={path="embassy-unobtainium"}
 [roots]
-documentation = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001" }
-sources = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md" }
-pac_project = { root = "generation:fictional-pac", path = "." }
-svd_inputs = { root = "generation:fictional-pac", path = "data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001" }
-generator = { root = "generation:fictional-pac", path = "generator" }
-pac_crate = { root = "generation:fictional-pac", path = "unobtainium-pac" }
-roadmap = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md" }
-generation = [
-  { name = "fictional-pac", authorization = { path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md", sha256 = "6911e660958ba28d36d0b66eb8280a38393c7c0aad35227e7dbf21f22e3e9c0d" } },
-]
-
-[[stages]]
-id = "gather-documentation"
-status = "ready"
-handoff = { path = "halucinator/handoff/01-sources.toml", sha256 = "87e1fc77dcc86f662d41d0920145318d8cc7b9da2dc7e5ca922186d61be1001f" }
-[[stages]]
-id = "extract-facts"
-status = "ready"
-handoff = { path = "halucinator/handoff/02-facts.toml", sha256 = "df1b47e760bf6b12464417e6632b9cc7ff58558adff87f18d9d62fbfd59c6c69" }
-[[stages]]
-id = "generate-svd"
-status = "ready"
-handoff = { path = "halucinator/handoff/03-svd.toml", sha256 = "ba8f086b410479856636a212d8894f2833a4b5e1ba30feaec3f563b50478805e" }
-[[stages]]
-id = "generate-pac"
-status = "ready"
-handoff = { path = "halucinator/handoff/04-pac.toml", sha256 = "36ced442b89d3b80f84048d7c825ca8e6cfe1ac9b2f72caabaa4bf2fbd46e553" }
-[[stages]]
-id = "scaffold-hal"
-status = "partial"
-handoff = { path = "halucinator/handoff/05-platform.toml", sha256 = "0201d78d2a061e27f4bcfe7403ea15f972469ec7d530864d56de00bad9c930a5" }
-[[stages]]
-id = "write-driver:schema-demo"
-status = "partial"
-handoff = { path = "halucinator/handoff/06-driver-schema-demo.toml", sha256 = "03f5045223decb478972d07cde009c2397183442b6e8cc4e6e13c1eb2e54eb85" }
-[[stages]]
-id = "write-tests:schema-demo"
-status = "partial"
-handoff = { path = "halucinator/handoff/07-tests-schema-demo.toml", sha256 = "b45ea171af57198a2c733f988812969908952ed8d1dc6455a8d00e0a5f401390" }
-[[stages]]
-id = "review:pac"
-status = "ready"
-handoff = { path = "halucinator/handoff/08-review-pac.toml", sha256 = "3f8d2c77d25c1b28bf01ed1e902dc174d9c75ff64a80e4f35b3d6b97f0a59d08" }
+generation=[{name="fictional-pac",authorization={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md",sha256="6911e660958ba28d36d0b66eb8280a38393c7c0aad35227e7dbf21f22e3e9c0d"}}]
+documentation={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001"}
+sources={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md"}
+pac_project={root="generation:fictional-pac",path="."}
+svd_inputs={root="generation:fictional-pac",path="data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001"}
+generator={root="generation:fictional-pac",path="generator"}
+pac_crate={root="generation:fictional-pac",path="unobtainium-pac"}
+roadmap={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md"}

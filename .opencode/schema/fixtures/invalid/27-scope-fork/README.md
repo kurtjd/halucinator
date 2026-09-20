@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `SCOPE_FORK`
+Defect: the `27-scope-fork` case. The validator must emit exactly 1 diagnostic(s):
+SCOPE_FORK
 
-- Expected file: `halucinator/scope/scope-2222cccc.toml`
-- Expected field: `previous`
-- Defect: `scope-0123abcd` has two successors, `scope-1111bbbb` and `scope-2222cccc`.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/scope/scope-2222cccc.toml|previous|SCOPE_FORK`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

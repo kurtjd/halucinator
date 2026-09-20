@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `LOCK_COMPLETE_CONFLICT`
+Defect: the `08-lock-complete-conflict` case. The validator must emit exactly 1 diagnostic(s):
+LOCK_COMPLETE_CONFLICT
 
-- Expected file: `halucinator/.run/review-pac-068841a2.lock`
-- Expected field: `-`
-- Defect: A stage lock for `review:pac` exists while `state.stages` records that stage `ready`.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/.run/review-pac-068841a2.lock|-|LOCK_COMPLETE_CONFLICT`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

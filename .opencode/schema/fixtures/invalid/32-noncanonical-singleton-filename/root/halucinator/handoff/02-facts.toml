@@ -1,34 +1,19 @@
+checks=[{id="citations-complete",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="citations-verified",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="summary-field-cross-check",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="field-encodings-exhaustive",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="pdf-layout-extraction",status="not-applicable",reason="The fictional fixture source is text, not PDF."}]
 [handoff]
-schema=1
+schema=2
 stage="extract-facts"
 status="ready"
-inputs=[{path="halucinator/handoff/01-sources.toml",sha256="201d11c46f9936a4af05d7f7c727c8e72d2b634b10210ac59fa9143d53e13b33"}]
+inputs=[{path="halucinator/handoff/01-sources.toml",sha256="a66b9262803bcaea4e07cae600fccf93566273cea16c7f135c3b8f8c42509057"}]
 notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
 blockers=[]
 [scope]
 revision="scope-0123abcd"
-decision={path="halucinator/scope/scope-0123abcd.toml",sha256="4b233cedc663a8813fc2f31cba556a14ecb2a0fe89c4bf4089fd40c7c95c308b"}
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="38ae34ce228b271f728947b3419b4a5f08f49ac07cb49176866cfe2a46d798fa"}
 [coverage]
 complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:alpha","peripheral:beta"]
 incomplete=[]
-[[checks]]
-id="citations-complete"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
-[[checks]]
-id="summary-field-cross-check"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
-[[checks]]
-id="field-encodings-exhaustive"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}
-[[checks]]
-id="pdf-layout-extraction"
-status="not-applicable"
-reason="The fictional fixture source is text, not PDF."
 [facts]
 notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
-citations=[{source_id="doc-001",document="FICTIONAL FIXTURE",revision="fixture-1",locator="schema-only",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}}]
+citations=[{assertion_id="fact.schema-demo.reset-state",scope_item="peripheral:schema-demo",claim="The fictional SCHEMA_DEMO block reports zero in every invented field after a fixture reset.",source_id="doc-001",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="894dd80782d29d54fd2c85f49eda6f0905f44ab3cbfdedd7b76429f9c4a3da3e"},location={kind="text-lines",line_start=7,line_end=10},locator={kind="section",value="Section 2.1"},excerpt="After a fixture reset the block reports the invented value zero in every invented field.",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}}]
 categories=["field-encodings","register-layout"]
 contradictions=[]

@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `STALE_EVIDENCE`
+Defect: the `18-stale-non-review-evidence` case. The validator must emit exactly 1 diagnostic(s):
+STALE_EVIDENCE
 
-- Expected file: `halucinator/handoff/02-facts.toml`
-- Expected field: `handoff.notes`
-- Defect: The pinned digest of `FACTS.md` (non-review evidence) is `b`*64 and does not match its bytes.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/02-facts.toml|handoff.notes|STALE_EVIDENCE`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

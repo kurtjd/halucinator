@@ -2,15 +2,18 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `SCOPE_DELETED_PREDECESSOR`
+Defect: the `25-scope-deleted-predecessor` case. The validator must emit exactly 2 diagnostic(s):
+PATH_INSPECTION, SCOPE_DELETED_PREDECESSOR
 
-- Expected file: `halucinator/scope/scope-1111bbbb.toml`
-- Expected field: `previous`
-- Defect: The tip's named predecessor `scope-0123abcd.toml` has been deleted from the append-only chain.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/scope/scope-1111bbbb.toml|previous|SCOPE_DELETED_PREDECESSOR`
+Expected diagnostic: `halucinator/scope/scope-1111bbbb.toml|previous.decision|PATH_INSPECTION`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

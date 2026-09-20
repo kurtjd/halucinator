@@ -2,15 +2,17 @@
 
 FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
 
-Expected diagnostic code: `COVERAGE_PARTITION`
+Defect: the `17-incomplete-status-partition` case. The validator must emit exactly 1 diagnostic(s):
+COVERAGE_PARTITION
 
-- Expected file: `halucinator/handoff/05-platform.toml`
-- Expected field: `coverage.complete`
-- Defect: `complete` ∪ `incomplete` omits `peripheral:schema-demo`, so the coverage partition is incomplete.
+The validator must emit exactly this diagnostic set - no more, no fewer.
+`Reporter` stores its lines in a set, so a repeated diagnostic is
+unobservable and the assertion is over the sorted SET, not a multiset.
 
-Derived from `fixtures/valid/` by re-materializing the whole tree in the order
-specified by `fixtures.md#hash-materialization-order` with this one change
-injected, so every other digest in the tree remains correct.
+Expected diagnostic: `halucinator/handoff/05-platform.toml|coverage.complete|COVERAGE_PARTITION`
+
+Regenerate with `python tools/generate_schema_fixtures.py --root . --write`;
+every byte here is derived from `tools/schema-fixtures.toml`.
 
 Invoke as:
 

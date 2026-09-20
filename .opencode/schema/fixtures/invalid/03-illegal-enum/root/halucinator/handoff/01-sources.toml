@@ -1,5 +1,6 @@
+checks=[{id="requested-inputs-accounted",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="available-content-resolves",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="local-source-hashes",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="svd-search-complete",status="not-applicable",reason="An accessible fictional SVD was supplied."}]
 [handoff]
-schema=1
+schema=2
 stage="gather-documentation"
 status="ready"
 inputs=[]
@@ -7,29 +8,12 @@ notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURC
 blockers=[]
 [scope]
 revision="scope-0123abcd"
-decision={path="halucinator/scope/scope-0123abcd.toml",sha256="75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b"}
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
 [coverage]
 complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
 incomplete=[]
-[[checks]]
-id="requested-inputs-accounted"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}
-[[checks]]
-id="available-content-resolves"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}
-[[checks]]
-id="local-source-hashes"
-status="passed"
-evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}
-[[checks]]
-id="svd-search-complete"
-status="not-applicable"
-reason="An accessible fictional SVD was supplied."
 [sources]
-catalog={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md",sha256="e908389aaa93cf7b84f221f1d7e25458e98fdb5666546cfb92c1c21b0e9f8993"}
 route="supplied"
-source_ids=["doc-001"]
-available=[{root="generation:fictional-pac",path="data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fixture.svd",sha256="edd6f95b76f538dc12ce932b8c5390dcfc8fdac7c28298e10840d628591ad2f1"}]
+documents=[{source_id="doc-001",document="FICTIONAL FIXTURE REFERENCE MANUAL",revision="fixture-1",format="utf8-text",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="894dd80782d29d54fd2c85f49eda6f0905f44ab3cbfdedd7b76429f9c4a3da3e"}}]
 cited_notes=[]
+catalog={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md",sha256="e908389aaa93cf7b84f221f1d7e25458e98fdb5666546cfb92c1c21b0e9f8993"}
