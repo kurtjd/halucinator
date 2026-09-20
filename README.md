@@ -16,7 +16,7 @@ No HAL source lives here. This repository is the toolkit.
 | `AGENTS.md` | written |
 | Agents | 8 written |
 | Ownership registry | `.opencode/ownership.toml`, 45 file classes |
-| Root config | `opencode.json`, `default_agent: hal-coordinator` |
+| Example root config | `docs/opencode.json`, `default_agent: hal-coordinator` |
 | Skills | 6 written |
 
 [gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
@@ -90,7 +90,7 @@ Per project:
 ```sh
 # POSIX
 cp halucinator/AGENTS.md /path/to/embassy/AGENTS.md
-cp halucinator/opencode.json /path/to/embassy/opencode.json
+cp halucinator/docs/opencode.json /path/to/embassy/opencode.json
 mkdir -p /path/to/embassy/.opencode
 cp -R halucinator/.opencode/. /path/to/embassy/.opencode/
 ```
@@ -98,7 +98,7 @@ cp -R halucinator/.opencode/. /path/to/embassy/.opencode/
 ```powershell
 # PowerShell
 Copy-Item halucinator\AGENTS.md D:\path\to\embassy\AGENTS.md
-Copy-Item halucinator\opencode.json D:\path\to\embassy\opencode.json
+Copy-Item halucinator\docs\opencode.json D:\path\to\embassy\opencode.json
 New-Item -ItemType Directory -Force -Path D:\path\to\embassy\.opencode
 Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination D:\path\to\embassy\.opencode\
 ```
@@ -108,13 +108,13 @@ Or install the agents and skills globally, for every project:
 ```sh
 mkdir -p ~/.config/opencode
 cp -R halucinator/.opencode/. ~/.config/opencode/
-cp halucinator/opencode.json ~/.config/opencode/opencode.json
+cp halucinator/docs/opencode.json ~/.config/opencode/opencode.json
 ```
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "$HOME\.config\opencode"
 Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination "$HOME\.config\opencode\"
-Copy-Item halucinator\opencode.json "$HOME\.config\opencode\opencode.json"
+Copy-Item halucinator\docs\opencode.json "$HOME\.config\opencode\opencode.json"
 ```
 
 Restart opencode afterwards. Config is read once at startup and is not

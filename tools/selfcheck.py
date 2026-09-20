@@ -1521,38 +1521,47 @@ def check_permissions(root: Path, report: Report) -> None:
 
 def check_config(root: Path, report: Report) -> None:
     mark = report.mark()
-    with guard(report, "opencode.json", "CONFIG_ABORT"):
-        path = root / "opencode.json"
+    with guard(report, "docs/opencode.json", "CONFIG_ABORT"):
+        # Shipped as an example under docs/, never live at the toolkit root.
+        # A root opencode.json is auto-loaded by OpenCode and would make the
+        # HAL-building agents the active set for toolkit maintenance, where
+        # hal-architect can write only halucinator/docs/*/notes/ARCHITECTURE.md
+        # - a path that does not exist here. See TODO E8.
+        path = root / "docs" / "opencode.json"
+        if (root / "opencode.json").is_file():
+            report.bad("opencode.json", "0", "CONFIG_MISPLACED",
+                       "opencode.json must not be live at the toolkit root; it is an example for the "
+                       "destination checkout and belongs at docs/opencode.json")
         if not path.is_file():
-            report.bad("opencode.json", "0", "CONFIG_MISSING",
-                       'root opencode.json is absent; create it with {"$schema": "https://opencode.ai/config.json", "default_agent": "hal-coordinator"}')
+            report.bad("docs/opencode.json", "0", "CONFIG_MISSING",
+                       'docs/opencode.json is absent; create it with {"$schema": "https://opencode.ai/config.json", "default_agent": "hal-coordinator"}')
             return
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            report.bad("opencode.json", "0", "CONFIG_MALFORMED", f"not strict JSON: {_one_line(str(exc), 200)}")
+            report.bad("docs/opencode.json", "0", "CONFIG_MALFORMED", f"not strict JSON: {_one_line(str(exc), 200)}")
             return
         if not isinstance(data, dict):
-            report.bad("opencode.json", "0", "CONFIG_TYPE", "config must be a JSON object")
+            report.bad("docs/opencode.json", "0", "CONFIG_TYPE", "config must be a JSON object")
             return
         if data.get("$schema") != "https://opencode.ai/config.json":
-            report.bad("opencode.json", "$schema", "CONFIG_SCHEMA", f"$schema must be 'https://opencode.ai/config.json', got {data.get('$schema')!r}")
+            report.bad("docs/opencode.json", "$schema", "CONFIG_SCHEMA", f"$schema must be 'https://opencode.ai/config.json', got {data.get('$schema')!r}")
         default = data.get("default_agent")
         if default != PRIMARY_AGENT:
-            report.bad("opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT", f"default_agent must be {PRIMARY_AGENT!r}, got {default!r}")
+            report.bad("docs/opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT", f"default_agent must be {PRIMARY_AGENT!r}, got {default!r}")
             return
         target = root / ".opencode" / "agents" / f"{default}.md"
         if not target.is_file():
-            report.bad("opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MISSING", f"default_agent {default!r} has no agent definition at .opencode/agents/{default}.md")
+            report.bad("docs/opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MISSING", f"default_agent {default!r} has no agent definition at .opencode/agents/{default}.md")
             return
         try:
             fm = parse_frontmatter(read_text(target))
         except (FMError, OSError) as exc:
-            report.bad("opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MISSING", f"default agent definition is unparseable: {exc}")
+            report.bad("docs/opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MISSING", f"default agent definition is unparseable: {exc}")
             return
         if fm.get("mode") != "primary":
-            report.bad("opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MODE", f"default_agent {default!r} must be mode primary, got {fm.get('mode')!r}")
-        report.ok("config", "root opencode.json parses and its default agent resolves to a primary agent", mark)
+            report.bad("docs/opencode.json", "default_agent", "CONFIG_DEFAULT_AGENT_MODE", f"default_agent {default!r} must be mode primary, got {fm.get('mode')!r}")
+        report.ok("config", "docs/opencode.json parses and its default agent resolves to a primary agent", mark)
 
 
 def check_dispatch(root: Path, report: Report) -> None:
