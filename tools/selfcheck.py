@@ -3526,9 +3526,13 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
                            "skill does not state that validate.py cannot attest to an earlier invocation")
             ok += 1
         report.ok("skill-validator-wiring",
-                  f"{ok} skills place a validate.py invocation before their first handoff-publishing step, at that "
-                  f"publishing step, and the {VALIDATOR_ALL!r} gate at or after their last one, and disclose the "
-                  "honor-system limit", mark)
+                  f"{ok} skills invoke validate.py at three DERIVED positions - somewhere before their FIRST "
+                  f"handoff-publishing step, at that FIRST publishing step, and the {VALIDATOR_ALL!r} gate at or "
+                  "after their LAST one - and disclose the honor-system limit. Those are the only three positions "
+                  "bound. A skill that publishes more than one handoff has its SECOND and later publishing steps "
+                  "unchecked: dropping validate.py from one of them leaves this check green. Binding every "
+                  "publishing step needs 7 of 13 skills to name the command stem at their final gate rather than "
+                  f"only {VALIDATOR_ALL!r}, which is a skill-text change, not a harness change", mark)
 
 
 # --- check 28: skill-note-paths ---------------------------------------------
@@ -3953,37 +3957,31 @@ CANDIDATE_ONLY_MARKER = "candidate-only"
 # English word for the parsed role that `platform_roles()` computes, so it
 # stays correct when the consolidating skill is renamed or replaced.
 CONSOLIDATOR_ROLE_TOKEN = "consolidator"
-# Cues by which a unit declines the composite-evidence responsibility rather
-# than claiming it. These are NOT scanned as bare substrings anywhere in the
-# unit - that was the demonstrated bypass, where "... does not alter the
-# status" laundered an outright claim. A negation counts only when
-# `_disclaims_composite` finds it BOUND to the act of creating composite
-# evidence.
-NEGATION_TOKENS = frozenset({"no", "not", "never", "without", "nor", "neither", "cannot"})
-# Cues that defer the responsibility to a later stage rather than negating it.
-DEFERRAL_TOKENS = frozenset({"pending", "reserved", "awaits", "awaiting", "deferred", "belongs"})
-# Verbs that carry the responsibility itself. A negation must govern one of
-# these, or the marker directly, to be a disclaimer.
-RESPONSIBILITY_VERBS = frozenset({
-    "create", "creates", "created", "creating",
-    "produce", "produces", "produced", "producing",
-    "assemble", "assembles", "assembled", "assembling",
-    "author", "authors", "authored", "authoring",
-    "generate", "generates", "generated", "generating",
-    "compose", "composes", "composed", "composing",
-    "publish", "publishes", "published", "publishing",
-    "perform", "performs", "performed", "performing",
-    "hold", "holds", "held", "holding",
-    "own", "owns", "owned", "owning",
-    "make", "makes", "made", "making",
-    "do", "does", "did", "done",
-})
-# Binding windows, in intervening tokens. Tight by intent: the cue has to sit
-# next to what it governs, not merely somewhere in the same sentence.
-NEG_TO_VERB_WINDOW = 3
-VERB_TO_MARKER_WINDOW = 2
-NEG_TO_MARKER_WINDOW = 2
-DEFERRAL_TO_MARKER_WINDOW = 4
+# OPERATIVE SURFACES. Sections in which a statement is an instruction to act:
+# a '## Procedure' step tells the agent what to do, a '## Validation' row tells
+# it how a check is discharged. The composite-evidence marker is banned here
+# outright, whatever words surround it.
+#
+# WHY STRUCTURAL, AND WHY THE NEGATION ANALYSIS IS GONE. Three review rounds
+# were spent trying to tell "claims X" from "disclaims X" in free prose, and
+# each round a reviewer found another wording that got through:
+#
+#   1. "creates composite evidence and does not alter the status"
+#      - bare substring "not " read as a disclaimer.
+#   2. "creates composite evidence; no unrelated file is touched"
+#      - bare substring "no " read as a disclaimer.
+#   3. "creates composite evidence, which it does not publish."
+#      - clause-final negated verb read as governing the marker, though the
+#        sentence positively claims CREATION.
+#   4. "| This slice creates | composite evidence | no unrelated file is touched |"
+#      - any negation in any other table cell accepted, whatever it governed.
+#
+# Every one of those is fail-OPEN in an exclusivity guard. English negation
+# scope is not decidable by a token-window heuristic, so the heuristic is
+# deleted rather than tuned a fourth time. What replaces it cannot be reworded
+# around: on an operative surface the marker is forbidden, full stop, and
+# elsewhere it must carry attribution.
+OPERATIVE_SECTIONS = ("Procedure", "Validation")
 
 NEGATED_PLACEMENT = (
     "no canonical placement",
@@ -3991,96 +3989,6 @@ NEGATED_PLACEMENT = (
     "not perform canonical placement",
     "never perform canonical placement",
 )
-
-
-def _disclaims_composite(unit: str) -> bool:
-    """True when the unit binds a negation or deferral TO composite evidence.
-
-    The old rule accepted any of `"no "` / `"not "` anywhere in the unit, and a
-    reviewer duly bypassed it: "This slice creates composite evidence and does
-    not alter the status." negates ALTERING THE STATUS while claiming the
-    consolidator's exclusive work outright. The cue therefore has to be tied to
-    the verb-plus-object relationship. Four bindings count:
-
-      A. negation governing a responsibility verb that governs the marker
-         - "do not create composite evidence"
-      B. negation directly determining the marker
-         - "no composite evidence"
-      C. the marker as the antecedent of a TRAILING negated responsibility verb
-         - "... composite evidence ... that this slice never held."
-         Bounded to the end of the unit, so a negated verb that takes its own
-         explicit object ("does not create the report") does not qualify.
-      D. a table row whose OTHER cell negates the cell carrying the marker
-         - "| Never done here | composite evidence, ... |"
-         A row's cells are one assertion (see `prose_units`), so a label cell
-         is a genuine verb-object binding and not a stray neighbouring clause.
-
-    Neither reviewer bypass matches any of the four: in both the negation
-    governs a different noun phrase ("the status", "unrelated file") and the
-    trailing token is not a responsibility verb.
-    """
-    flat = norm_ws(unit).lower()
-
-    # D. table row: a negation or deferral in a cell that does not itself
-    # carry the marker binds to the cell that does.
-    if flat.startswith("|"):
-        cells = [c.strip() for c in flat.strip("|").split("|")]
-        marker_cells = [i for i, c in enumerate(cells) if COMPOSITE_EVIDENCE_MARKER in c]
-        if marker_cells:
-            for i, cell in enumerate(cells):
-                if i in marker_cells:
-                    continue
-                words = re.findall(r"[a-z]+", cell)
-                if any(w in NEGATION_TOKENS or w in DEFERRAL_TOKENS for w in words):
-                    return True
-
-    tokens: list[str] = []
-    spans: list[tuple[int, int]] = []
-    for mt in re.finditer(r"[a-z]+", flat):
-        tokens.append(mt.group(0))
-        spans.append(mt.span())
-    markers = [i for i in range(len(tokens) - 1)
-               if tokens[i] == "composite" and tokens[i + 1] == "evidence"]
-    if not markers:
-        return False
-
-    def clause_final(i: int) -> bool:
-        """True when token i ends its clause - nothing but punctuation follows.
-
-        This is what separates "...that this slice never held, so a `ready`
-        here is a claim about work nobody did." (the verb governs the marker
-        through the relative clause) from "...does not create the report."
-        (the verb has taken its own explicit object).
-        """
-        tail = flat[spans[i][1]:].lstrip()
-        return not tail or tail[0] in ",;.!?:)"
-
-    for m in markers:
-        # B. negation immediately determining the marker.
-        lo = max(0, m - 1 - NEG_TO_MARKER_WINDOW)
-        if any(t in NEGATION_TOKENS for t in tokens[lo:m]):
-            return True
-        # deferral determining the marker ("pending consolidation of the ...").
-        lo = max(0, m - 1 - DEFERRAL_TO_MARKER_WINDOW)
-        if any(t in DEFERRAL_TOKENS for t in tokens[lo:m]):
-            return True
-        # A. negation -> responsibility verb -> marker, each within its window.
-        vlo = max(0, m - 1 - VERB_TO_MARKER_WINDOW)
-        for k in range(vlo, m):
-            if tokens[k] not in RESPONSIBILITY_VERBS:
-                continue
-            nlo = max(0, k - 1 - NEG_TO_VERB_WINDOW)
-            if any(t in NEGATION_TOKENS for t in tokens[nlo:k]):
-                return True
-        # C. the marker as antecedent of a clause-final negated responsibility
-        # verb somewhere after it.
-        for k in range(m + 2, len(tokens)):
-            if tokens[k] not in RESPONSIBILITY_VERBS or not clause_final(k):
-                continue
-            nlo = max(m + 2, k - NEG_TO_VERB_WINDOW)
-            if any(t in NEGATION_TOKENS for t in tokens[nlo:k]):
-                return True
-    return False
 
 
 def prose_units(text: str) -> list[str]:
@@ -4128,35 +4036,73 @@ def _writes_class(cmap: dict[str, list[str]], cid: str) -> bool:
     return any(v.count("|") == 1 and v.split("|")[1] == cid for v in cmap.get("writes", []))
 
 
+def _composite_flat(unit: str) -> str:
+    """Lowercased unit with Markdown emphasis removed as well as backticks.
+
+    `norm_ws` strips backticks but not `*` / `_`, so "composite *evidence*"
+    slipped past the marker match while reading identically to a human. The
+    emphasis characters are dropped here rather than in `norm_ws`, which is
+    shared by exact-sentence assertions that must keep seeing the raw text.
+    """
+    return norm_ws(unit).replace("*", "").replace("_", "").lower()
+
+
+def operative_composite_statements(text: str) -> list[tuple[str, str]]:
+    """(section, unit) for every marker statement on an OPERATIVE surface.
+
+    The whole body of each `OPERATIVE_SECTIONS` heading counts, not only its
+    numbered steps or table rows: a lead-in paragraph to a procedure is as much
+    an instruction as the steps it introduces, and restricting the ban to the
+    numbered lines would leave that paragraph as a one-line bypass.
+
+    No attribution and no disclaimer is accepted here. That is the point: a
+    non-final slice's procedure has no legitimate reason to put the phrase in
+    an instruction, because the instruction it can legitimately give is
+    "return to the consolidator", which needs no mention of what the
+    consolidator then builds. Boundary prose belongs in the sections that
+    describe boundaries.
+    """
+    out: list[tuple[str, str]] = []
+    for heading, body, _ in h2_sections(text):
+        if heading not in OPERATIVE_SECTIONS:
+            continue
+        for unit in prose_units(body):
+            if COMPOSITE_EVIDENCE_MARKER in _composite_flat(unit):
+                out.append((heading, _one_line(unit, 160)))
+    return out
+
+
 def unattributed_composite_claims(text: str, consolidators: list[str]) -> list[str]:
-    """Units that state the composite-evidence marker while claiming it.
+    """Units OUTSIDE the operative sections that state the marker unattributed.
 
-    Absence of the phrase was the old rule, and it was the wrong one: it pushed
-    a slice author into vaguer prose that no longer names what the slice is
-    declining to do. The assertion is about the CLAIM, not the phrase. A unit
-    is legal when it does one of:
+    Absence of the phrase was the original rule, and it was the wrong one: it
+    pushed a slice author into vaguer prose that no longer names what the slice
+    is declining to do. So outside the operative surfaces the phrase stays
+    legal, on one condition - the unit must say whose work it is:
 
-      * attributes the work to the final consolidator BY NAME - the names come
-        from `platform_roles(...)[1]`, i.e. the platform-stage skill whose own
-        ready predicate is reachable, never from a literal written here; or
-      * names the consolidating ROLE; or
-      * disclaims the work with a negation BOUND to the act of creating
-        composite evidence - see `_disclaims_composite`. A negation bound to
-        anything else ("... and does not alter the status") is not a
-        disclaimer, and was a demonstrated bypass of the earlier rule.
+      * the final consolidator BY NAME. The names come from
+        `platform_roles(...)[1]`, i.e. the platform-stage skill whose own ready
+        predicate is reachable, never from a literal written here; or
+      * the consolidating ROLE noun.
 
-    Anything else - a unit that states composite evidence in its own voice with
-    no attribution and no disclaimer - is the violation.
+    There is no longer a disclaimer arm. A free negation was what four separate
+    bypasses exploited, and "no composite evidence is created here" carries no
+    information that "composite evidence belongs to the final consolidator"
+    does not carry better - the second says where it went.
+
+    Operative-section units are excluded because they are reported, more
+    severely and unconditionally, by `operative_composite_statements`.
     """
     tokens = [n.lower() for n in consolidators] + [CONSOLIDATOR_ROLE_TOKEN]
+    operative = {u for _, u in operative_composite_statements(text)}
     offenders: list[str] = []
     for unit in prose_units(text):
-        flat = norm_ws(unit).lower()
+        flat = _composite_flat(unit)
         if COMPOSITE_EVIDENCE_MARKER not in flat:
             continue
         if any(t in flat for t in tokens):
             continue
-        if _disclaims_composite(unit):
+        if _one_line(unit, 160) in operative:
             continue
         offenders.append(_one_line(unit, 160))
     return offenders
@@ -4164,65 +4110,114 @@ def unattributed_composite_claims(text: str, consolidators: list[str]) -> list[s
 
 _COMPOSITE_CONSOLIDATORS = ["omega-consolidate"]
 
-# Units that must FAIL: the slice states composite evidence in its own voice.
-_COMPOSITE_CLAIMS: tuple[tuple[str, str], ...] = (
-    ("bare claim", "This slice creates composite evidence for all ten canonical checks.\n"),
-    ("claim in a numbered step",
-     "12. **Publish.** Create the composite evidence, then publish the handoff.\n"),
-    ("claim in a table row", "| Done here | composite evidence, independent review |\n"),
-    ("attribution stranded in a neighbouring bullet",
-     "- The final consolidator owns the whole platform.\n"
-     "- This step assembles composite evidence over every slice-local log.\n"),
-    # --- the two bypasses a reviewer demonstrated against the substring rule --
-    # Both state the claim outright and then negate something else entirely.
-    # Under the old DISCLAIMER_CUES the bare tokens "not " / "no " matched and
-    # the whole suite stayed green.
-    ("claim laundered by an unrelated negated verb",
-     "This slice creates composite evidence and does not alter the status.\n"),
-    ("claim laundered by a negation of a different noun phrase",
-     "This slice creates composite evidence; no unrelated file is touched.\n"),
-    # Near-misses of the new binding: a negated responsibility verb that takes
-    # its own explicit object is not a disclaimer of the marker.
-    ("negated responsibility verb governing a different object",
-     "This slice creates composite evidence and does not publish the roadmap.\n"),
+
+def _doc(section: str, body: str) -> str:
+    """A minimal skill document with `body` under one '## <section>' heading."""
+    return f"# s\n\n## When to use\n\nIrrelevant preamble.\n\n## {section}\n\n{body}\n"
+
+
+# Documents whose marker sits on an OPERATIVE surface. Every one must yield an
+# operative finding, whatever the surrounding words claim or disclaim.
+_COMPOSITE_OPERATIVE: tuple[tuple[str, str], ...] = (
+    ("bare claim in a procedure step",
+     _doc("Procedure", "12. **Publish.** Create the composite evidence, then publish the handoff.")),
+    ("bare claim in a procedure lead-in paragraph",
+     _doc("Procedure", "This slice creates composite evidence for all ten canonical checks.")),
+    ("claim in a validation table row",
+     _doc("Validation", "| Done here | composite evidence, independent review |")),
+    ("attribution stranded in a neighbouring procedure bullet",
+     _doc("Procedure",
+          "- The final consolidator owns the whole platform.\n"
+          "- This step assembles composite evidence over every slice-local log.")),
+    # --- BYPASS 1 (round one): unrelated negated verb ------------------------
+    ("BYPASS claim laundered by an unrelated negated verb",
+     _doc("Procedure", "9. **Log.** This slice creates composite evidence and does not alter the status.")),
+    # --- BYPASS 2 (round one): negation of a different noun phrase -----------
+    ("BYPASS claim laundered by a negation of a different noun phrase",
+     _doc("Procedure", "9. **Log.** This slice creates composite evidence; no unrelated file is touched.")),
+    # --- BYPASS 3 (round two): clause-final negated verb --------------------
+    ("BYPASS claim laundered by a clause-final negated verb",
+     _doc("Procedure", "9. **Log.** This slice creates composite evidence, which it does not publish.")),
+    # --- BYPASS 4 (round two): negation in an unrelated table cell ----------
+    ("BYPASS claim laundered by a negation in a sibling table cell",
+     _doc("Validation", "| This slice creates | composite evidence | no unrelated file is touched |")),
+    # --- my own bypass attempt against the structural rule ------------------
+    # Markdown emphasis inside the marker reads identically to a human and
+    # broke the substring match, until `_composite_flat` dropped `*` and `_`.
+    ("marker split by Markdown emphasis",
+     _doc("Procedure", "9. **Do.** This slice creates composite *evidence* for all ten checks.")),
+    ("marker inside a fenced block in a procedure step",
+     _doc("Procedure", "9. **Do.**\n\n```\nthis slice creates composite evidence\n```")),
+    # The ban is UNCONDITIONAL on these surfaces. Attribution and disclaimer
+    # are both still findings here - that is what makes the rule immune to
+    # rewording, and it is the load-bearing case of the whole design.
+    ("correctly attributed sentence, but placed in a procedure step",
+     _doc("Procedure",
+          "13. **Return.** Return the logs to `omega-consolidate`, which alone creates the composite evidence.")),
+    ("explicit disclaimer, but placed in a procedure step",
+     _doc("Procedure", "13. **Return.** Do not create composite evidence and do not request review.")),
+    ("explicit disclaimer, but placed in a validation row",
+     _doc("Validation", "| Never done here | composite evidence, canonical placement |")),
 )
 
-# Units that must PASS: the phrase is named but attributed or disclaimed.
-_COMPOSITE_ATTRIBUTIONS: tuple[tuple[str, str], ...] = (
-    ("attributed by consolidator name",
-     "Return the logs to `omega-consolidate`, which alone creates the composite evidence.\n"),
-    ("attributed by role", "Only the final consolidator creates the composite evidence.\n"),
-    ("disclaimed in a step",
-     "13. **Return.** Do not publish `ready`, do not create composite evidence, do not request review.\n"),
-    ("disclaimed in a table row", "| Never done here | composite evidence, canonical placement |\n"),
-    ("disclaimed by a trailing negation",
-     "The `ready` platform asserts composite evidence and an accepting review that this slice never held.\n"),
-    ("disclaimed by a mid-sentence negated clause that the sentence continues past",
-     "The `ready` platform asserts composite evidence and an accepting review that this slice never "
-     "held, so a `ready` here is a claim about work nobody did.\n"),
-    ("deferred as pending consolidation",
-     "Complete-platform checks stay unrun here, pending consolidation of the composite evidence.\n"),
-    # Shapes taken from the shipped slices, so a reword of the binding rule
-    # cannot silently start rejecting conforming prose.
-    ("disclaimed as one item in a negated list",
-     "State explicitly that no canonical placement, no composite evidence and no independent review was performed.\n"),
-    ("disclaimed by a table label cell",
-     "| Never done here | composite evidence, independent review, canonical placement, `ready` |\n"),
-    ("deferred by a table label cell",
-     "| Reserved to the final skill | composite evidence, independent review |\n"),
+# Documents whose marker sits in a PERMITTED section with no attribution. Each
+# must yield an unattributed-claim finding and NO operative finding.
+_COMPOSITE_UNATTRIBUTED: tuple[tuple[str, str], ...] = (
+    ("unattributed claim in Ownership and boundaries",
+     _doc("Ownership and boundaries", "This slice creates composite evidence for all ten checks.")),
+    ("free negation is no longer a disclaimer",
+     _doc("Common mistakes",
+          "- The `ready` platform asserts composite evidence that this slice never held.")),
+    ("negated list item with no owner named",
+     _doc("Exit criteria", "No canonical placement and no composite evidence was performed.")),
+    ("table label cell with no owner named",
+     _doc("Quick reference", "| Never done here | composite evidence, independent review |")),
+)
+
+# Documents that must PASS: the phrase is named in a permitted section AND the
+# unit says whose work it is. One per permitted section named in the design.
+_COMPOSITE_PERMITTED: tuple[tuple[str, str], ...] = (
+    ("attributed by consolidator name in Ownership and boundaries",
+     _doc("Ownership and boundaries",
+          "Only the final skill, `omega-consolidate`, creates composite evidence for all ten checks.")),
+    ("attributed by role in Exit criteria",
+     _doc("Exit criteria",
+          "Unreachable here: only the final consolidator creates the composite evidence.")),
+    ("attributed by role in Common mistakes",
+     _doc("Common mistakes",
+          "- **Creating it early.** Composite evidence over all ten checks is the consolidator's job.")),
+    ("attributed by role in a Quick reference table row",
+     _doc("Quick reference", "| Reserved to the consolidator | composite evidence, `ready` |")),
+    ("attributed by role in When to use",
+     _doc("When to use", "Only that consolidator creates composite evidence and obtains the review.")),
+    ("no marker at all is trivially clean",
+     _doc("Procedure", "13. **Return.** Return the logs and publish the partial handoff.")),
 )
 
 
 def composite_analyzer_failures() -> list[str]:
-    """Self-test `unattributed_composite_claims`. Empty when it discriminates."""
+    """Self-test the structural pair. Empty when it discriminates."""
     problems: list[str] = []
-    for name, text in _COMPOSITE_CLAIMS:
+    for name, text in _COMPOSITE_OPERATIVE:
+        if not operative_composite_statements(text):
+            problems.append(
+                f"composite OPERATIVE case {name!r} was not caught; the marker is stated in an instruction "
+                "to act, which is a claim regardless of the surrounding words")
+    for name, text in _COMPOSITE_UNATTRIBUTED:
+        if operative_composite_statements(text):
+            problems.append(f"composite case {name!r} was reported as operative, but its section is not operative")
         if not unattributed_composite_claims(text, _COMPOSITE_CONSOLIDATORS):
-            problems.append(f"composite CLAIM near-miss {name!r} was not caught; the rule permits an unattributed claim")
-    for name, text in _COMPOSITE_ATTRIBUTIONS:
+            problems.append(
+                f"composite UNATTRIBUTED case {name!r} was not caught; outside the operative sections the "
+                "mention must still name the consolidator or the consolidating role")
+    for name, text in _COMPOSITE_PERMITTED:
+        operative = operative_composite_statements(text)
         offenders = unattributed_composite_claims(text, _COMPOSITE_CONSOLIDATORS)
-        if offenders:
-            problems.append(f"composite ATTRIBUTION {name!r} was rejected ({offenders[0]!r}); the rule forbids naming what the slice declines to do")
+        if operative or offenders:
+            detail = operative[0] if operative else offenders[0]
+            problems.append(
+                f"composite PERMITTED case {name!r} was rejected ({detail!r}); a permitted section may name "
+                "the phrase when it says whose work it is")
     return problems
 
 
@@ -4289,12 +4284,22 @@ def check_skill_platform_slices(root: Path, report: Report) -> None:
                 report.bad(r, "Procedure", "SKILL_PLATFORM_NO_PARTIAL",
                            "the procedure never names the 'partial' status it must publish; a non-final slice "
                            "publishes only a partial 05-platform and returns to the consolidator")
+            for section, unit in operative_composite_statements(text):
+                report.bad(r, section, "SKILL_PLATFORM_OPERATIVE_COMPOSITE",
+                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r} in its "
+                           f"'## {section}' section, where a statement is an instruction to act: {unit!r}. "
+                           "On that surface the phrase is a claim whatever surrounds it - attribution and "
+                           "disclaimer alike - because four separate rewordings have already defeated the "
+                           "attempt to read English negation scope. Move the sentence to a section that "
+                           "describes boundaries ('Ownership and boundaries', 'Exit criteria', 'Common "
+                           "mistakes', 'Quick reference') and attribute it there")
             offenders = unattributed_composite_claims(text, final)
             if offenders:
-                report.bad(r, "Procedure", "SKILL_PLATFORM_SLICE_COMPOSITE",
-                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r} in its own voice, with "
-                           f"neither attribution to the final platform consolidator nor a disclaimer: "
-                           f"{offenders[0]!r}; composite evidence across all slices belongs only to the consolidator")
+                report.bad(r, "0", "SKILL_PLATFORM_SLICE_COMPOSITE",
+                           f"a non-final platform slice states {COMPOSITE_EVIDENCE_MARKER!r} outside its "
+                           f"operative sections without naming whose work it is: {offenders[0]!r}; name the "
+                           "final platform consolidator or the consolidating role. A negation is no longer "
+                           "accepted as a disclaimer")
 
             if PAC_KIND in kinds and PLATFORM_KIND in kinds:
                 report.bad(r, "consumes", "SKILL_PLATFORM_CHAIN",
@@ -4324,10 +4329,18 @@ def check_skill_platform_slices(root: Path, report: Report) -> None:
                        "one first slice starts the chain from the PAC")
         report.ok("skill-platform-slices",
                   f"{len(slices)} non-final platform slice(s) publish only partial, start once from {PAC_KIND} and "
-                  f"otherwise consume the {PLATFORM_KIND} snapshot, attribute or disclaim every mention of "
-                  f"{COMPOSITE_EVIDENCE_MARKER!r}, and {len(final)} final consolidator carries "
-                  "composite evidence, review and canonical placement "
-                  f"(analyzer self-tested against {len(_COMPOSITE_CLAIMS)} claims and {len(_COMPOSITE_ATTRIBUTIONS)} attributions)", mark)
+                  f"otherwise consume the {PLATFORM_KIND} snapshot, state {COMPOSITE_EVIDENCE_MARKER!r} nowhere in "
+                  f"their {' / '.join(OPERATIVE_SECTIONS)} sections and nowhere else without naming the "
+                  f"consolidator or the consolidating role, and {len(final)} final consolidator carries "
+                  "composite evidence, review and canonical placement. The marker rule is a BOUNDED STRUCTURAL "
+                  "TRIPWIRE over section placement and attribution, not a proof of exclusivity. Two residual "
+                  "bypasses are known and accepted: it reads ONE literal phrase, so a slice describing the same "
+                  "work in other words is invisible to it; and outside the operative sections the attribution "
+                  "test is co-occurrence, so a unit that names the role while still claiming the work passes. "
+                  "Exclusivity itself is carried by the unreachable-ready, review-gate and consolidator-count "
+                  "assertions above, and by human review "
+                  f"(analyzer self-tested against {len(_COMPOSITE_OPERATIVE)} operative cases, "
+                  f"{len(_COMPOSITE_UNATTRIBUTED)} unattributed cases and {len(_COMPOSITE_PERMITTED)} permitted cases)", mark)
 
 
 # --- M5 check: debug-lineage ------------------------------------------------

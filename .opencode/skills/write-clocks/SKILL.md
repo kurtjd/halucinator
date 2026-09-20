@@ -221,9 +221,9 @@ session before its mutable baseline is read.
 13. **Return the held session to the coordinator.** Return the session identity,
     the snapshot FileRef, the evidence paths, the status and the next action to
     **hal-coordinator**. Do not release the Phase-I lock, do not publish `ready`,
-    do not create composite evidence, do not request review and do not move any
-    canonical byte. State explicitly that no `ready` platform, no canonical
-    placement, no commit and no hardware operation was performed.
+    do not create the consolidated platform evidence, do not request review and
+    do not move any canonical byte. State explicitly that no `ready` platform,
+    no canonical placement, no commit and no hardware operation was performed.
 
 When a required tool, target, formatter, schema, linker utility, probe, runner or reviewer is unavailable, record the attempted command, discovered identity, failure output, affected check and exact remedy in a new hashed evidence FileRef. Leave the affected check `unrun`; never mark it `not-applicable`. Ask the user to install or expose the named capability, provide an approved existing path/runner, or request a coordinator-owned scope decision; the agent does not install tools. Publish `partial` with `can_progress=true` and empty blockers when unaffected work remains, using truthful coverage: `coverage.incomplete` may remain empty when the `unrun` check alone makes the handoff partial. Publish `blocked` with `can_progress=false` and a named `environment:<capability>` blocker when no scoped work can continue. On resumption, rerun entry-state classification and the `--kind all` gate, verify the supplied identity, create replacement evidence at a fresh path, rerun affected checks and re-attest.
 

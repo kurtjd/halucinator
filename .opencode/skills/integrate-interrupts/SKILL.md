@@ -206,9 +206,10 @@ vector number from emitted Rust.
 11. **Return the held session.** Return the snapshot paths, the session
     identity, the published `partial` status and the next action to
     **hal-coordinator**, still holding the platform session for the next slice.
-    State explicitly that no canonical placement, no composite evidence, no
-    independent platform review and no `ready` publication was performed, and
-    that the platform review gate remains the final consolidator's. Only
+    State explicitly that no canonical placement, no consolidated attestation
+    across all ten canonical checks, no independent platform review and no
+    `ready` publication was performed, and that the platform review gate
+    remains the final consolidator's. Only
     review.verdict=ready accepts; ready-with-fixes and not-ready do not.
 
 When a required tool, target, formatter, schema, linker utility, probe, runner
@@ -382,7 +383,7 @@ number at all.
 | Checks | `advertised-builds`, `build-only-ci`, `format-lint`, `foundation-coverage`, `generated-mappings`, `independent-review`, `live-reference-read`, `negative-chip-selection`, `pure-host-tests`, `target-link` |
 | Discharged here | `live-reference-read`, `foundation-coverage`, `generated-mappings`, `format-lint`; `pure-host-tests` not-applicable with a reason |
 | Left `unrun` | `advertised-builds`, `target-link`, `build-only-ci`, `negative-chip-selection`, `independent-review`, each with a pending-rationale FileRef |
-| Never done here | composite evidence, independent review, canonical placement, `ready` |
+| Reserved to the consolidator | composite evidence, independent review, canonical placement, `ready` |
 | Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write |
 | Review gate | Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
 | Routing | every question, review request, scope change and dispatch returns to `hal-coordinator` |

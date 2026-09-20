@@ -229,7 +229,7 @@ normal case here and permits candidate work only.
 13. **Return to final consolidation.** Return every slice-local FileRef — the
     snapshot, the evidence logs, the candidate linker and runtime files and the
     published `partial` handoff — to `scaffold-hal`, which alone creates the
-    composite evidence for all ten canonical checks, obtains the review,
+    consolidated attestation for all ten canonical checks, obtains the review,
     publishes the sole `ready` `05-platform` and performs canonical placement.
     State that no canonical byte moved and no hardware operation was performed.
 
@@ -420,8 +420,8 @@ collection, never a sentinel word.
 
 - **Publishing `ready` because the candidate links.** A linked candidate is one
   slice's result. The `ready` platform asserts composite evidence and an
-  accepting review that this slice never held, so a `ready` here is a claim
-  about work nobody did.
+  accepting review that only `scaffold-hal` ever holds and this slice never
+  held, so a `ready` here is a claim about work nobody did.
 - **Performing canonical placement "since everything passed".** It is the exact
   failure the two-phase design exists to prevent. Candidate-only means
   candidate-only at every status.
