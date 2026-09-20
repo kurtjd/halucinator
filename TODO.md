@@ -118,25 +118,73 @@ tokens and loses fields.
   `<target-id>` is vendor+part, `<vendor>` is vendor only. *(Closed by one
   repository-root path base with named authorized roots, and distinct
   target and vendor normalization rules.)*
-- [ ] **A14** The typed schema is defined, validated and fixture-tested.
-  *Progress: the typed chain `01-sources → 03-svd → 04-pac → 05-platform`
-  now flows on the `review-supplied` route. Each producer writes a
-  deterministic handoff — `halucinator/handoff/01-sources.toml`,
-  `03-svd.toml`, `04-pac.toml`, `05-platform.toml` — and each consumer's
+- [x] **A14** The typed schema is defined, validated and fixture-tested.
+  *(Closed by M5, and this is M5's headline: the pipeline
+  `01 → 02 → 03 → 04 → 05 → 06 → 07 → 08` now traverses end to end, and the
+  last capability stall is gone. Each producer writes a deterministic
+  handoff — `halucinator/handoff/01-sources.toml`, `02-facts.toml`,
+  `03-svd.toml`, `04-pac.toml`, `05-platform.toml`, `06-driver-<name>.toml`,
+  `07-tests-<name>.toml`, `08-review-<artifact>.toml` — and each consumer's
   declared admission matches the producer's declared emission field for
   field, verified against the AST-derived registry from
   `.opencode/schema/validate.py`. The `unresolved` source route correctly
-  admits nothing. M4 closed the second stall: `05 → 06 → 07` now flows.
-  `write-driver` is the template-conforming typed `06-driver` producer for
-  every peripheral, A19 binds a `07-tests-<name>`'s `tests.api_handoff` to
-  the exact `06-driver` handoff by path with readiness checked against that
-  driver rather than against whichever `06` happened to be discovered first,
-  and `write-examples` remains the sole `07` emitter, now consuming a
-  tester-safe validation profile instead of a driver skill. One stalled
-  boundary remains: at `01 → 02`, on the `author-from-docs` route,
-  `generate-svd` cannot reach `ready` without a ready `02-facts`, and no
-  template-conforming facts procedure exists to produce one. Owner: M5 for
-  that remaining procedure.*
+  admits nothing.*
+
+  *What is typed and what is merely procedural must not be conflated.
+  `01→02`, `02→03` on the author route, `03→04`, `04→05`, `05→06` and
+  `06→07` are **validator-enforced dependency edges**, and `06→07` is bound
+  by exact path via A19's `tests.api_handoff` resolution. **`07→08`
+  selection is procedural**: an `08-review` records which artifact it
+  reviewed, but nothing statically proves which producer handoff the
+  coordinator selected and froze for that review. The internal ordering of
+  the three `05-platform` slices is likewise procedural — see A23, which
+  records that gap and owns it.*
+
+  *M5 removed the stall by adding `extract-hardware-facts` as the
+  template-conforming `02-facts` producer, so `generate-svd` on the
+  `author-from-docs` route can now reach `ready`. M3 closed `01 → 05`,
+  M4 closed `05 → 06 → 07`.*
+
+  *The `07` emitter set is two, not one. Correcting the stale M4 claim
+  previously recorded here: `write-examples` is the ordinary
+  `07-tests-<name>` producer from a `06-driver` handoff. `debug-hardware`
+  is a second `07-tests` emitter: it consumes a preserved failing
+  `07-tests` plus its exact `06-driver`, and publishes a distinct
+  `07-tests-<source-name>-debug-<run-id>` revision without replacing the
+  original.*
+
+  *What M5 shipped and then caught, recorded because it happened:*
+
+  1. *Two independent premium spec reviews returned **`not-ready`** on M5's
+     first design, in which four skills independently wrote the singleton
+     `05-platform.toml`. A later slice could silently erase an earlier
+     slice's platform view, and because the canonical ten-check set carries
+     one entry per check ID, a final handoff could look complete while
+     proving only the last slice. Restructured into an ordered
+     snapshot-consuming chain with exactly one consolidator: `write-clocks`,
+     `integrate-interrupts` and `integrate-runtime-linker` emit partial
+     views only, and `scaffold-hal` is the sole final consolidator,
+     consuming the final slice snapshot.*
+  2. *The compliance review found **five blocking defects in the committed
+     state**. Two mattered most: `generate-svd` still told the agent to stop
+     because no facts skill existed — which would have left this entry's
+     headline claim false — and `write-driver` still asserted that driver
+     evidence had no registered ownership class, contradicting C11.*
+  3. *A latent defect of the **exact M4 shape** was found and fixed: the
+     skill-reference scanner matched only the verb prefixes
+     `write|review|generate|gather|scaffold|extract`, so
+     `integrate-interrupts`, `integrate-runtime-linker` and `debug-hardware`
+     would have been **silently skipped**. Same failure as M4's hard-coded
+     review-gated tuple: a derivation that looks general and is not.*
+  4. *`review-artifact`'s accepting-verdict sentence was asserted by
+     nothing. It **emits** verdicts rather than consuming a gate, so it fell
+     outside the derived gated set. The derivation was sound; the coverage
+     was not. Fixed by making the `08-review` emitter a subject too.*
+  5. *Two self-checks initially rejected **conforming** corpus and had to be
+     narrowed. The worked-example analyzer rejected `trait_obligations = []`
+     — the template's own mandated form for a known-empty collection, and a
+     form `validate.py` accepts. A check that rejects the canon is a defect
+     in the check.*
 - [x] **A15** `halucinator/test-candidates/` is an M2-local convention. The
   tester's committed test revisions live there because `.run/` is gitignored
   and therefore neither reviewable nor durable across clones, but M2 may not
@@ -201,8 +249,13 @@ tokens and loses fields.
   peripherals exist on this part" and must degrade to
   `state.decisions.first_peripheral` and `peripheral:*` scope IDs chosen by
   the coordinator. M4 deliberately invented no field: adding one is a schema
-  change and belongs with the facts procedure. *Owner: M5, with A14's
-  remaining `01 → 02` boundary.*
+  change and belongs with the facts procedure. *Escalated by M5, not closed:
+  `extract-hardware-facts` now exists and emits `02-facts`, so the procedure
+  this entry was waiting on has landed — and it still carries categories and
+  citations rather than a typed peripheral inventory. The scope IDs and
+  coordinator decisions remain the procedural substitute. M5 did not violate
+  `schema = 1` to fake the field. Owner: M6, with A22's schema-version
+  transition.*
 - [ ] **A22** No typed peripheral-taxonomy or profile discriminator.
   `write-driver` selects a GPIO, Embassy-time-service or bus profile, and
   that choice determines its architecture, lifecycle and scheduling rules —
@@ -212,8 +265,23 @@ tokens and loses fields.
   that the declared profile matches the implementation is hashed prose plus
   independent review, which is **advisory, not mechanical**: a driver can
   claim a bus profile and implement a time service without any typed
-  contradiction. *Owner: M5, and it needs the schema-version transition in
-  `.opencode/schema/handoff-common.md`.*
+  contradiction. *Escalated by M5, not closed: the discriminator is still
+  absent, selection remains hashed prose plus review, and `write-dma` adds
+  another driver shape to the set the discriminator would have to span.
+  Closing it needs the schema-version transition in
+  `.opencode/schema/handoff-common.md`. Owner: M6.*
+- [ ] **A23** Platform slice lineage is typed only at the boundary. M5 split
+  platform work into three partial-view slices — `write-clocks`,
+  `integrate-interrupts`, `integrate-runtime-linker` — consumed in order and
+  finally consolidated by `scaffold-hal`, which reads the final slice
+  snapshot. The stage boundary into `05-platform` is typed; the chain inside
+  it is not. `schema = 1` cannot identify which slice produced a given
+  snapshot, and cannot enforce slice order. Candidate snapshots are neither
+  discovered nor reparsed by `.opencode/schema/validate.py`; hashes prove
+  freshness only, never provenance. A reordered or incomplete chain can
+  therefore satisfy the typed stage boundary if procedural review misses it.
+  Closing it requires a schema-version transition or validator-visible
+  snapshot metadata. *Owner: M6.*
 
 ---
 
@@ -237,13 +305,18 @@ tokens and loses fields.
   representation*. *(Closed: README now frames it as epistemology versus
   representation and names it a trust boundary — `hal-svd` must never turn
   an absent fact into a plausible value.)*
-- [ ] **B4** `hal-datasheet`'s hardware-analysis half has no skill.
+- [x] **B4** `hal-datasheet`'s hardware-analysis half has no skill.
   `hal-datasheet.md:78-79` separates it explicitly; only the collection
   half is covered. Its output format (`hal-datasheet.md:140-153`) and the
   skill's (`gather-documentation/SKILL.md:186-195`) are two different
-  seven-item lists nobody reconciles. *M2 created no skill, so this is
-  untouched; the agent marks the gap as unlinked prose. Owner: M5, with
-  D7.*
+  seven-item lists nobody reconciles. *(Closed by M5's
+  `.opencode/skills/extract-hardware-facts/`: the template-conforming
+  hardware-analysis procedure and the sole typed `02-facts` emitter,
+  consuming `01-sources`. The two unreconciled seven-item lists are
+  superseded by one typed emission. This is the procedure A14's `01 → 02`
+  boundary was stalled on; the residual that `02-facts` still carries no
+  typed peripheral inventory is A21, and that citations are unverified is
+  E1.)*
 - [x] **B5** `hal-reviewer` does not exist as a stage. `AGENTS.md:127`
   claims it gates everything; the reviewer never claims it, has no skill,
   has `edit:deny` + `task:deny` (no gate authority), describes its output
@@ -253,7 +326,10 @@ tokens and loses fields.
   stage — it emits an `08` verdict, authors the `REVIEW-*.md` findings content,
   holds a narrow write permission for exactly that handoff, and has an explicit
   dispatch payload. Its own skill is the only residual, and that is tracked as
-  D12, so nothing distinct remains under this entry.)*
+  D12. M5 closes that residual too: `.opencode/skills/review-artifact/` is
+  the reviewer's own typed procedure, emitting `08-review` from any one of
+  `01`–`07`, so the reviewer now supplies its own procedure rather than
+  borrowing the dispatching skill's. Nothing remains under this entry.)*
 - [x] **B6** `hal-tester` is `edit: allow`, unrestricted
   (`hal-tester.md:30`) — read-blinded from HAL source, write-enabled
   everywhere. *(Closed: the tester's edit map is `*: deny` reopened only for
@@ -340,7 +416,10 @@ Verified as grep-absences across all agents and skills.
   `linker` file class in `.opencode/ownership.toml`, owned by
   `hal-integrator`, covering `embassy-*/memory.x`, `embassy-*/link*.x` and
   their integration-candidate counterparts. The RAM-first linker
-  *procedure* is still missing — see H5.)*
+  *procedure* was still missing and tracked as H5; M5 closes that too, in
+  `.opencode/skills/integrate-runtime-linker/`, which owns candidate
+  linker and runtime work, RAM-first candidate configuration and ELF
+  load/run-address inspection. Nothing remains under this entry.)*
 - [x] **C2** `build.rs` and `_generated.rs`. Zero hits in scaffold.
   `AGENTS.md:52` names `_generated.rs` in the concern map; the skill that
   creates it never names it. *(Closed by the `build-generation` class,
@@ -363,6 +442,16 @@ Verified as grep-absences across all agents and skills.
   a missing formatter or target makes `ready` / `software verified`
   structurally unreachable with no remedy path
   (`generation-and-checks.md:225-226`, `scaffold-hal/SKILL.md:222-223`).
+  *Partial after M5. The seven new skills do supply the missing half: each
+  gives explicit `unrun` handling, a remedy paragraph, and an
+  `environment:<capability>` blocker naming what is absent and who must
+  install it, so a missing target no longer reads as an unexplained stall.
+  The pre-M5 SVD, PAC, scaffold, driver and test procedures still mostly
+  stop at `unrun` or `blocked` without the same complete
+  installation/exposure handoff, so the toolkit now says two different
+  things depending on which stage you are in. Remaining: audit and
+  standardize the remedy wording across the pre-M5 procedures before
+  closing. Owner: M6.*
 - [x] **C6** The roadmap file is required
   (`hal-architect.md:158-160`, `scaffold-hal/SKILL.md:73-76`,
   `scaffold-record.md:25`) with no filename and no default path, while
@@ -390,7 +479,7 @@ Verified as grep-absences across all agents and skills.
 - [~] **C10** Regression across chips. `hal-driver.md:127-128` requires
   building every chip feature combination; no stage, owner, or CI wiring
   exists. *Deferred with C9.*
-- [ ] **C11** No registered ownership class for driver evidence.
+- [x] **C11** No registered ownership class for driver evidence.
   `.opencode/ownership.toml` gives `driver-candidates` the pattern
   `halucinator/candidates/driver-*/src/**` and `peripheral-modules` the
   patterns `embassy-*/src/**` and `halucinator/candidates/driver-*/src/**`,
@@ -401,15 +490,27 @@ Verified as grep-absences across all agents and skills.
   evidence logs and its profile-classification record therefore have no
   registered owner, while the tester's equivalent
   (`test-candidate-evidence`) does. Widening the pattern or adding a class
-  is an ownership-registry change. *Owner: M5.*
-- [ ] **C12** No generic durable driver-record path. `driver-records` registers
+  is an ownership-registry change. *(Closed by M5: a `driver-evidence`
+  class is registered in `.opencode/ownership.toml`, and the owning skill
+  and agent both claim it. `write-driver`'s stale prose asserting that
+  driver evidence had "no registered class" is corrected — the compliance
+  review caught that contradiction still standing in the committed state,
+  which would have left the registry and the skill disagreeing about a gap
+  this entry had just closed.)*
+- [x] **C12** No generic durable driver-record path. `driver-records` registers
   exactly `halucinator/docs/*/notes/GPIO.md` and
   `halucinator/docs/*/notes/TIME-DRIVER.md`. A bus driver, or any driver whose
   profile is not one of those two, has no durable record file to be written
   into and relies entirely on the typed `06-driver`, the hashed
   `handoff.notes`, evidence FileRefs and citations. A generic path — a
   per-peripheral `notes/drivers/<name>.md`, say — needs an ownership-registry
-  change, which M4 was not scoped to make. *Owner: M5, with C11.*
+  change, which M4 was not scoped to make. *(Closed by M5: `driver-records`
+  is widened with `notes/drivers/**`, so the generic per-peripheral
+  `notes/drivers/<name>.md` path is registered. The write is split along the
+  established seam rather than handing the driver a canonical file:
+  `hal-driver` authors the delta, and `hal-integrator` materializes it via
+  `hal-coordinator`. `write-dma` is the first driver to need this — its
+  record is neither GPIO nor time.)*
 
 ---
 
@@ -450,12 +551,36 @@ Verified as grep-absences across all agents and skills.
   triggers, inviting description-only execution without loading the body.
   *(Closed: all three descriptions now lead with `Use when` and state what
   each skill is `Wrong for`.)*
-- [ ] **D7** Missing skill: hardware-fact extraction (see B4).
-- [ ] **D8** Missing skill: clock tree bring-up.
-- [ ] **D9** Missing skill: interrupts / NVIC / `interrupt_mod!`.
-- [ ] **D10** Missing skill: runtime + linker integration (`memory.x`).
-- [ ] **D11** Missing skill: DMA subsystem.
-- [ ] **D12** Missing skill: artifact review (the reviewer's own skill).
+- [x] **D7** Missing skill: hardware-fact extraction (see B4). *(Closed by
+  M5: `.opencode/skills/extract-hardware-facts/`, owned by `hal-datasheet`,
+  emitting `02-facts` from `01-sources`.)*
+- [x] **D8** Missing skill: clock tree bring-up. *(Closed by M5:
+  `.opencode/skills/write-clocks/`, owned by `hal-driver` with
+  `hal-integrator` as emitter, consuming `04-pac` and emitting a
+  **`05-platform` partial view only** — it is the first of three slices and
+  never the consolidator. B12's clocks assignment and the architect's
+  contract are unchanged.)*
+- [x] **D9** Missing skill: interrupts / NVIC / `interrupt_mod!`. *(Closed
+  by M5: `.opencode/skills/integrate-interrupts/`, owned by
+  `hal-integrator`, consuming the preceding `05-platform` snapshot and
+  emitting a **partial view only**.)*
+- [x] **D10** Missing skill: runtime + linker integration (`memory.x`).
+  *(Closed by M5: `.opencode/skills/integrate-runtime-linker/`, owned by
+  `hal-integrator`, consuming the preceding `05-platform` snapshot and
+  emitting a **partial view only**. It also carries the RAM-first candidate
+  configuration and ELF inspection procedure that closes H5, and is the
+  named owner C1 was missing.)*
+- [x] **D11** Missing skill: DMA subsystem. *(Closed by M5:
+  `.opencode/skills/write-dma/`, owned by `hal-driver`, consuming
+  `05-platform` and emitting `06-driver-dma`. It is the first driver whose
+  durable record is neither GPIO nor time, which is what forced C12.)*
+- [x] **D12** Missing skill: artifact review (the reviewer's own skill).
+  *(Closed by M5: `.opencode/skills/review-artifact/`, owned by
+  `hal-reviewer`, consuming any one of `01`–`07` and emitting `08-review`.
+  This closes B5's last residual. Its accepting-verdict sentence was
+  initially asserted by nothing — as an emitter of verdicts rather than a
+  consumer of a gate, it fell outside the derived gated set; fixed by making
+  the `08-review` emitter a subject of that check too.)*
 - [x] **D13** Missing skill: generic driver scaffolding, replacing the
   per-peripheral skills. *(Closed by M4: `.opencode/skills/write-driver/`
   with `references/driver-checklist.md`, `references/driver-record.md` and
@@ -487,7 +612,16 @@ Verified as grep-absences across all agents and skills.
   if that set is ever empty, and was proven by a negative mutation in a
   throwaway copy: with both sentences removed the suite exits 1 with
   `SKILL_VERDICT_SENTENCE_MISSING`.)*
-- [ ] **D14** Missing skill: hardware debugging of a failing driver.
+- [x] **D14** Missing skill: hardware debugging of a failing driver.
+  *(Closed by M5: `.opencode/skills/debug-hardware/`, owned by `hal-tester`,
+  consuming a `06-driver` plus its preserved failing `07-tests` and emitting
+  a `07-tests` revision under a **distinct** name —
+  `07-tests-<source-name>-debug-<run-id>` — so the failing evidence is never
+  replaced. This makes the toolkit's `07` emitter set two, not one, which is
+  the stale claim corrected in A14. Source blindness is unchanged: the
+  debugger is still denied `embassy-*/src/**` and still works from the
+  public contract, which is the hardest constraint in the skill and the
+  reason it is a tester skill rather than a driver one.)*
 - [~] **D15** Missing skill: upstream PR preparation. *Deferred with C8.*
 - [~] **D16** Missing skill: chip-family expansion. *Deferred with C9.*
 - [ ] **D17** Operational rules that static validation cannot express need
@@ -544,7 +678,17 @@ Verified as grep-absences across all agents and skills.
   facts (`AGENTS.md:291-299`) but a syntactically plausible section
   number satisfies the output shape and survives to silicon. This is the
   highest-severity gap in the project: the one failure mode that produces
-  confident, compiling, wrong output.
+  confident, compiling, wrong output. *Escalated by M5, not closed.
+  `extract-hardware-facts` materially improves the raw material: every fact
+  in `02-facts` now carries a source ID, a document revision, a locator and
+  a hashed quoted excerpt, so M6 finally has something to verify against.
+  What is still missing is the verification itself — nothing checks that the
+  locator resolves to a real place in a real document, and nothing checks
+  that the quoted excerpt actually supports the assertion attached to it.
+  The skill explicitly disclaims mechanical verification rather than
+  implying it, which is the right disclosure and not a fix. A fabricated
+  locator with a fabricated excerpt still passes every check in the suite.
+  Owner: M6, with E2.*
 - [ ] **E2** Silent corruption chain. A hallucinated offset becomes a
   wrong SVD, a wrong PAC, a driver that compiles and does nothing, and a
   bench session that blames the driver. No detection exists before the
@@ -820,9 +964,13 @@ Asserted capabilities with no procedure sufficient to perform them.
 - [~] **H4** Hardware execution across arbitrary devices
   (`README.md:187-191`) — no loader/probe adapters, device database or
   output parser. *Deferred with H3.*
-- [ ] **H5** RAM-first loading (`hardware-execution.md:50-83`) is policy
+- [x] **H5** RAM-first loading (`hardware-execution.md:50-83`) is policy
   with no linker-generation procedure or ELF inspection command set.
-  Blocked on C1.
+  Blocked on C1. *(Closed by M5 in
+  `.opencode/skills/integrate-runtime-linker/`: RAM-first candidate linker
+  and runtime configuration plus ELF load/run-address inspection are now a
+  procedure rather than a policy sentence. C1 named the owner; this names
+  the steps.)*
 - [x] **H6** Automated stage gating — no state machine or validator.
   Completion is whatever the current model says after reading Markdown.
   *(Closed: `.opencode/schema/validate.py` enforces schema, dependency graph,
@@ -855,6 +1003,56 @@ Asserted capabilities with no procedure sufficient to perform them.
   `write-driver` and the validation profiles wire the validator at the same
   required points and disclose the same limit, and retiring the allowlist
   changed coverage, not enforcement. Owner: M6.*
+- [ ] **H12** Validator wiring does not bind every publication.
+  `skill-validator-wiring` derives every handoff-publication step in a skill
+  — it is not hard-coded — but it requires a validator invocation only
+  before and at the **first** publication, plus the `--kind all` gate at or
+  after the last. A middle or later publication in a multi-publication skill
+  can therefore lose its immediate validation while the check stays green.
+  Binding every publishing step is not a check-only fix: it needs 7 of the
+  13 skills to name the command stem at their final gate rather than only
+  `--kind all`, which is a change to skill text. *Owner: M6.*
+- [ ] **H13** Subject-derivation guard has known AST blind spots.
+  `skill-subject-derivation` was added by M5 after two milestones in a row
+  shipped a check whose subject set was hard-coded and silently incomplete
+  (M4's review-gated tuple, M5's verb-prefix scanner). It catches the eight
+  literal forms it tests, including the one-element collection that reads as
+  general and is not. It cannot see filtering hidden in a called helper,
+  component-wise or aliased names, `.keys()` membership, or
+  `startswith`/`endswith`/regex predicates. Its own PASS text describes it
+  correctly as a regression guard over those forms, not as proof that every
+  check derives its subjects — the honest framing is the point, and it does
+  not make the blind spots smaller. *Owner: M6.*
+- [ ] **H14** The composite-evidence marker rule is a bounded structural
+  tripwire. Three rounds of lexical patching were each defeated by a
+  reviewer-constructed bypass, so `skill-platform-slices` was rebuilt
+  structurally: a non-final slice may not state the marker anywhere in
+  `## Procedure` or `## Validation`, and where it appears elsewhere it must
+  name the consolidator or the consolidating role. All four known bypasses
+  are now caught. **Three residuals are known and accepted.** Attribution
+  outside the operative sections is co-occurrence rather than role
+  assignment, so a sentence that names the consolidator while still claiming
+  the work passes. Detection reads one literal phrase, so any synonym is
+  invisible. And the rule is placement-based, not semantic. Exclusivity
+  itself is carried by the unreachable-`ready` assertion, the review gate,
+  the consolidator-count assertion and human review — the tripwire raises
+  the cost of the cheap mechanical violation and nothing more. Same posture,
+  and the same limits, as the `DRIVER_API_LEAK` and
+  `validation-guidance-isolation` tripwires. *Owner: M6 if it is to be
+  strengthened.*
+- [ ] **H15** Self-check mutation coverage is incomplete and non-durable.
+  M5 ran a mutation proof that bound 14 of 36 checks to the new skills and
+  confirmed that all five new review-gated skills trip
+  `SKILL_VERDICT_SENTENCE_MISSING` when their accepting sentence is removed.
+  Two problems. The harness lives **outside the tree**, so the proof is not
+  reproducible from a clone — the same defect as H10's fixture generator.
+  And nothing durable records which checks have been exercised against real
+  content versus merely shown to fail closed: `debug-lineage` and
+  `skill-note-paths` are in the second category, never bound to M5 content.
+  A check that has only been shown to fail closed has been shown to reject
+  garbage, not to accept the corpus for the right reason. Add an in-tree
+  mutation matrix, or a committed record of exercised versus unexercised
+  checks. *Owner: M6, with H10.*
 
 ---
 
