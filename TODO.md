@@ -215,12 +215,22 @@ tokens and loses fields.
   registry, raw-fence parsing, bounds and timeouts, and the honour-system
   limitation. M4 retired the two-generation allowlist section with the file
   itself and documented the 33 checks that now run.)*
-- [ ] **A18** An arbitrary `state.decisions.destination_crate` defeats the
+- [x] **A18** An arbitrary `state.decisions.destination_crate` defeats the
   static permission globs. The tester's blinding denies `embassy-*/**` and
   the driver and integrator are bounded by `embassy-*/` patterns; a HAL crate
   placed anywhere else is outside all of them, and agent frontmatter cannot
   interpolate a runtime path. Investigate destination-aware policy without
-  claiming dynamic frontmatter generation. *Owner: M3 to investigate.*
+  claiming dynamic frontmatter generation. *(Closed by M6.
+  **MECHANICALLY ENFORCED:** schema 2 constrains `destination_crate` to a
+  repository-root one-segment `embassy-<vendor_id>`, rejecting a named root, a
+  nested path or an alias with `ILLEGAL_ENUM`, so the configured destination is
+  always inside the tester's `embassy-*/**` deny glob; `tester-destination-coverage`
+  additionally requires `hal-tester.md`, `write-examples/SKILL.md` and `README.md`
+  to state the constraint, its coverage, and the residual in that order.
+  **DOCUMENTED ONLY:** overall blindness. `bash` is `ask`, `grep` is matched
+  against the query rather than the path, and filenames, compiler and
+  build-script diagnostics, history and tools still quote source. The corpus now
+  says so instead of claiming closure.)*
 - [x] **A19** **ESCALATED — validator soundness defect.** *(Closed by M4 in
   `.opencode/schema/validate.py`: a `World.by_path` index now supplements
   `by_stage`, so `06-driver-<name>` handoffs no longer collapse into one
@@ -281,7 +291,11 @@ tokens and loses fields.
   freshness only, never provenance. A reordered or incomplete chain can
   therefore satisfy the typed stage boundary if procedural review misses it.
   Closing it requires a schema-version transition or validator-visible
-  snapshot metadata. *Owner: M6.*
+  snapshot metadata. *M6 deliberately added no lineage field: the narrowed
+  schema-2 package covers citation verification and the HIL interlock only, and
+  an unapproved provenance field would have implied a closure that does not
+  exist. The corpus states that the validator cannot independently prove slice
+  order or provenance. Still open. Owner: post-M7.*
 
 ---
 
@@ -624,7 +638,7 @@ Verified as grep-absences across all agents and skills.
   reason it is a tester skill rather than a driver one.)*
 - [~] **D15** Missing skill: upstream PR preparation. *Deferred with C8.*
 - [~] **D16** Missing skill: chip-family expansion. *Deferred with C9.*
-- [ ] **D17** Operational rules that static validation cannot express need
+- [x] **D17** Operational rules that static validation cannot express need
   runtime tests: consuming a `partial` input to mutate canonical or
   production artifacts, raw-colon lock filenames (unmaterializable on
   NTFS), live-lock PID/clock classification, and `state.toml` CAS races.
@@ -635,7 +649,18 @@ Verified as grep-absences across all agents and skills.
   embed the algorithms under test and prove only the test code. The Windows
   raw-colon lock filename case is individually safe but not worth a separate
   mechanism before the operational tooling exists. Owner: M6, with F10/F11,
-  which introduce that tooling.*
+  which introduce that tooling.* *(Closed by M6.
+  **MECHANICALLY ENFORCED:** `.opencode/schema/runtime.py` is the production
+  helper and `.opencode/schema/test_runtime.py` drives it as a subprocess;
+  `runtime-protocol-tests` runs that suite in the self-check and requires all
+  eight named faults - post-create acquisition conflict, PID reuse against
+  process-birth identity, orphaned probe child, repeatedly interrupted recovery,
+  the check-use pause, Windows delete-sharing replacement failure, unsupported
+  directory `fsync`, and fresh-clone absence.
+  **DOCUMENTED ONLY:** coverage is derived from test names and docstrings, so a
+  test named for a fault it does not actually inject is invisible to the gate,
+  and the broker, cross-clone and physical-truth residuals are closed by nothing
+  in M6. They are carried as F15, F16 and F17.)*
 - [x] **D18** Skill ownership text contradicts the agent contracts. M2 could
   not edit a `SKILL.md`, so nine verified conflicts remain, enumerated once
   in `README.md` and referenced by ID from each affected agent: skills still
@@ -674,7 +699,7 @@ Verified as grep-absences across all agents and skills.
 
 ## E. Correctness and safety
 
-- [ ] **E1** No citation verification. Rule 1 forbids invented hardware
+- [x] **E1** No citation verification. Rule 1 forbids invented hardware
   facts (`AGENTS.md:291-299`) but a syntactically plausible section
   number satisfies the output shape and survives to silicon. This is the
   highest-severity gap in the project: the one failure mode that produces
@@ -688,23 +713,73 @@ Verified as grep-absences across all agents and skills.
   The skill explicitly disclaims mechanical verification rather than
   implying it, which is the right disclosure and not a fix. A fabricated
   locator with a fabricated excerpt still passes every check in the suite.
-  Owner: M6, with E2.*
+  Owner: M6, with E2.* *(Closed by M6.
+  **MECHANICALLY ENFORCED:** schema 2 replaces the independently-membered
+  source list with a `sources.documents` binding of source ID to hash-pinned
+  bytes; the v2 `CitationRef` carries `assertion_id`, `scope_item`, `claim`,
+  `source_id`, `source`, a tagged `location` (`pdf-page` or `text-lines`),
+  printed `locator`, `excerpt` and `note`; and the mandatory `citations-verified`
+  check makes `validate.py` itself re-derive the cited location from those bytes
+  - running `pdftotext -layout -f <page> -l <page> <source> -` for a PDF - and
+  match the normalized excerpt, failing closed with `CITATION_UNVERIFIED` and a
+  `poppler-utils` remedy when the tool is missing. There is deliberately no
+  agent-authored extraction field. `citation-verification-corpus` holds the six
+  E1 files to that story and rejects any that still routes evidence through an
+  agent extraction, retains a retired v1 leaf, drops the remedy, or describes
+  the gate without stating what it cannot prove.
+  **DOCUMENTED ONLY:** the gate proves normalized occurrence at the cited
+  location, not visual contiguity, semantic entailment, OCR correctness, vendor
+  truth, or that an agent ran the validator. Aggressive normalization can join
+  column-separated text, so review still owns support. E2's end-to-end
+  corruption chain is narrowed, not closed.)*
 - [ ] **E2** Silent corruption chain. A hallucinated offset becomes a
   wrong SVD, a wrong PAC, a driver that compiles and does nothing, and a
   bench session that blames the driver. No detection exists before the
-  bench.
-- [ ] **E3** MCXA implementation choices are mandated as universal
+  bench. *Narrowed by M6's E1 gate: an offset whose excerpt does not occur at
+  the cited location in the bound source bytes is now rejected before the SVD.
+  An offset whose excerpt does occur but does not mean what the claim says is
+  still undetected, and nothing downstream of `02-facts` re-derives it. Still
+  open. Owner: post-M7.*
+- [x] **E3** MCXA implementation choices are mandated as universal
   architecture. `AGENTS.md:305-309`, `hal-architect.md:110-114` and
-  `hal-driver.md:61-80` require the MCXA `Gate`, `enable_and_reset`,
-  `PreEnableParts` and `WakeGuard` shapes for arbitrary vendors. The
-  invariant is universal; the type names are an example.
-- [ ] **E4** Rule 7's "clear them in one write" (`AGENTS.md:319-321`,
+  `hal-driver.md:61-80` required, for arbitrary vendors, the shapes that are
+  only MCXA examples - `Gate`, `enable_and_reset`, `PreEnableParts` and
+  `WakeGuard`. The invariant is universal; those type names are an example. *(Closed by M6.
+  **MECHANICALLY ENFORCED:** `mcxa-example-boundary` reads twelve E3 files and
+  rejects any sentence naming an MCXA clock helper without example or optional
+  framing, requires `AGENTS.md` and `hal-architect.md` to state all eight
+  minimum lifecycle-contract elements - policy owner, acquisition, reset
+  arbitration, lifetime accounting or its explicit absence, teardown,
+  quiescence, frequency source, cancellation - and requires six files to say in
+  so many words that the MCXA names are examples. `HAL-RULE-04` is now the
+  universal invariant (do not duplicate clock, reset or power policy) and names
+  shared reset domains, reference-counted gates, always-on clocks, split
+  controllers and the no-lifetime-vote case as legitimate target forms.
+  **DOCUMENTED ONLY:** this is corpus wording. Nothing observes a generated HAL
+  that copies MCXA shapes anyway.)*
+- [x] **E4** Rule 7's "clear them in one write" (`AGENTS.md:319-321`,
   `hal-driver.md:89-92`) is destructive where flags span registers or mix
   W1C/W0C/read-only/control bits. The operation must derive from cited
-  per-register semantics.
-- [ ] **E5** `hal-driver.md:102-105` tells the agent to read the MCXA
+  per-register semantics. *(Closed by M6.
+  **MECHANICALLY ENFORCED:** `error-clear-semantics` rejects "in one write",
+  "clear all error flags" and "read all error flags" across the six E4 files and
+  requires read-to-clear, preserve, recoverable and latched in each, with the
+  W1C and W0C conventions named somewhere in the group. `HAL-RULE-07` now reads
+  as an obligation to account for every relevant condition under cited
+  read/clear semantics, and explicitly declines to mandate a universal snapshot.
+  **DOCUMENTED ONLY:** no driver is compiled or executed by this check.)*
+- [x] **E5** `hal-driver.md:102-105` tells the agent to read the MCXA
   implementation *before* target analysis, priming NXP register
   assumptions into a model about to interpret a different vendor's PDF.
+  *(Closed by M6. **MECHANICALLY ENFORCED:** `target-first-driver-order` asserts
+  the four reading-order anchors in `hal-driver.md` - validate payload and write
+  the target capability/invariant inventory first, then skill selection, then
+  profile applicability, then "only now" the live `embassy-mcxa` references -
+  requires `## What you do` to be renamed `## Conditional implementation
+  obligations` and placed after them, and rejects any `embassy-mcxa/`
+  implementation path appearing before the inventory bullet ends.
+  **DOCUMENTED ONLY:** this asserts document order; it cannot observe what an
+  agent actually reads first.)*
 - [~] **E6** No transitive invalidation. Every record says dependent
   evidence must be invalidated, but it is manual and local
   (`scaffold-record.md:88-90`, `driver-record.md`,
@@ -719,17 +794,72 @@ Verified as grep-absences across all agents and skills.
   gone. Remaining: there is still **no transitive dependency graph** — an
   invalidated `05-platform` does not mechanically mark every `06-driver` and
   `07-tests` derived from it — and still **no false-claim detector**.
-  Detection improved; propagation did not. Owner: M6, alongside E7.*
+  Detection improved; propagation did not. M6 deliberately built no dependency
+  graph and changed no schema graph; `validate.md` now states that M6 does not
+  propagate beyond declared current one-hop bindings and that cycles and missing
+  graph nodes are not represented. Still open, carried as E14. Owner: post-M7.*
 - [ ] **E7** No mechanism makes a false verification claim detectable.
   Records are ordinary Markdown written by the same agent doing the work.
   *Unchanged by M4: hashing the driver record improves stale-evidence
   detection, not claim truthfulness. Owner: M6, with E6's residual.*
-- [ ] **E8** `AGENTS.md`'s dual-purpose framing is unsafe. `:15-19`
+  *M6 disposition: **DOCUMENTED, not closed.** `claim-truth-limit` mechanically
+  requires `validate.md`, `hal-coordinator`, `hal-integrator`, `hal-reviewer`,
+  `hal-tester` and `docs/skill-template.md` to disclose that a claimant may have
+  fabricated execution evidence and that no external attester exists - so the
+  **disclosure** is enforced. The **detector** is not built and M6 did not
+  attempt one: a check that could detect a false claim about work never done is
+  exactly what this item asks for, and disclosing its absence is not the same as
+  supplying it. Still open. Owner: post-M7.*
+- [x] **E8** `AGENTS.md`'s dual-purpose framing is unsafe. `:15-19`
   requires `embassy-mcxa/` paths to resolve or work stops; in this
   checkout none resolve, so literal compliance halts even toolkit
-  maintenance.
-- [ ] **E9** The install commands overwrite a destination `AGENTS.md`
+  maintenance. *(Closed by M6, and this milestone is its own live evidence: an
+  earlier M6 attempt deadlocked because it dispatched an agent whose only
+  write-allow glob is `halucinator/docs/*/notes/ARCHITECTURE.md`, a path that
+  does not exist in a toolkit checkout, so the agent could write nothing and
+  looped. **MECHANICALLY ENFORCED:** `checkout-context-guard` requires all eight
+  agents and `AGENTS.md` to carry the exact no-action sentence, all three
+  classifications, the rule that TOOLKIT wins even when Embassy markers also
+  appear, and the prohibition on retry and subdispatch; `AGENTS.md` must name
+  the four conservative markers and the README sentence it probes for, and
+  `README.md` must note that `docs/opencode.json` is inert product material.
+  **DOCUMENTED ONLY:** no classification is executed here. An agent that ignores
+  the guard is invisible to the check, which is why the guard text itself says
+  the classification is conservative evidence, not proof of identity.)*
+- [x] **E15** The M6 checkout guard was scoped to every reader of `AGENTS.md`
+  rather than to the HAL workflow, reproducing E8's defect in mirror image and
+  making it stronger: E8's prerequisite *implied* that literal compliance halts
+  toolkit maintenance, while the unscoped guard *mandated* the halt. Demonstrated,
+  not theoretical: a generic `reviewer` agent dispatched to run the M6 compliance
+  review refused twice with the guard's own no-action sentence, and was right to,
+  because "before anything else, classify" outranks a dispatch instruction - even
+  one explicitly authorizing it as the non-HAL agent the remedy names. The guard
+  opened with a bare imperative and named no subject. *(Closed.
+  **MECHANICALLY ENFORCED:** `checkout-context-guard` now requires two distinct
+  sentences in `AGENTS.md` and in each of the eight `hal-*` guard blocks - one
+  tying the `hal-*` HAL-workflow family to the classification obligation, and a
+  separate one releasing a non-HAL maintenance agent - matched as sentence-level
+  co-occurrence over open wording families rather than one literal, and it
+  explicitly refuses to accept the operator-facing remedy sentence as the
+  release. The `hal-*` refusal is unchanged: terminal, no retry, no lock, no
+  state publication, no write, no subdispatch.
+  **DOCUMENTED ONLY:** no check can prove an agent honours the scoping
+  correctly. In particular the check cannot distinguish a correctly scoped
+  exclusion from one worded so broadly that a `hal-*` agent reads itself out of
+  the guard, so the corpus carries that weight in prose: the exclusion is
+  settled by agent identity alone and never by an agent's own judgement of its
+  task. A wording that let any agent self-certify its work as maintenance would
+  satisfy the check and reintroduce E8. This is a review obligation.)*
+- [x] **E9** The install commands overwrite a destination `AGENTS.md`
   (`README.md:66-82`) despite the prose saying "or merge" (`:59-64`).
+  *(Closed by M6. **MECHANICALLY ENFORCED:** `install-no-overwrite` rejects the
+  "overwrite matching files" announcement, requires a
+  `[ ! -e ... ] || exit 1` guard in every POSIX copy block and a
+  `Test-Path -LiteralPath` ... `throw` guard in every PowerShell one, and
+  forbids `-Force` anywhere. The README now describes install as a fresh-install
+  operation and sends an existing destination to a manual diff/merge path.
+  **DOCUMENTED ONLY:** this asserts the shipped command text. A user who edits
+  or ignores the command is outside it.)*
 - [ ] **E10** `.opencode/schema/validate.py` does not invoke
   `git check-attr`; it requires the mandated `.gitattributes` lines
   literally at the destination root, because the fixture roots live
@@ -742,7 +872,7 @@ Verified as grep-absences across all agents and skills.
 - [ ] **E12** Implemented but unexercised validator surface: resource
   limits, reparse-point refusal, Windows reserved-name rejection, and
   live-lock classification. No fixture reaches any of them. *Owner: M3.*
-- [ ] **E13** Fixture assertion strength is not uniform. M4 gave the fixture
+- [x] **E13** Fixture assertion strength is not uniform. M4 gave the fixture
   harness **opt-in exact-diagnostic assertion** — code plus file plus field,
   and no extra diagnostics — and uses it for the three new multi-driver
   fixtures 30, 31 and 32. Fixtures 01–29 keep the legacy contains-code
@@ -752,7 +882,59 @@ Verified as grep-absences across all agents and skills.
   the older fixtures assert less than they appear to. Tightening them means
   auditing each multi-code case and recording the full expected set, which is
   a separate normalization pass rather than a side effect of any milestone's
-  feature work. *Owner: M6.*
+  feature work. *Owner: M6.* *(Closed by M6.
+  **MECHANICALLY ENFORCED:** the legacy contains-code mode is gone. Every
+  invalid fixture root declares one
+  `Expected diagnostic: <file>|<field>|<code>` line per expected diagnostic, and
+  `fixtures` requires the sorted exact diagnostic **set** - not a multiset,
+  because `Reporter.lines` deduplicates - to equal the declaration, so a missing
+  or an extra diagnostic now fails. All 37 invalid roots are covered.
+  **DOCUMENTED ONLY:** exactness is not adequacy. That the declared set is the
+  *right* set remains a review judgement.)*
+- [~] **E14** Transitive dependency invalidation is deferred to post-M7; closing it requires typed direct handoff edges, cycle/missing-node validation and reverse-reachability propagation across distinct driver and test nodes. Owner: post-M7.
+
+- [x] **E15b/E16** Two M6 review findings, recorded together because they share
+  a cause: M6 shipped safety machinery without checking that the corpus using it
+  was consistent with it.
+  **(a) Invented hardware facts in the shipped corpus.** The milestone whose
+  purpose is stopping invented hardware facts contained them: `acme` /
+  `acme-ax100` stood in `halucinator/docs/<target-id>/` and
+  `halucinator/pac/<vendor>/`
+  positions across seven skills, `AX100` / `AX100RM` stood beside manual,
+  section, table and revision markers in two files, and `write-driver` carried a
+  retired schema-1 `driver.test_hardware_facts` **table array** - the shape
+  schema 2 replaces with a list of verified assertion IDs - whose invented
+  manual and section number were the most citation-shaped text in the toolkit.
+  A reader copying that worked example would have learned both an invented fact
+  and a citation shape the validator no longer accepts.
+  **(b) The interlock was never invoked.** `hardware-execution.md` performed
+  attach, load, run and teardown with no `acquire-board`, `before-board-op`,
+  `begin-board-operation`, `complete-board-operation` or `release-board`, and no
+  recovery command anywhere in either tester-emitted skill tree. The entire
+  F3/F4/F5 safety claim rested on a helper that the only procedure needing it
+  walked straight past. *(Closed.
+  **MECHANICALLY ENFORCED:** `no-invented-hardware-in-corpus` allows exactly one
+  example target - the fictional fixture - in any `halucinator/docs|pac` segment,
+  rejects a part-number-shaped token standing within 160 characters of a citation
+  marker unless it is the north-star hardware this toolkit genuinely cites, and
+  rejects the retired schema-1 citation leaves; its analyzer is self-tested
+  against six pieces of legitimate material so it cannot forbid citing
+  `embassy-mcxa`, a pinned upstream URL or a real tool name.
+  `hardware-procedure-uses-interlock` requires every tester-emitted skill tree
+  to name the whole protocol in acquisition-before-operation,
+  release-after-teardown order, plus a recovery command.
+  **DOCUMENTED ONLY:** both are text. No check proves an agent ran
+  `acquire-board`, and a procedure naming the commands in the right order while
+  describing the wrong actions between them passes. Nor is there any lexical
+  test that separates a real part number from an invented one - `MCXA256` exists
+  and `AX100` does not, and they are the same shape - so the target-segment and
+  retired-leaf halves are decidable from the corpus's own rules while the
+  citation-subject half rests on a small hand-maintained allowlist. The three
+  safety properties the wiring now states - holder death is not operation death,
+  device state is declared unknown before reconnecting, and the safe-state
+  ordering before human contact with the fixture - are **documented**, not
+  enforced.)*
+
 
 ---
 
@@ -779,6 +961,16 @@ Zero concurrency vocabulary exists across all agents and skills:
   Per-driver candidate path locking reduces cooperative overlap but converts
   what was a crash window into an **active writer race** on
   `embassy-*/src/clocks/**`. Still open. Owner: M6.*
+  *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
+  is a real worktree-local, single-operator interlock with exact `path:` and
+  `board:` resources, and `runtime-protocol-tests` drives it through eight
+  injected faults. What M6 refused to build is the part this item actually
+  needs: a hardware-operation broker (F15), cross-clone and concurrent-operator
+  exclusion (F16), a durable cross-clone marker (F17) and a durable integration
+  journal (F18). "A half-built broker is worse than none." The corpus now says
+  `runtime.py` arbitrates cooperating worktree-local callers, and that direct
+  writers and other clones are outside it. Owner: post-M7.*
+
 - [ ] **F2** `ci.sh` and `examples/<chip>/Cargo.toml` are shared write
   targets with no merge discipline. `[[bin]]` and `Cargo.toml` are zero
   hits across all nine tester-side files. *Progress: both are now registry
@@ -789,6 +981,16 @@ Zero concurrency vocabulary exists across all agents and skills:
   candidate order and committed candidate roots and no longer assign CI
   wiring to the tester. Residual: durable journalling, owner fencing and
   cross-clone crash markers are still required. Owner: M6.*
+  *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
+  is a real worktree-local, single-operator interlock with exact `path:` and
+  `board:` resources, and `runtime-protocol-tests` drives it through eight
+  injected faults. What M6 refused to build is the part this item actually
+  needs: a hardware-operation broker (F15), cross-clone and concurrent-operator
+  exclusion (F16), a durable cross-clone marker (F17) and a durable integration
+  journal (F18). "A half-built broker is worse than none." The corpus now says
+  `runtime.py` arbitrates cooperating worktree-local callers, and that direct
+  writers and other clones are outside it. Owner: post-M7.*
+
 - [ ] **F3** No lease on the single physical board.
   `hardware-execution.md` is singular throughout; two concurrently
   dispatched testers would each hold genuine device authorization and
@@ -796,14 +998,105 @@ Zero concurrency vocabulary exists across all agents and skills:
   physical, not a merge conflict. *Progress: `.opencode/schema/layout.md`
   reserves a `board:<board_id>` lease keyed by physical device rather than
   by stage, but M1 implements no reader, so no exclusion is enforced yet.
-  Owner: M6.*
+  Owner: M6.* *M6 disposition: **PARTIALLY ENFORCED, still open.** A reader now
+  exists. `runtime.py` acquires, prechecks and releases a `board:<board_id>`
+  resource with an unpredictable `lease_epoch` and a revalidated `check_token`,
+  any post-create rescan conflict makes the new claimant remove only its own
+  candidate and fail `BOARD_INTERLOCK_CONFLICT`, and `07-tests` must carry the
+  matching `tests.board_interlock`. It is deliberately **not** called a lease:
+  it is worktree-local and single-operator. Another clone or another operator
+  has no visible `.run` lock at all, and the check-use window between
+  `before-board-op` and the actual probe command cannot be closed without the
+  broker. Carried as F15, F16 and F17. Owner: post-M7.*
+  *M6 review correction: the paragraph above was written while **no procedure
+  called the helper at all**. Until E16 the hardware-execution reference
+  performed attach, load, run and teardown without naming a single interlock
+  command, so "a reader now exists" described a reader nothing invoked. The
+  wiring is now in place and asserted; the honest reading of this item is
+  therefore unchanged - still open - but for the right reason.*
+  *M6 recheck correction: "partially enforced" above overstated **operability**.
+  What is mechanically enforced is narrow and real: the helper refuses a recovery
+  attempt or a safe-state observation whose FileRef does not exist, never records
+  `board_state="safe"` on absent evidence, and refuses to release against it.
+  What is **documented only** is the operator-facing path - the procedure text,
+  its ordering, and the three safety properties it states. Two defects found in
+  this recheck bear directly on whether that path is walkable at all: a recovery
+  deadlock, in which every recovery-scoped operation was refused across every
+  advertised entry point while `recovery-pending`, and an evidence-closure hole
+  in which an unpinned nested FileRef passed verification and release. Both are
+  being repaired in the runtime helper. Until a recovery is demonstrated
+  end-to-end, treat this path as specified, not as shown to work.*
+
 - [ ] **F4** No interrupted-HIL recovery. If the host or agent dies
   mid-run, no record can confirm teardown, and no next-session procedure
   declares device state unknown
-  (`hardware-execution.md:104-115`).
+  (`hardware-execution.md:104-115`). *M6 disposition: **PARTIALLY ENFORCED,
+  still open.** Recovery is now typed and tested: `recovery-pending` needs no
+  produced evidence (breaking the circularity), only a latest `verified`
+  attempt with a matching `SafeStateObservation` reaches `recovery-verified`,
+  attempts are append-only and cannot be reordered or replaced, and the helper
+  refuses release before that. Holder death is explicitly not operation death -
+  state is declared unknown before any reconnect, and attaching a debugger is
+  itself a target-affecting operation. What remains open is exactly what a
+  record cannot establish: whether the operator's confirmation of child
+  termination or physical isolation is true, and whether a *different clone*
+  died with the board active, which a fresh clone still cannot know. Carried as
+  F17. Owner: post-M7.* *M6 review correction: this disposition credited typed
+  recovery transitions while the tester-facing procedure named no recovery
+  command, so an operator following the documented steps had no route into
+  recovery at all. E16 wires `begin-board-recovery`, `append-recovery-attempt`
+  and `verify-board-recovery` into both tester-emitted skill trees and states
+  that device state is declared unknown **before** reconnecting. The record
+  layer was real; the path to it was not.*
+  *M6 recheck correction: "partially enforced" above overstated **operability**.
+  What is mechanically enforced is narrow and real: the helper refuses a recovery
+  attempt or a safe-state observation whose FileRef does not exist, never records
+  `board_state="safe"` on absent evidence, and refuses to release against it.
+  What is **documented only** is the operator-facing path - the procedure text,
+  its ordering, and the three safety properties it states. Two defects found in
+  this recheck bear directly on whether that path is walkable at all: a recovery
+  deadlock, in which every recovery-scoped operation was refused across every
+  advertised entry point while `recovery-pending`, and an evidence-closure hole
+  in which an unpinned nested FileRef passed verification and release. Both are
+  being repaired in the runtime helper. Until a recovery is demonstrated
+  end-to-end, treat this path as specified, not as shown to work.*
+
 - [ ] **F5** No universal between-test safe state — outputs
   high-impedance, DMA/interrupts quiesced, loads de-energized, reset
-  asserted before fixture changes.
+  asserted before fixture changes. *M6 disposition: **PARTIALLY ENFORCED, still
+  open.** `SafeStateObservation` is a typed standalone record requiring exactly
+  six hazard observations - outputs, DMA, interrupts, external loads,
+  reset/halt, probe - each with a disposition, an observation method and
+  evidence, an `operator_confirmation` FileRef wherever observation depends on
+  physical action, and an `outstanding_human_actions` list that prevents a safe
+  classification when nonempty. It is bound to board identity and to verified
+  `02-facts` assertion IDs through `SafeStateProcedureRef`, and the ordered
+  sequence before human contact with the fixture is written down. The record
+  layer is enforced; **whether the procedure is physically sufficient, and
+  whether the observations are true, is reviewed, not proved.** A complete set
+  of FileRefs is not electrical safety. Owner: post-M7 for the physical
+  residual.* *M6 review correction: the ordered safe-state sequence existed only
+  in the schema prose, not in the procedure a tester actually follows; the
+  hardware-execution reference still said "follow the documented safe teardown"
+  and nothing more. E16 writes the ordered sequence - quiesce, establish cited
+  non-driving and reset/halt state, de-energize external loads, collect all six
+  hazard observations, classify safe, authorize the fixture change - into that
+  procedure, keeping **never join driven outputs** and **configure input before
+  output** additive. Still **DOCUMENTED** at the procedure layer: prose an agent
+  may ignore is not a mechanism.*
+  *M6 recheck correction: "partially enforced" above overstated **operability**.
+  What is mechanically enforced is narrow and real: the helper refuses a recovery
+  attempt or a safe-state observation whose FileRef does not exist, never records
+  `board_state="safe"` on absent evidence, and refuses to release against it.
+  What is **documented only** is the operator-facing path - the procedure text,
+  its ordering, and the three safety properties it states. Two defects found in
+  this recheck bear directly on whether that path is walkable at all: a recovery
+  deadlock, in which every recovery-scoped operation was refused across every
+  advertised entry point while `recovery-pending`, and an evidence-closure hole
+  in which an unpinned nested FileRef passed verification and release. Both are
+  being repaired in the runtime helper. Until a recovery is demonstrated
+  end-to-end, treat this path as specified, not as shown to work.*
+
 - [~] **F6** No flash wear budget. RAM-first reduces operations and
   ranges require authorization (`hardware-execution.md:74-83`), but no
   erase/program counter or retry budget exists. *Deferred: mitigated by
@@ -833,6 +1126,16 @@ Zero concurrency vocabulary exists across all agents and skills:
   dispatch per peripheral means N concurrent drivers, and per-driver candidate
   path locking turns the shared clock-file crash window into an active writer
   race rather than removing it. Still open. Owner: M6.*
+  *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
+  is a real worktree-local, single-operator interlock with exact `path:` and
+  `board:` resources, and `runtime-protocol-tests` drives it through eight
+  injected faults. What M6 refused to build is the part this item actually
+  needs: a hardware-operation broker (F15), cross-clone and concurrent-operator
+  exclusion (F16), a durable cross-clone marker (F17) and a durable integration
+  journal (F18). "A half-built broker is worse than none." The corpus now says
+  `runtime.py` arbitrates cooperating worktree-local callers, and that direct
+  writers and other clones are outside it. Owner: post-M7.*
+
 - [ ] **F10** Locks are gitignored, so crash evidence does not survive a
   fresh clone or a second machine. `.opencode/schema/layout.md` states
   this limitation explicitly; a durable record outside `.run/` is
@@ -843,8 +1146,26 @@ Zero concurrency vocabulary exists across all agents and skills:
   probe session, safe-state procedure, teardown evidence), an owner
   fencing token, and PAC baseline/candidate manifests. Adding them
   requires the schema-version transition defined in
-  `.opencode/schema/handoff-common.md`. *Owner: M6.*
-- [ ] **F13** No durable integration journal. `hal-integrator` is now the
+  `.opencode/schema/handoff-common.md`. *Owner: M6.* *M6 correction: the
+  "reserve identities only" sentence above is **obsolete**. The `schema = 2`
+  transition landed the structural fields it asks for - `operation_phase`,
+  `operation_attempt`, `operation_id`, `last_operation`, `child_session`,
+  `safe_state`, `recovery_attempts` and `override_record` on the lock, plus the
+  typed `SafeStateObservation` with its six hazards and the append-only recovery
+  attempt records. **MECHANICALLY ENFORCED:** the structural portion - required
+  and exclusive fields, phase/state agreement, and lock-era identity equality
+  across lock, safe-state record and run. **The two gaps that remain are
+  precise, and neither is structural.** First, no independent physical
+  re-derivation or attestation. The helper does parse these records - it opens
+  every referenced FileRef and refuses to transition or release against evidence
+  it cannot read - but parsing a record is not observing a device. Nothing
+  re-derives an observation from the hardware, so a complete, internally
+  consistent, fully parsed record can still be false, and no external attester
+  exists to say otherwise. Second, no physical authority: `check_token` is not a
+  fencing token, the helper is worktree-local and single-operator, and it has no
+  standing over another clone, another operator, or a probe command issued
+  outside it. Carried as F15, F16 and F17. Owner: post-M7.*
+- [~] **F13** No durable integration journal. `hal-integrator` is now the
   sole writer of every shared and canonical file and the sole committer, and
   M2 gives it prose discipline only: a `kind="stage"` lock carrying a
   cooperative `global:hal-integration` resource, a preflight, and a
@@ -855,7 +1176,12 @@ Zero concurrency vocabulary exists across all agents and skills:
   PAC to every canonical mutation and needs F10's cross-clone durability and
   F11's phase and fencing fields; it is not a separate mechanism, and closing
   it requires the `schema = 2` transition. *Owner: M6, with F8/F10/F11.*
-- [ ] **F14** No durable coordinator dispatch ledger. `hal-coordinator`
+  *M6 disposition: **deliberately deferred, documented only.** M6 added no
+  journal fields and no journal diagnostics. The scaffold record now says that
+  canonical copy is serialized by the worktree interlock and an immediate
+  baseline check, and that the crash phase remains unknown without this item.
+  Carried forward as F18. Owner: post-M7.*
+- [~] **F14** No durable coordinator dispatch ledger. `hal-coordinator`
   writes its intent, owner, inputs, expected output and exit criteria to
   `halucinator/docs/<target-id>/notes/ROADMAP.md` before dispatching, but
   `state.stages[]` requires a *returned* handoff FileRef, so
@@ -868,11 +1194,30 @@ Zero concurrency vocabulary exists across all agents and skills:
   handoff can be tied to the dispatch that asked for it — but more
   concurrent named drivers make a missing durable dispatch record **more
   frequent**, not less. Still open. *Owner: M6, with F10/F11.*
+  *M6 disposition: **deliberately deferred, documented only.** ROADMAP and locks
+  remain procedural evidence; no typed pre-dispatch publication exists. Carried
+  forward as F19. Owner: post-M7.*
 - [ ] **F12** `state.toml` compare-and-swap protects cooperating writers
   only. An uncooperative writer can overwrite it with valid TOML and a
   plausible generation, and the validator cannot reconstruct the prior
   value. Recorded in `.opencode/schema/validate.md` limits. *Unchanged by
   M4. Owner: M6.*
+- [~] **F15** A hardware-operation broker process is deferred to post-M7; closing the check-use race requires one long-lived broker to own the probe/runner handle and execute every target-affecting operation after epoch validation. Owner: post-M7.
+- [~] **F16** Cross-clone and concurrent-operator board exclusion is deferred to post-M7; closing it requires an external shared lease authority with atomic acquisition, renewable ownership and fencing honored by the hardware broker. Owner: post-M7.
+- [~] **F17** A durable cross-clone board-active marker is deferred to post-M7; closing it requires a shared durable authority updated before hardware operations and recoverable independently of one worktree. A fresh clone currently cannot know that a previous run died with the board active. Owner: post-M7.
+- [~] **F18** The durable canonical-integration journal is deferred to post-M7; closing it requires committed baseline/candidate/result manifests, durable phase transitions and recovery tied to an owner fencing authority. Owner: post-M7.
+- [~] **F19** The durable coordinator dispatch ledger is deferred to post-M7; closing it requires typed pre-dispatch publication and CAS-checked dispatched/returned/abandoned transitions bound to locks and handoffs. Owner: post-M7.
+- [~] **F20** Windows durability is a **weaker guarantee** than the POSIX
+  directory-`fsync` barrier, and M6 declines to define the weaker protocol it
+  would need. `os.fsync` on a directory handle fails unconditionally on win32,
+  so `.opencode/schema/runtime.py` relies on exclusive-create, a file `fsync`,
+  and a same-volume `os.replace`, and documents NTFS metadata ordering rather
+  than an explicit barrier. Where the directory-flush probe reports the
+  capability unavailable the helper blocks target-affecting operations instead
+  of claiming persistence, which is fail-closed but not equivalent. Closing it
+  requires defining that explicitly scoped weaker protocol. Escalated by M6's
+  schema coder. Owner: post-M7.
+
 
 ---
 
@@ -981,7 +1326,18 @@ Asserted capabilities with no procedure sufficient to perform them.
   attest to its own prior execution. See H11.)*
 - [ ] **H7** Generated-code and fork provenance enforcement
   (`AGENTS.md:311-317`) — no check detects edits to generated output or
-  scans dependency URLs and revisions.
+  scans dependency URLs and revisions. *M6 disposition: **PARTIALLY ENFORCED,
+  still open.** `reference-url-pins` now rejects any evidentiary URL across the
+  governed Markdown naming `main`, `master` or `HEAD` without an exact 40-hex
+  commit; the one remaining moving reference, the MCXA manifest link inside an
+  otherwise SHA-pinned table in
+  `generate-pac/references/generation-and-checks.md`, is pinned to the exact
+  inspected commit `f8506dc5f0022ccb62c75bd2707da913c6979375`, whose manifest
+  was read and does carry the `nxp-pac` revision the surrounding prose claims.
+  Detection of hand-edited generated output remains procedural: the generation
+  tooling writes a path/hash manifest for candidate and independent replay and
+  the reviewer compares them. Pin immutability is enforced; pin *legitimacy* and
+  fork legitimacy are still review. Owner: post-M7.*
 - [~] **H8** Skill acceptance testing. The SVD and PAC references list
   acceptance scenarios (`preparation-and-checks.md:262-287`,
   `generation-and-checks.md:372-404`) with no fixtures, runner or
@@ -990,10 +1346,20 @@ Asserted capabilities with no procedure sufficient to perform them.
   `.opencode/schema/validate.md` is not installed anywhere. Raw-byte
   SHA-256 hashes are stable only where `core.autocrlf=false`; a clone
   configured otherwise breaks every hash. *Owner: M3.*
-- [ ] **H10** The 944-file fixture tree was generated by a script that
+- [x] **H10** The 944-file fixture tree was generated by a script that
   lives outside the repository. The fixtures are committed and
   self-sufficient, but nothing in-tree can regenerate them and no owner is
-  named. *Owner: M3 or M7.*
+  named. *Owner: M3 or M7.* *(Closed by M6.
+  **MECHANICALLY ENFORCED:** `tools/generate_schema_fixtures.py` and its
+  declarative input `tools/schema-fixtures.toml` are committed, stdlib-only and
+  deterministic; `--write` regenerates both valid roots and every invalid root
+  including referenced evidence, `.gitattributes` and README declarations, and
+  `--check` regenerates into a temporary directory and byte-compares. The
+  `fixture-regeneration` self-check runs `--check` and requires exit 0 with no
+  output, so no committed fixture byte can be undeclared or divergent. The
+  fixture count is derived from the TOML, not a duplicated literal.
+  **DOCUMENTED ONLY:** this proves REGENERATION, not that the declared
+  mutations are the right ones. That judgement stays with review.)*
 - [ ] **H11** Validator invocation is an honour system. The retrofitted
   skills wire the validator at every required point and self-check proves
   those instructions are present, but nothing proves an agent ran them and
@@ -1003,7 +1369,16 @@ Asserted capabilities with no procedure sufficient to perform them.
   `write-driver` and the validation profiles wire the validator at the same
   required points and disclose the same limit, and retiring the allowlist
   changed coverage, not enforcement. Owner: M6.*
-- [ ] **H12** Validator wiring does not bind every publication.
+  *M6 disposition: **DOCUMENTED, not closed, and structurally unclosable here.**
+  `skill-validator-wiring` now binds every publication step and requires each of
+  the 13 skills to state the honor-system limit and that `validate.py` cannot
+  attest to an earlier invocation, so the **disclosure** and the **wiring** are
+  enforced. Invocation itself is not, and no text in this repository may
+  describe it as enforcement. A validator gate is an honour system; instructions
+  being present is not proof an agent ran them. Closing this needs an external
+  attester, which M6 explicitly did not build. Permanent residual until then.
+  Owner: post-M7.*
+- [x] **H12** Validator wiring does not bind every publication.
   `skill-validator-wiring` derives every handoff-publication step in a skill
   — it is not hard-coded — but it requires a validator invocation only
   before and at the **first** publication, plus the `--kind all` gate at or
@@ -1011,7 +1386,16 @@ Asserted capabilities with no procedure sufficient to perform them.
   can therefore lose its immediate validation while the check stays green.
   Binding every publishing step is not a check-only fix: it needs 7 of the
   13 skills to name the command stem at their final gate rather than only
-  `--kind all`, which is a change to skill text. *Owner: M6.*
+  `--kind all`, which is a change to skill text. *Owner: M6.* *(Closed by M6.
+  **MECHANICALLY ENFORCED:** `skill-validator-wiring` now derives every
+  handoff-publishing step and requires a `validate.py` invocation at **each** of
+  them, in addition to one before the first and the `--kind all` gate at or
+  after the last; the seven skills that named only `--kind all` at their final
+  gate were changed to name the command. **DOCUMENTED ONLY:** a publishing step
+  whose bold title does not name a publish verb, or that does not bind that verb
+  to a "handoff", is not a subject of the derivation at all - and the check
+  proves the instruction is present, never that an agent executed it, which is
+  H11.)*
 - [ ] **H13** Subject-derivation guard has known AST blind spots.
   `skill-subject-derivation` was added by M5 after two milestones in a row
   shipped a check whose subject set was hard-coded and silently incomplete
@@ -1053,6 +1437,27 @@ Asserted capabilities with no procedure sufficient to perform them.
   garbage, not to accept the corpus for the right reason. Add an in-tree
   mutation matrix, or a committed record of exercised versus unexercised
   checks. *Owner: M6, with H10.*
+- [~] **H16** Two self-check subject lists remain hand-maintained, and whether
+  they should exist at all is an open specification question. The M6 recheck
+  eliminated the third one: `mcxa-example-boundary` no longer reads a file list,
+  it derives its subjects corpus-wide, which is why it began catching this very
+  backlog file. `LIFECYCLE_ENUMERATING_FILES` and `CITATION_FILES` were not
+  eliminated; they were **closed**, which is a smaller but real improvement. A
+  file that carries the matching marker and appears in neither its declared
+  subject list nor its declared out-of-scope list now fails loudly
+  (`LIFECYCLE_SUBJECT_UNDECLARED`, `CITATION_SUBJECT_UNDECLARED`) instead of
+  being silently unasserted, so an omission announces itself rather than
+  quietly narrowing coverage. What is still hand-maintained is the *membership
+  decision*: someone must place each new marker-matching file in one list or the
+  other, and nothing checks that the placement is right. Closing this properly
+  is not a refactor - it is deciding whether the minimum lifecycle-contract
+  obligation and the v2 CitationRef field obligation bind **every** file that
+  discusses them, which would immediately put roughly seven further files in
+  scope and change what those files must say. The owner declined that for M6 as
+  scope creep rather than repair, which is the right call for a safety
+  milestone, and it is recorded here so the decision is not lost. Owner:
+  post-M7.
+
 
 ---
 
