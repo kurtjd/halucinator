@@ -46,11 +46,17 @@ If the baseline file is absent, check 4 fails with TERMINOLOGY_BASELINE_MISSING.
 
 from __future__ import annotations
 
+import ast
+import datetime
+import json
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
+import tomllib
 import urllib.parse
 from pathlib import Path, PurePosixPath
 
@@ -90,9 +96,25 @@ SKIP_DIRS = {
     "build",
 }
 
-# M4: 29 (M1) + 30-tests-bound-to-blocked-driver + 31-tests-api-handoff-wrong-kind
-# + 32-noncanonical-singleton-filename.
-MANDATED_FIXTURES = 32
+# M6 (spec S2.6): the mandated invalid-fixture count is DERIVED from the
+# committed declarative generator input, never duplicated here as a literal.
+# A literal would have to be hand-raised for every new fixture, which is
+# exactly how a declared coverage floor comes to assert nothing. The floor
+# below is only a non-vacuity backstop: it is the M4 count, so a declaration
+# file that declares fewer fixtures than the corpus already has is itself a
+# failure rather than a silently lowered bar.
+FIXTURE_DECL_RELPATH = "tools/schema-fixtures.toml"
+FIXTURE_FLOOR = 32
+
+# M6 (spec S2.2): the three new diagnostic codes, plus the existing code the
+# A18 destination constraint reuses. Every one of these must be exercised by at
+# least one declared invalid fixture, or the gate it names is unproven.
+REQUIRED_FIXTURE_CODES = (
+    "CITATION_UNVERIFIED",
+    "BOARD_INTERLOCK_CONFLICT",
+    "BOARD_RECOVERY_REQUIRED",
+    "ILLEGAL_ENUM",
+)
 
 LINK_RE = re.compile(r"(?<!!)\[(?:[^\]\[]|\[[^\]]*\])*\]\(\s*<?([^)<>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 
@@ -498,6 +520,13 @@ CODE_RE = re.compile(r"Expected diagnostic code:\s*`?([A-Z][A-Z0-9_]+)`?")
 FIXTURE_FILE_RE = re.compile(r"Expected file:\s*`([^`]+)`")
 FIXTURE_FIELD_RE = re.compile(r"Expected field:\s*`([^`]+)`")
 FIXTURE_EXACT_RE = re.compile(r"Expected diagnostics:\s*exact\b")
+# Retired by M6/E13 and kept only as near-miss data for the declaration-parser
+# self-test: the new pipe-delimited form must NOT match either legacy shape.
+LEGACY_FIXTURE_DECL_RES = (CODE_RE, FIXTURE_FILE_RE, FIXTURE_FIELD_RE, FIXTURE_EXACT_RE)
+# M6/E13: one declaration per expected diagnostic, pipe-delimited.
+EXPECTED_DIAG_RE = re.compile(
+    r"Expected diagnostic:\s*`?([^`|\n]+)\|([^`|\n]*)\|([A-Z][A-Z0-9_]*)`?")
+
 
 # `ERROR <where>:<field> [<CODE>] expected ...` (validate.py Reporter.emit).
 # `where` is a repository-relative path or '-', neither of which contains a
@@ -516,8 +545,70 @@ def parse_diagnostics(out: str) -> list[tuple[str, str, str]]:
     return found
 
 
+def declared_diagnostics(readme_text: str) -> list[tuple[str, str, str]]:
+    """Every 'Expected diagnostic: <file>|<field>|<code>' declaration, in file order.
+
+    M6/E13. The legacy forms - a single 'Expected diagnostic code:' line, and
+    the opt-in 'Expected diagnostics: exact' trio - let a fixture pass while
+    the validator emitted a pile of OTHER diagnostics it never declared. The
+    pipe-delimited form is one declaration per expected diagnostic, so a fixture
+    with genuinely several is still held to its exact set.
+    """
+    out: list[tuple[str, str, str]] = []
+    for m in EXPECTED_DIAG_RE.finditer(readme_text):
+        out.append((m.group(1).strip(), m.group(2).strip(), m.group(3).strip()))
+    return out
+
+
+def declaration_parser_failures() -> list[str]:
+    """Self-test declared_diagnostics. An unproven parser turns exact mode vacuous."""
+    sample = (
+        "# 33-citation-excerpt-absent\n"
+        "Expected diagnostic: `02-facts.toml|facts.citations.0.excerpt|CITATION_UNVERIFIED`\n"
+        "Expected diagnostic: `state.toml|stages.write-driver:beta.status|DEPENDENCY_NOT_READY`\n"
+        "Expected diagnostic code: `LEGACY_FORM_MUST_NOT_MATCH`\n"
+    )
+    want = [
+        ("02-facts.toml", "facts.citations.0.excerpt", "CITATION_UNVERIFIED"),
+        ("state.toml", "stages.write-driver:beta.status", "DEPENDENCY_NOT_READY"),
+    ]
+    got = declared_diagnostics(sample)
+    if got != want:
+        return [f"declared_diagnostics returned {got}, expected {want}"]
+    if declared_diagnostics("Expected diagnostic code: `ONLY_LEGACY`\n"):
+        return ["declared_diagnostics accepted the retired 'Expected diagnostic code:' form"]
+    return []
+
+
+def mandated_fixture_names(root: Path) -> tuple[list[str], str | None]:
+    """Invalid-fixture names DECLARED by the committed generator input.
+
+    Returns (names, error). The declaration file is the single source of both
+    the fixture set and the expected diagnostics; this harness derives the
+    mandated count from it rather than restating a number that would drift.
+    """
+    path = root / FIXTURE_DECL_RELPATH
+    if not path.is_file():
+        return [], (f"{FIXTURE_DECL_RELPATH} is absent; the mandated invalid-fixture set cannot be "
+                    "derived and the coverage floor would be a literal this harness invented")
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError) as exc:
+        return [], f"{FIXTURE_DECL_RELPATH} does not parse as TOML: {_one_line(str(exc), 200)}"
+    entries = data.get("invalid")
+    if not isinstance(entries, list) or not entries:
+        return [], (f"{FIXTURE_DECL_RELPATH} declares no nonempty 'invalid' array of tables; "
+                    "each entry must carry a 'name' naming one invalid fixture root")
+    names: list[str] = []
+    for i, entry in enumerate(entries):
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str) or not entry["name"]:
+            return [], f"{FIXTURE_DECL_RELPATH} entry invalid[{i}] has no nonempty string 'name'"
+        names.append(entry["name"])
+    return names, None
+
 
 def run_validator(root: Path, validator: Path, fixture: Path) -> tuple[int | None, str]:
+
     gen = (fixture / "generation-roots" / "fictional-pac").resolve()
     cmd = [
         sys.executable,
@@ -571,6 +662,9 @@ def check_fixtures(root: Path, report: Report) -> None:
     for problem in diagnostic_parser_failures():
         report.bad("tools/selfcheck.py", "parse_diagnostics", "FIXTURE_PARSER",
                    f"the exact-mode diagnostic parser failed its self-test: {problem}")
+    for problem in declaration_parser_failures():
+        report.bad("tools/selfcheck.py", "declared_diagnostics", "FIXTURE_PARSER",
+                   f"the README declaration parser failed its self-test: {problem}")
     validator = root / ".opencode" / "schema" / "validate.py"
     fixtures = root / ".opencode" / "schema" / "fixtures"
     if not validator.is_file():
@@ -602,22 +696,47 @@ def check_fixtures(root: Path, report: Report) -> None:
 
     invalid_dir = fixtures / "invalid"
     cases = sorted(p for p in invalid_dir.glob("[0-9][0-9]-*") if p.is_dir()) if invalid_dir.is_dir() else []
-    if len(cases) < MANDATED_FIXTURES:
-        report.bad(rel(root, invalid_dir), "0", "FIXTURE_SET_INCOMPLETE", f"expected at least {MANDATED_FIXTURES} invalid fixtures, found {len(cases)}")
+    declared_names, decl_err = mandated_fixture_names(root)
+    if decl_err:
+        report.bad(FIXTURE_DECL_RELPATH, "0", "FIXTURE_DECL_UNDERIVABLE", decl_err)
+        mandated = FIXTURE_FLOOR
+    else:
+        mandated = len(declared_names)
+        if mandated < FIXTURE_FLOOR:
+            report.bad(FIXTURE_DECL_RELPATH, "invalid", "FIXTURE_DECL_SHRANK",
+                       f"declares {mandated} invalid fixtures, fewer than the {FIXTURE_FLOOR} the corpus already "
+                       "carried; deriving the count must not become a way to lower the bar")
+        missing_on_disk = sorted(set(declared_names) - {p.name for p in cases})
+        extra_on_disk = sorted({p.name for p in cases} - set(declared_names))
+        if missing_on_disk:
+            report.bad(rel(root, invalid_dir), "0", "FIXTURE_DECL_MISSING",
+                       f"{len(missing_on_disk)} declared invalid fixture root(s) are absent from the corpus, "
+                       f"first: {', '.join(missing_on_disk[:6])}")
+        if extra_on_disk:
+            report.bad(FIXTURE_DECL_RELPATH, "invalid", "FIXTURE_DECL_UNDECLARED",
+                       f"{len(extra_on_disk)} committed invalid fixture root(s) are not declared, "
+                       f"first: {', '.join(extra_on_disk[:6])}")
+    if len(cases) < mandated:
+        report.bad(rel(root, invalid_dir), "0", "FIXTURE_SET_INCOMPLETE",
+                   f"expected at least {mandated} invalid fixtures, found {len(cases)}")
 
     passed = 0
+    covered_codes: set[str] = set()
     for case in cases:
         r = rel(root, case)
         readme = case / "README.md"
         if not readme.is_file():
-            report.bad(r, "0", "FIXTURE_README_MISSING", "invalid fixture has no README.md naming its expected diagnostic code")
+            report.bad(r, "0", "FIXTURE_README_MISSING", "invalid fixture has no README.md declaring its expected diagnostics")
             continue
-        m = CODE_RE.search(read_text(readme))
-        if not m:
-            report.bad(rel(root, readme), "0", "FIXTURE_CODE_UNDECLARED", "README.md does not state 'Expected diagnostic code: `CODE`'")
-            continue
-        expected = m.group(1)
         readme_text = read_text(readme)
+        declared = declared_diagnostics(readme_text)
+        if not declared:
+            report.bad(rel(root, readme), "0", "FIXTURE_CODE_UNDECLARED",
+                       "README.md declares no 'Expected diagnostic: `<file>|<field>|<CODE>`' line; the retired "
+                       "'Expected diagnostic code:' and opt-in 'Expected diagnostics: exact' forms no longer satisfy "
+                       "E13, because neither pins the diagnostics the validator must NOT also emit")
+            continue
+        covered_codes.update(c for _, _, c in declared)
         rc, out = run_validator(root, validator, case)
         if rc is None:
             report.bad(r, "0", "FIXTURE_TIMEOUT", f"validator {out}; a hang is a failure")
@@ -625,31 +744,31 @@ def check_fixtures(root: Path, report: Report) -> None:
         if rc != 1:
             report.bad(r, "0", "FIXTURE_WRONG_EXIT", f"expected exit 1, got {rc}; output: {_one_line(out)}")
             continue
-        if expected not in out:
-            report.bad(r, "0", "FIXTURE_WRONG_CODE", f"expected diagnostic code {expected} not emitted; output: {_one_line(out)}")
+        # Exact SET, not multiset: validate.py's Reporter stores its lines in a
+        # set, so a repeated diagnostic is unobservable here and a multiset
+        # assertion would be unimplementable rather than merely strict.
+        want = sorted(set(declared))
+        got = sorted(set(parse_diagnostics(out)))
+        if got != want:
+            missing = [d for d in want if d not in got]
+            extra = [d for d in got if d not in want]
+            report.bad(r, "0", "FIXTURE_EXACT_MISMATCH",
+                       f"exact diagnostic set mismatch; undelivered: {missing or 'none'}; undeclared: {extra or 'none'}")
             continue
-        # Opt-in exact mode. The legacy "the code appears somewhere" assertion
-        # lets a fixture pass for the wrong reason - a different file, a
-        # different field, or a pile of unrelated diagnostics. Fixtures 01-29
-        # keep it because EXPECTATIONS.md documents genuinely multi-code cases;
-        # a fixture that declares "Expected diagnostics: exact" is held to the
-        # single diagnostic it names and nothing else.
-        if FIXTURE_EXACT_RE.search(readme_text):
-            fm = FIXTURE_FILE_RE.search(readme_text)
-            fld = FIXTURE_FIELD_RE.search(readme_text)
-            if not fm or not fld:
-                report.bad(rel(root, readme), "0", "FIXTURE_EXACT_UNDECLARED",
-                           "README declares 'Expected diagnostics: exact' but omits 'Expected file:' or 'Expected field:'")
-                continue
-            want = (fm.group(1), fld.group(1), expected)
-            got = parse_diagnostics(out)
-            if got != [want]:
-                report.bad(r, "0", "FIXTURE_EXACT_MISMATCH",
-                           f"exact mode: expected exactly one diagnostic {want}, got {got or 'none parsed'}")
-                continue
         passed += 1
 
-    report.ok("fixtures", f"{len(valid_roots)} accepted fixture roots exit 0 silently and {passed} of {len(cases)} invalid fixtures rejected with exit 1 and their declared code", mark)
+    uncovered = [c for c in REQUIRED_FIXTURE_CODES if c not in covered_codes]
+    if uncovered:
+        report.bad(rel(root, invalid_dir), "0", "FIXTURE_CODE_UNCOVERED",
+                   f"no invalid fixture declares {', '.join(uncovered)}; a diagnostic with no rejecting fixture "
+                   "has never been shown to fire, so the gate it names is unproven")
+
+    report.ok("fixtures",
+              f"{len(valid_roots)} accepted fixture roots exit 0 silently and {passed} of {len(cases)} invalid "
+              f"fixtures ({mandated} declared in {FIXTURE_DECL_RELPATH}) are rejected with exit 1 and an exact "
+              f"diagnostic SET equal to their README declarations, covering {len(REQUIRED_FIXTURE_CODES)} required "
+              "codes. Set, not multiset: Reporter deduplicates, so a duplicated diagnostic is unobservable", mark)
+
 
 
 def _one_line(s: str, limit: int = 300) -> str:
@@ -784,7 +903,6 @@ def check_terminology(root: Path, report: Report) -> None:
 # lives inside a fence, so these checks must never consume stripped text.
 # ---------------------------------------------------------------------------
 
-import ast
 import json
 import tomllib
 
@@ -1873,21 +1991,111 @@ NOTE_PATH_BY_KIND = {
 REVIEW_GATED_CHECK = "independent-review"
 
 # Per-skill canonical contract expectations. Leaf/check sets are NOT stored
-# here: they are derived from validate.py's AST by derive_registry(). Only the
-# consumed predecessor leaf sets (specification section 12) are literal,
-# because they are a deliberate subset of a kind rather than the whole kind.
-CONSUMED_01 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,sources.catalog,sources.route,sources.source_ids,sources.available,sources.cited_notes"
-CONSUMED_02 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,facts.notes,facts.citations.source_id,facts.citations.document,facts.citations.revision,facts.citations.locator,facts.citations.note,facts.categories,facts.contradictions"
-CONSUMED_03 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,checks.id,checks.status,checks.evidence,checks.reason,svd.route,svd.source,svd.transforms,svd.includes,svd.prepared_manifest,svd.extraction_mode,svd.namespace_mode,svd.representation_limits,svd.unresolved_facts"
-CONSUMED_04 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,pac.crate_manifest,pac.package,pac.revision.kind,pac.revision.value,pac.cargo_chip_feature,pac.runtime_features,pac.metadata_features,pac.rust_compilation_target,pac.source_ids,pac.cited_notes,pac.temporary_fork,pac.foundation.id,pac.foundation.kind,pac.foundation.location,pac.foundation.status,pac.foundation.evidence"
-CONSUMED_05 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,platform.crate_manifest,platform.roadmap,platform.startup_clock_contract,platform.supporting_subsystems,platform.foundation_api,platform.pac_manifest,platform.source_ids,platform.cited_notes,platform.dependencies.crate,platform.dependencies.identity,platform.dependencies.features,platform.first_driver,platform.first_driver_modes"
-CONSUMED_06 = "handoff.status,handoff.inputs,handoff.notes,handoff.blockers,scope.revision,scope.decision,coverage.complete,coverage.incomplete,driver.name,driver.scope_kind,driver.capabilities,driver.public_api,driver.dependencies.crate,driver.dependencies.identity,driver.dependencies.features,driver.trait_obligations.dependency_crate,driver.trait_obligations.trait,driver.trait_obligations.obligations,driver.test_hardware_facts.source_id,driver.test_hardware_facts.document,driver.test_hardware_facts.revision,driver.test_hardware_facts.locator,driver.test_hardware_facts.note,driver.build_contract.cargo_chip_feature,driver.build_contract.rust_compilation_target,driver.build_contract.init_calls,driver.build_contract.memory_runtime,driver.build_contract.observation,driver.requirement_ids,driver.public_test_record"
+# here: they are derived from validate.py's AST by derive_registry().
+#
+# M6 defect fix. The consumed predecessor sets used to be literal comma-joined
+# leaf strings (CONSUMED_01..CONSUMED_06). That made check_skill_consumption
+# UNSATISFIABLE the moment schema 2 retired a leaf: SKILL_CONSUMPTION_SET
+# compared the declaration against the stale literal while
+# SKILL_CONSUMPTION_UNKNOWN_PATH compared the same declaration against the
+# AST-derived registry, so `want` was not a subset of `valid` and no skill text
+# could satisfy both. The two assertions could disagree with nobody noticing;
+# that, not the stale names, was the bug.
+#
+# The fix is to express each consumed set the way CONSUME_ALL already did -
+# as a predicate over the derived registry - so `want` is a subset of `valid`
+# BY CONSTRUCTION and cannot drift again. A consumer that reads a deliberate
+# SUBSET of a kind now states only what it deliberately does NOT read, which
+# is the small editorial part; the rest follows the validator. A newly added
+# leaf is consumed automatically, and a retired leaf disappears from `want`
+# without any edit here.
+#
+# The exclusions themselves are still literal, so they are checked: every
+# excluded path must be a live member of the derived kind, or the mapping
+# fails loudly with SKILL_CONSUMPTION_SPEC_STALE at the constant rather than
+# silently making the check unsatisfiable at the skill.
+
+
+class ConsumeAllExcept:
+    """The whole AST-derived leaf set of a kind, minus named exclusions."""
+
+    __slots__ = ("exclude",)
+
+    def __init__(self, *exclude: str) -> None:
+        self.exclude: tuple[str, ...] = tuple(sorted(exclude))
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnostics only
+        return f"ConsumeAllExcept{self.exclude}"
+
 
 # Sentinel for "the complete AST-derived leaf set of that kind". M5's snapshot
 # and review consumers re-read an entire predecessor rather than a curated
 # subset, so writing the subset out by hand would be a second hand-maintained
 # copy of the registry. Resolved against derive_registry() at check time.
 CONSUME_ALL = "*"
+
+# The typed envelope a downstream skill does not re-read: `handoff.schema` and
+# `handoff.stage` identify the record it already selected by kind, and
+# `handoff.can_progress` is the producer's own gate, not an input.
+ENVELOPE_EXCLUDED = ("handoff.can_progress", "handoff.schema", "handoff.stage")
+
+# Most consumers take the predecessor's payload and status but not its check
+# ledger; they re-derive their own. `generate-pac` is the documented exception
+# - it must read the SVD preparation's recorded check results - so 03-svd
+# below deliberately omits this group from its exclusions.
+CHECKS_EXCLUDED = ("checks.evidence", "checks.id", "checks.reason", "checks.status")
+
+CONSUMED_01 = ConsumeAllExcept(*ENVELOPE_EXCLUDED, *CHECKS_EXCLUDED)
+CONSUMED_02 = ConsumeAllExcept(*ENVELOPE_EXCLUDED, *CHECKS_EXCLUDED)
+CONSUMED_03 = ConsumeAllExcept(*ENVELOPE_EXCLUDED)
+CONSUMED_04 = ConsumeAllExcept(*ENVELOPE_EXCLUDED, *CHECKS_EXCLUDED)
+CONSUMED_05 = ConsumeAllExcept(*ENVELOPE_EXCLUDED, *CHECKS_EXCLUDED)
+# `driver.owned_files` is integrator bookkeeping about the driver's canonical
+# placement. A tester that read it would be reading a file list for a crate it
+# is not permitted to open.
+CONSUMED_06 = ConsumeAllExcept(*ENVELOPE_EXCLUDED, *CHECKS_EXCLUDED, "driver.owned_files")
+
+
+def resolve_consumed(valid: set[str], raw) -> tuple[set[str], list[str]]:
+    """Resolve one canonical consumes entry against a kind's derived leaf set.
+
+    Returns (want, stale). `stale` is nonempty exactly when the mapping names a
+    path the validator no longer defines - the condition that used to make the
+    check unsatisfiable. Pure, so the self-test below can drive it.
+    """
+    if raw == CONSUME_ALL:
+        return set(valid), []
+    if isinstance(raw, ConsumeAllExcept):
+        stale = sorted(set(raw.exclude) - valid)
+        return (set(valid) - set(raw.exclude)), stale
+    named = set(raw)
+    return named, sorted(named - valid)
+
+
+def consumed_resolution_failures() -> list[str]:
+    """Self-test resolve_consumed. A resolver that never reports staleness is
+    exactly the failure mode being fixed, so prove it discriminates."""
+    valid = {"a.one", "a.two", "b.keep", "checks.id"}
+    problems: list[str] = []
+    want, stale = resolve_consumed(valid, CONSUME_ALL)
+    if want != valid or stale:
+        problems.append(f"CONSUME_ALL resolved to {sorted(want)} / stale {stale}")
+    want, stale = resolve_consumed(valid, ConsumeAllExcept("checks.id"))
+    if want != {"a.one", "a.two", "b.keep"} or stale:
+        problems.append(f"ConsumeAllExcept resolved to {sorted(want)} / stale {stale}")
+    _, stale = resolve_consumed(valid, ConsumeAllExcept("a.retired"))
+    if stale != ["a.retired"]:
+        problems.append(f"a retired EXCLUSION was not reported stale (got {stale}); the mapping could name a "
+                        "path the validator dropped and nobody would be told")
+    _, stale = resolve_consumed(valid, {"a.one", "a.retired"})
+    if stale != ["a.retired"]:
+        problems.append(f"a retired ENUMERATED leaf was not reported stale (got {stale}); that is precisely the "
+                        "condition that made want a non-subset of valid and the check unsatisfiable")
+    want, _ = resolve_consumed(valid, ConsumeAllExcept())
+    if want != valid:
+        problems.append("ConsumeAllExcept() with no exclusions did not resolve to the whole kind")
+    return problems
+
 
 
 def _leaves(raw: str) -> set[str]:
@@ -1909,7 +2117,7 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-svd",
         "kind": "03-svd",
         "filename": "halucinator/handoff/03-svd.toml",
-        "consumes": {"01-sources": _leaves(CONSUMED_01), "02-facts": _leaves(CONSUMED_02)},
+        "consumes": {"01-sources": CONSUMED_01, "02-facts": CONSUMED_02},
         "writes": {"hal-svd|pac-project", "hal-svd|svd-handoff", "hal-svd|svd-pac-notes"},
         "supplies-delta": {"hal-svd|sources-catalog"},
     },
@@ -1918,7 +2126,7 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-svd",
         "kind": "04-pac",
         "filename": "halucinator/handoff/04-pac.toml",
-        "consumes": {"03-svd": _leaves(CONSUMED_03)},
+        "consumes": {"03-svd": CONSUMED_03},
         "writes": {"hal-svd|pac-handoff", "hal-svd|pac-project", "hal-svd|svd-pac-notes"},
         "supplies-delta": {"hal-svd|sources-catalog"},
     },
@@ -1933,7 +2141,7 @@ SKILL_SPEC: dict[str, dict] = {
         # platform needs no typed evidence that the slices ran at all. Same
         # whole-predecessor sentinel the other slices declare, so the two sides
         # cannot drift into disagreeing literal copies.
-        "consumes": {"04-pac": _leaves(CONSUMED_04), "05-platform": CONSUME_ALL},
+        "consumes": {"04-pac": CONSUMED_04, "05-platform": CONSUME_ALL},
         "writes": {
             "hal-architect|architecture-spec", "hal-coordinator|roadmap", "hal-driver|clock-modules",
             "hal-integrator|build-generation", "hal-integrator|chip-modules", "hal-integrator|ci",
@@ -1953,7 +2161,7 @@ SKILL_SPEC: dict[str, dict] = {
         "kind": "06-driver",
         # 06 is per-peripheral; <name> equals driver.name.
         "filename": "halucinator/handoff/06-driver-<name>.toml",
-        "consumes": {"05-platform": _leaves(CONSUMED_05)},
+        "consumes": {"05-platform": CONSUMED_05},
         "writes": {
             "hal-driver|clock-modules", "hal-driver|driver-candidates",
             "hal-driver|driver-evidence", "hal-driver|driver-handoff",
@@ -1970,7 +2178,7 @@ SKILL_SPEC: dict[str, dict] = {
         "kind": "07-tests",
         # 07 is the one per-item deterministic filename; <name> equals tests.name.
         "filename": "halucinator/handoff/07-tests-<name>.toml",
-        "consumes": {"06-driver": _leaves(CONSUMED_06)},
+        "consumes": {"06-driver": CONSUMED_06},
         "writes": {
             "hal-tester|test-candidate-evidence", "hal-tester|test-candidate-manifests",
             "hal-tester|test-candidate-source", "hal-tester|tests-handoff",
@@ -1987,7 +2195,7 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-datasheet",
         "kind": "02-facts",
         "filename": "halucinator/handoff/02-facts.toml",
-        "consumes": {"01-sources": _leaves(CONSUMED_01)},
+        "consumes": {"01-sources": CONSUMED_01},
         "writes": {
             "hal-datasheet|fact-notes", "hal-datasheet|facts-handoff",
             "hal-datasheet|vendor-extractions",
@@ -1999,7 +2207,7 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-integrator",
         "kind": "05-platform",
         "filename": "halucinator/handoff/05-platform.toml",
-        "consumes": {"04-pac": _leaves(CONSUMED_04)},
+        "consumes": {"04-pac": CONSUMED_04},
         "writes": {
             "hal-driver|clock-modules", "hal-driver|driver-evidence",
             "hal-integrator|integration-candidates", "hal-integrator|platform-handoff",
@@ -2041,7 +2249,7 @@ SKILL_SPEC: dict[str, dict] = {
         "emitter": "hal-driver",
         "kind": "06-driver",
         "filename": "halucinator/handoff/06-driver-dma.toml",
-        "consumes": {"05-platform": _leaves(CONSUMED_05)},
+        "consumes": {"05-platform": CONSUMED_05},
         "writes": {
             "hal-driver|driver-candidates", "hal-driver|driver-evidence",
             "hal-driver|driver-handoff", "hal-driver|peripheral-modules",
@@ -2073,7 +2281,7 @@ SKILL_SPEC: dict[str, dict] = {
         # Distinct from the consumed 07 name: the debug run never replaces the
         # failure it is investigating.
         "filename": "halucinator/handoff/07-tests-<source-name>-debug-<run-id>.toml",
-        "consumes": {"06-driver": _leaves(CONSUMED_06), "07-tests": CONSUME_ALL},
+        "consumes": {"06-driver": CONSUMED_06, "07-tests": CONSUME_ALL},
         "writes": {
             "hal-tester|test-candidate-evidence", "hal-tester|test-candidate-manifests",
             "hal-tester|test-candidate-source", "hal-tester|tests-handoff",
@@ -2966,6 +3174,9 @@ def check_skill_emissions(root: Path, report: Report) -> None:
 def check_skill_consumption(root: Path, report: Report) -> None:
     mark = report.mark()
     with guard(report, ".opencode/skills", "SKILL_CONSUMPTION_ABORT"):
+        for problem in consumed_resolution_failures():
+            report.bad("tools/selfcheck.py", "resolve_consumed", "SKILL_CONSUMPTION_RESOLVER",
+                       f"the canonical consumed-set resolver failed its self-test: {problem}")
         registry = skill_registry(root, report, "SKILL_CONSUMPTION_NO_REGISTRY")
         if registry is None:
             return
@@ -2993,17 +3204,34 @@ def check_skill_consumption(root: Path, report: Report) -> None:
             if not values:
                 report.bad(r, "consumes", "SKILL_CONSUMPTION_MISSING", "contract declares no 'consumes:' line; intake declares 'consumes: none|none'")
                 continue
-            # CONSUME_ALL resolves against the AST registry, never a literal copy.
+            # Every canonical consumed set - whole-kind, whole-kind-minus, or
+            # enumerated - resolves against the AST registry, never a literal
+            # copy of it. That makes `want` a subset of `valid` by
+            # construction, so SKILL_CONSUMPTION_SET and
+            # SKILL_CONSUMPTION_UNKNOWN_PATH can no longer contradict each
+            # other and leave the check unsatisfiable.
             want: dict[str, set[str]] = {}
+            spec_stale = False
             for kind, raw in spec["consumes"].items():
-                if raw == CONSUME_ALL:
-                    if kind not in registry:
-                        report.bad(r, "consumes", "SKILL_CONSUMPTION_UNKNOWN_KIND",
-                                   f"canonical mapping names predecessor kind {kind!r}, which the validator does not define")
-                        continue
-                    want[kind] = set(registry[kind]["paths"] | registry[kind]["common"])
-                else:
-                    want[kind] = set(raw)
+                if kind not in registry:
+                    report.bad(r, "consumes", "SKILL_CONSUMPTION_UNKNOWN_KIND",
+                               f"canonical mapping names predecessor kind {kind!r}, which the validator does not define")
+                    spec_stale = True
+                    continue
+                valid = registry[kind]["paths"] | registry[kind]["common"]
+                resolved, stale = resolve_consumed(valid, raw)
+                if stale:
+                    report.bad("tools/selfcheck.py", f"SKILL_SPEC[{name}].consumes[{kind}]",
+                               "SKILL_CONSUMPTION_SPEC_STALE",
+                               f"the canonical mapping names {', '.join(stale[:8])}, which {kind} no longer "
+                               "defines. Refresh the mapping against validate.py; leaving it stale would make "
+                               "this check unsatisfiable, because no declaration can be both equal to the "
+                               "mapping and a subset of the validator's paths")
+                    spec_stale = True
+                    continue
+                want[kind] = resolved
+            if spec_stale:
+                continue
             if not want:
                 if values != ["none|none"]:
                     report.bad(r, "consumes", "SKILL_CONSUMPTION_NOT_INTAKE",
@@ -3046,7 +3274,15 @@ def check_skill_consumption(root: Path, report: Report) -> None:
                     report.bad(r, "consumes", "SKILL_CONSUMPTION_SET",
                                f"{kind}: consumed leaf set differs from the M3 predecessor set; missing {absent[:6] or 'none'}, unexpected {surplus[:6] or 'none'}")
             ok += 1
-        report.ok("skill-consumption", f"{ok} skill consumption declarations name AST-valid leaves of their exact predecessor kinds", mark)
+        report.ok("skill-consumption",
+                  f"{ok} skill consumption declarations equal their canonical predecessor set EXACTLY, where that "
+                  "set is resolved against the AST-derived registry in every case - whole kind, whole kind minus "
+                  "named exclusions, or an enumerated subset - so the equality assertion and the "
+                  "structurally-valid-path assertion cannot disagree. A mapping naming a path the validator has "
+                  "retired now fails at the mapping (SKILL_CONSUMPTION_SPEC_STALE), not by making the check "
+                  "unsatisfiable. What is still hand-maintained is the EXCLUSION list, not the inclusion list: an "
+                  "exclusion that should have been dropped keeps a live leaf out of the expected set, and no check "
+                  "here can tell that from a deliberate one", mark)
 
 
 # --- check 22: skill-structure ----------------------------------------------
@@ -3516,11 +3752,13 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
                                    f"no validate.py invocation precedes the first handoff-publishing step "
                                    f"(step {steps[first_pub][0]}); the predecessor must be validated before it is "
                                    "consumed, not only after this skill has written its own handoff")
-                    if first_pub not in validating:
+                    unbound = [steps[i][0] for i in pubs if i not in validating]
+                    if unbound:
                         report.bad(r, "Procedure", "SKILL_VALIDATOR_PUBLICATION_MISSING",
-                                   f"the first handoff-publishing step (step {steps[first_pub][0]}) does not invoke "
-                                   "validate.py; a handoff published without validation is unchecked at exactly the "
-                                   "moment it becomes a predecessor for the next stage")
+                                   f"{len(unbound)} handoff-publishing step(s) do not invoke validate.py "
+                                   f"(step(s) {', '.join(str(n) for n in unbound)}); M6/H11 binds EVERY publication "
+                                   "step, not only the first. A handoff published without validation is unchecked at "
+                                   "exactly the moment it becomes a predecessor for the next stage")
                     if not any(i >= last_pub for i in all_gates):
                         report.bad(r, "Procedure", "SKILL_VALIDATOR_FINAL_GATE_POSITION",
                                    f"no step at or after the last handoff-publishing step (step {steps[last_pub][0]}) "
@@ -3535,13 +3773,14 @@ def check_skill_validator_wiring(root: Path, report: Report) -> None:
                            "skill does not state that validate.py cannot attest to an earlier invocation")
             ok += 1
         report.ok("skill-validator-wiring",
-                  f"{ok} skills invoke validate.py at three DERIVED positions - somewhere before their FIRST "
-                  f"handoff-publishing step, at that FIRST publishing step, and the {VALIDATOR_ALL!r} gate at or "
-                  "after their LAST one - and disclose the honor-system limit. Those are the only three positions "
-                  "bound. A skill that publishes more than one handoff has its SECOND and later publishing steps "
-                  "unchecked: dropping validate.py from one of them leaves this check green. Binding every "
-                  "publishing step needs 7 of 13 skills to name the command stem at their final gate rather than "
-                  f"only {VALIDATOR_ALL!r}, which is a skill-text change, not a harness change", mark)
+                  f"{ok} skills invoke validate.py at every DERIVED position - somewhere before their FIRST "
+                  f"handoff-publishing step, at EVERY handoff-publishing step, and the {VALIDATOR_ALL!r} gate at or "
+                  "after their LAST one - and disclose the honor-system limit. M6/H11 closed the former gap where "
+                  "only the first and last publishing steps were bound and a middle one could drop validate.py "
+                  "unnoticed. What remains unbound is what the derivation cannot see: a publishing step whose bold "
+                  "title does not name a publish verb, or that does not bind that verb to a 'handoff', is not a "
+                  "subject at all. And the whole check proves the INSTRUCTION is present, never that any agent "
+                  "executed it", mark)
 
 
 # --- check 28: skill-note-paths ---------------------------------------------
@@ -3770,7 +4009,11 @@ IMPLEMENTATION_TOKENS: tuple[str, ...] = (
     r"\.modify\s*\(\s*\|",
     r"\bOnDrop\b",
     r"\bWaitCell\b",
-    r"\benable_and_reset\b",
+    # M6/E3 item 21 removed `enable_and_reset` from this set. It is one MCXA
+    # helper NAME, not evidence of implementation leakage: a public target
+    # lifecycle contract may legitimately use it, and a leaking one may use any
+    # other name. The identical removal is required in selfcheck.md, which is
+    # coder-owned.
     r"\bwaker\.register\b",
     r"\bregister_waker\b",
 )
@@ -4826,6 +5069,2606 @@ def check_skill_discovery_closure(root: Path, report: Report) -> None:
 # ---------------------------------------------------------------------------
 
 
+# ===========================================================================
+# M6 checks
+# ===========================================================================
+#
+# Every analyzer below is a PURE function of (relpath, text) so it can be
+# self-tested against deliberate near-misses before the live corpus is
+# trusted. An analyzer that has never been shown to reject anything is not
+# evidence, and several of these are pure corpus-wording gates whose only
+# protection against vacuity is that self-test.
+#
+# Subject selection: the file groups are module-level tuples of repository-
+# relative paths, resolved by helpers that are NOT named check_*. That keeps
+# them outside check_skill_subject_derivation's AST guard while still being
+# literal data, which is correct here: these are the exact files the M6
+# specification enumerates, not a discovered population.
+
+
+def m6_text(root: Path, relpath: str) -> str | None:
+    p = root / PurePosixPath(relpath)
+    return read_text(p) if p.is_file() else None
+
+
+def flat_low(text: str) -> str:
+    return norm_ws(text).lower()
+
+
+def sentences(text: str) -> list[str]:
+    """Split normalized prose into sentence-ish units for co-occurrence rules."""
+    return [s for s in re.split(r"(?<=[.!?;:])\s+|\n", norm_ws(text)) if s.strip()]
+
+
+# --- M6/E3: mcxa-example-boundary -------------------------------------------
+
+# The seven minimum lifecycle-contract elements (spec S3 E3). Both replacement
+# texts that enumerate the whole contract contain all seven literally, so this
+# term set is exactly satisfiable rather than aspirational.
+LIFECYCLE_TERMS: tuple[str, ...] = (
+    "policy owner",
+    "acquisition",
+    "reset arbitration",
+    "lifetime accounting",
+    "teardown",
+    "quiescence",
+    "frequency source",
+    "cancellation",
+)
+
+# --- closure guards for the subject lists that cannot be derived -----------
+#
+# M6 recheck. Three subject lists in this file were hand-maintained and could
+# omit a newly relevant file WITHOUT FAILING ANYTHING. One of them
+# (MCXA_SUBJECT_FILES) turned out to be derivable and is gone. The two below
+# are not: they encode which files the E1/E3 specification assigns specific
+# obligations to, and nothing in the corpus carries that assignment in
+# machine-readable form. Deriving them by keyword threshold was measured and
+# rejected - it sweeps in TODO.md, selfcheck.md and driver-checklist.md, which
+# would be me expanding the specification's scope on my own authority.
+#
+# So instead of leaving a silent allowlist, each list is CLOSED: every file
+# matching the subject's defining marker must appear in either the subject
+# list or an explicit, reasoned out-of-scope list. A new marker-matching file
+# is in neither and fails loudly. The allowlist is still hand-maintained; it is
+# no longer silent.
+
+
+def subject_closure_failures(root: Path, marker: re.Pattern[str], subjects: tuple[str, ...],
+                             out_of_scope: dict[str, str], label: str) -> list[tuple[str, str]]:
+    """[(relpath, message)] for marker-matching files declared in neither list."""
+    out: list[tuple[str, str]] = []
+    untracked = untracked_working_state(root)
+    for p in governed_markdown(root):
+        if is_fixture_payload(root, p):
+            continue
+        relpath = rel(root, p)
+        if relpath in untracked:
+            continue
+        if not marker.search(norm_ws(read_text(p))):
+            continue
+        if relpath in subjects or relpath in out_of_scope:
+            continue
+        out.append((relpath,
+                    f"carries the {label} marker but appears in neither the subject list nor the recorded "
+                    f"out-of-scope list in tools/selfcheck.py. A hand-maintained subject list that can silently "
+                    f"omit a relevant file asserts nothing about it; add it to one list or the other"))
+    return out
+
+
+# Files whose replacement text enumerates the COMPLETE lifecycle contract.
+LIFECYCLE_ENUMERATING_FILES: tuple[str, ...] = (
+    "AGENTS.md",
+    ".opencode/agents/hal-architect.md",
+)
+# Everything else that states the obligation, with why it is not held to the
+# complete enumeration. Measured against the live corpus, not guessed.
+LIFECYCLE_OUT_OF_SCOPE: dict[str, str] = {
+    "TODO.md": "deferral register; it records requirements rather than stating the contract",
+    ".opencode/agents/hal-driver.md": "applies the contract; E3 assigns the enumeration to the architect",
+    ".opencode/schema/selfcheck.md": "documents this harness, and quotes the terms to describe the check",
+    ".opencode/skills/scaffold-hal/SKILL.md": "dispatches the slice that authors the contract",
+    ".opencode/skills/scaffold-hal/references/scaffold-record.md": "records that a contract exists",
+    ".opencode/skills/write-clocks/SKILL.md": "authors the contract for one target; E3 item 8 governs its wording",
+    ".opencode/skills/write-dma/SKILL.md": "consumes the contract; E3 item 13 governs its wording",
+    ".opencode/skills/write-driver/references/driver-checklist.md": "E3 item 16 governs its wording",
+    ".opencode/skills/write-driver/references/profiles/gpio.md": "E3 item 18 governs its wording",
+    ".opencode/skills/write-driver/references/profiles/time-driver.md": "E3 item 19 governs its wording",
+}
+LIFECYCLE_MARKER_RE = re.compile(r"per resource|owning layer|lifecycle contract", re.IGNORECASE)
+
+# Files whose replacement text explicitly frames MCXA names as examples.
+MCXA_FRAMING_FILES: tuple[str, ...] = (
+    "AGENTS.md",
+    ".opencode/agents/hal-architect.md",
+    ".opencode/agents/hal-driver.md",
+    ".opencode/agents/hal-reviewer.md",
+    ".opencode/skills/write-clocks/SKILL.md",
+    ".opencode/skills/scaffold-hal/references/scaffold-record.md",
+)
+# Other files that name an MCXA helper, with why they need no framing sentence.
+MCXA_FRAMING_OUT_OF_SCOPE: dict[str, str] = {
+    "TODO.md": "deferral register; it quotes retired names to record what was removed",
+    ".opencode/skills/write-dma/SKILL.md": "E3 item 13 replaces its wording; framing lives with the clock owner",
+    ".opencode/skills/scaffold-hal/SKILL.md": "E3 item 14 replaces one worked string only",
+    ".opencode/skills/write-driver/references/driver-checklist.md": "E3 item 16 replaces its wording",
+    ".opencode/skills/write-driver/references/profiles/bus.md": "E3 item 17 replaces its wording",
+    ".opencode/skills/write-driver/references/profiles/gpio.md": "E3 item 18 replaces its wording",
+    ".opencode/skills/write-driver/references/profiles/time-driver.md": "E3 item 19 replaces its wording",
+}
+
+# M6 recheck: the subject set is DERIVED. There is no MCXA_SUBJECT_FILES list
+# any more - every governed non-fixture Markdown file is scanned, so a new file
+# that mandates an MCXA helper is covered the moment it is written. That became
+# possible by narrowing the name pattern to IDENTIFIER-SHAPED occurrences: the
+# old `\bthe gate\b` alternative matched the ordinary English word in "the
+# citation gate" and "the review gate", which is why the scan had to be
+# confined to a hand-listed set of clock-context files. Measured corpus-wide,
+# the narrowed pattern produces no such false positive.
+MCXA_NAME_RE = re.compile(
+    r"enable_and_reset|`Gate`|\bGate trait\b|pub trait Gate|\bGate\b(?=\s*(?:trait|implementations|impl))")
+
+MCXA_FRAMING_RE = re.compile(
+    r"\bexamples?\b|\boptional\b|\bnot required\b|\bonly when\b|\bwhen selected\b|\bif selected\b"
+    r"|\brequired only if\b|\bsearch example\b|\bmay extend\b",
+    re.IGNORECASE)
+MCXA_FRAMED_MENTION_RE = re.compile(r"mcxa[^.]{0,80}?\b(example|examples|names|helpers)\b", re.IGNORECASE)
+
+
+def analyze_mcxa_boundary(relpath: str, text: str) -> list[tuple[str, str]]:
+    """Pure analyzer: unframed MCXA-helper mandates and missing contract terms."""
+    out: list[tuple[str, str]] = []
+    for unit in sentences(text):
+        if MCXA_NAME_RE.search(unit) and not MCXA_FRAMING_RE.search(unit):
+            out.append((
+                "MCXA_NAME_MANDATED",
+                f"{relpath}: names an MCXA clock helper without framing it as an example or an optional "
+                f"selection: {unit[:160]!r}. E3 makes Gate/enable_and_reset examples, not required names",
+            ))
+    if relpath in LIFECYCLE_ENUMERATING_FILES:
+        low = flat_low(text)
+        missing = [t for t in LIFECYCLE_TERMS if t not in low]
+        if missing:
+            out.append((
+                "LIFECYCLE_CONTRACT_INCOMPLETE",
+                f"{relpath}: the minimum lifecycle contract omits {', '.join(missing)}; E3 requires all "
+                f"{len(LIFECYCLE_TERMS)} elements to be stated per resource",
+            ))
+    if relpath in MCXA_FRAMING_FILES and not MCXA_FRAMED_MENTION_RE.search(norm_ws(text)):
+        out.append((
+            "MCXA_FRAMING_ABSENT",
+            f"{relpath}: never says that the MCXA names/helpers are examples; without that sentence a reader "
+            "cannot tell an illustration from a requirement",
+        ))
+    return out
+
+
+_MCXA_GOOD = (
+    "Never duplicate clock, reset, or power policy in a peripheral driver. One architected owning layer "
+    "records, per resource, policy owners, acquisition/initialization, reset arbitration, lifetime accounting "
+    "or its explicit absence, teardown/quiescence, frequency source or irrelevance, and cancellation behavior. "
+    "Gate and enable_and_reset are MCXA examples, not required names or shapes.\n"
+)
+
+_MCXA_CASES: tuple[tuple[str, str, str, str], ...] = (
+    ("unframed mandate", "AGENTS.md",
+     _MCXA_GOOD + "Reach gating through the Gate trait and enable_and_reset.\n",
+     "MCXA_NAME_MANDATED"),
+    ("dropped lifetime accounting", "AGENTS.md",
+     _MCXA_GOOD.replace("lifetime accounting or its explicit absence, ", ""),
+     "LIFECYCLE_CONTRACT_INCOMPLETE"),
+    ("no example framing", ".opencode/agents/hal-reviewer.md",
+     "Audit every minimum lifecycle-contract element and shared-domain behavior.\n",
+     "MCXA_FRAMING_ABSENT"),
+)
+
+
+def mcxa_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_mcxa_boundary("AGENTS.md", _MCXA_GOOD)
+    if clean:
+        problems.append(f"the conforming replacement text was rejected with {[c for c, _ in clean]}; "
+                        "the analyzer rejects everything and proves nothing")
+    for name, relpath, text, expected in _MCXA_CASES:
+        codes = [c for c, _ in analyze_mcxa_boundary(relpath, text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_mcxa_example_boundary(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "AGENTS.md", "MCXA_BOUNDARY_ABORT"):
+        for problem in mcxa_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_mcxa_boundary", "MCXA_BOUNDARY_FIXTURE",
+                       f"the MCXA-example analyzer failed its in-memory near-misses: {problem}")
+        # DERIVED subject set: every governed non-fixture Markdown file, minus
+        # untracked working state. No hand-maintained list of clock-context
+        # files, so a new file that mandates an MCXA helper is covered.
+        untracked = untracked_working_state(root)
+        targets = [p for p in governed_markdown(root)
+                   if not is_fixture_payload(root, p) and rel(root, p) not in untracked]
+        scanned = 0
+        for p in targets:
+            relpath = rel(root, p)
+            scanned += 1
+            for code, message in analyze_mcxa_boundary(relpath, read_text(p)):
+                report.bad(relpath, "prose", code, message)
+        if scanned == 0:
+            report.bad("AGENTS.md", "0", "MCXA_BOUNDARY_NO_TARGETS",
+                       "no governed Markdown was readable; the boundary is asserted against nothing")
+        for relpath in LIFECYCLE_ENUMERATING_FILES + MCXA_FRAMING_FILES:
+            if m6_text(root, relpath) is None:
+                report.bad(relpath, "0", "MCXA_BOUNDARY_TARGET_MISSING",
+                           "file named by E3 is absent; its obligation cannot be verified")
+        for relpath, message in subject_closure_failures(
+                root, LIFECYCLE_MARKER_RE, LIFECYCLE_ENUMERATING_FILES, LIFECYCLE_OUT_OF_SCOPE,
+                "lifecycle-contract obligation"):
+            report.bad(relpath, "subject-closure", "MCXA_SUBJECT_UNDECLARED", message)
+        for relpath, message in subject_closure_failures(
+                root, MCXA_NAME_RE, MCXA_FRAMING_FILES, MCXA_FRAMING_OUT_OF_SCOPE, "MCXA helper name"):
+            report.bad(relpath, "subject-closure", "MCXA_SUBJECT_UNDECLARED", message)
+        report.ok("mcxa-example-boundary",
+                  f"{scanned} governed non-fixture files - a DERIVED subject set, not a list - name no MCXA "
+                  f"clock helper outside example framing; {len(LIFECYCLE_ENUMERATING_FILES)} state all "
+                  f"{len(LIFECYCLE_TERMS)} minimum lifecycle-contract elements and "
+                  f"{len(MCXA_FRAMING_FILES)} say so explicitly (analyzer self-tested against "
+                  f"{len(_MCXA_CASES)} near-misses). Those last two ARE hand-maintained, and are CLOSED: every "
+                  f"file carrying their marker must appear in the subject list or in a reasoned out-of-scope "
+                  f"list, so an omission fails rather than passing silently. This matches the NAMED MCXA "
+                  "HELPERS and nothing else. The same topology under other names - mandating a UniversalGate, a "
+                  "UniversalWakeGuard, a required instance trio - matches no token and passes, so this is not a "
+                  "guard against copied MCXA structure. Corpus wording only: no generated HAL is inspected", mark)
+
+
+# --- M6/E4: error-clear-semantics -------------------------------------------
+
+ERROR_SEMANTICS_FILES: tuple[str, ...] = (
+    "AGENTS.md",
+    ".opencode/agents/hal-driver.md",
+    ".opencode/agents/hal-reviewer.md",
+    ".opencode/skills/write-dma/SKILL.md",
+    ".opencode/skills/write-driver/references/driver-checklist.md",
+    ".opencode/skills/write-driver/references/profiles/bus.md",
+)
+
+# Rejected: the universal single-write clear, and the universal snapshot it
+# implies. Both are false on read-to-clear registers.
+ERROR_FORBIDDEN_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("single-write clear", re.compile(r"in one write", re.IGNORECASE)),
+    ("clear-all mandate", re.compile(r"clear all (?:of them|error flags)", re.IGNORECASE)),
+    ("universal snapshot", re.compile(r"read all error flags", re.IGNORECASE)),
+)
+
+# Required per file (the canonical replacement wording contains all of these).
+ERROR_REQUIRED_TERMS: tuple[str, ...] = (
+    "read-to-clear",
+    "preserve",
+    "recoverable",
+    "latched",
+)
+
+# Required somewhere in the group, not per file: the canonical sentence does
+# not name the write-one-to-clear and write-zero-to-clear conventions, so
+# demanding them in every file would be unsatisfiable as specified.
+ERROR_CORPUS_TERMS: tuple[str, ...] = ("w1c", "w0c")
+
+
+def analyze_error_semantics(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    flat = norm_ws(text)
+    low = flat.lower()
+    for label, rx in ERROR_FORBIDDEN_RES:
+        m = rx.search(flat)
+        if m:
+            out.append((
+                "ERROR_CLEAR_OVERGENERAL",
+                f"{relpath}: retains the {label} wording {m.group(0)!r}; E4 requires cited per-register read/clear "
+                "semantics, because read-to-clear state cannot be snapshotted first and a blanket write destroys "
+                "unrelated control bits",
+            ))
+    missing = [t for t in ERROR_REQUIRED_TERMS if t not in low]
+    if missing:
+        out.append((
+            "ERROR_CLEAR_TERMS_MISSING",
+            f"{relpath}: error-handling obligation omits {', '.join(missing)}; the canonical E4 wording states all "
+            "of them",
+        ))
+    return out
+
+
+_ERROR_GOOD = (
+    "Observe and account for every relevant error condition according to cited read and clear semantics before "
+    "returning. Preserve unrelated/control bits and leave no recoverable condition latched. Read-to-clear state "
+    "need not and sometimes cannot be snapshotted first.\n"
+)
+
+_ERROR_CASES: tuple[tuple[str, str, str], ...] = (
+    ("single write survives", _ERROR_GOOD + "Read every flag, clear all of them in one write.\n",
+     "ERROR_CLEAR_OVERGENERAL"),
+    ("universal snapshot survives", _ERROR_GOOD + "Read all error flags, then decide.\n",
+     "ERROR_CLEAR_OVERGENERAL"),
+    ("no preserve term", _ERROR_GOOD.replace("Preserve unrelated/control bits and ", ""),
+     "ERROR_CLEAR_TERMS_MISSING"),
+)
+
+
+def error_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_error_semantics("AGENTS.md", _ERROR_GOOD)
+    if clean:
+        problems.append(f"the canonical E4 wording was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _ERROR_CASES:
+        codes = [c for c, _ in analyze_error_semantics("AGENTS.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_error_clear_semantics(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "AGENTS.md", "ERROR_CLEAR_ABORT"):
+        for problem in error_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_error_semantics", "ERROR_CLEAR_FIXTURE",
+                       f"the error-semantics analyzer failed its in-memory near-misses: {problem}")
+        scanned = 0
+        corpus_low = ""
+        for relpath in ERROR_SEMANTICS_FILES:
+            text = m6_text(root, relpath)
+            if text is None:
+                report.bad(relpath, "0", "ERROR_CLEAR_TARGET_MISSING",
+                           "file named by E4 is absent; its replacement cannot be verified")
+                continue
+            scanned += 1
+            corpus_low += flat_low(text) + " "
+            for code, message in analyze_error_semantics(relpath, text):
+                report.bad(relpath, "prose", code, message)
+        if scanned == 0:
+            report.bad("AGENTS.md", "0", "ERROR_CLEAR_NO_TARGETS",
+                       "no E4 target file was readable; the wording is asserted against nothing")
+        else:
+            absent = [t for t in ERROR_CORPUS_TERMS if t not in corpus_low]
+            if absent:
+                report.bad("AGENTS.md", "prose", "ERROR_CLEAR_CONVENTIONS_MISSING",
+                           f"no E4 file names the {', '.join(t.upper() for t in absent)} clear convention(s); "
+                           "'cited read and clear semantics' is not actionable if the conventions are never named")
+        report.ok("error-clear-semantics",
+                  f"{scanned} E4 files reject the universal single-write clear and the universal snapshot and "
+                  f"state all {len(ERROR_REQUIRED_TERMS)} obligation terms, with the W1C/W0C conventions named "
+                  f"somewhere in the group (analyzer self-tested against {len(_ERROR_CASES)} near-misses). "
+                  "CORPUS WORDING ONLY: no driver is compiled or executed here", mark)
+
+
+# --- M6/E5: target-first-driver-order ---------------------------------------
+
+DRIVER_AGENT_RELPATH = ".opencode/agents/hal-driver.md"
+OBLIGATIONS_HEADING = "Conditional implementation obligations"
+MCXA_PATH_RE = re.compile(r"embassy-mcxa/", re.IGNORECASE)
+
+
+def bullet_items(body: str) -> list[str]:
+    """Top-level '- ' bullets of a section, continuation lines folded in."""
+    items: list[list[str]] = []
+    for line in body.split("\n"):
+        if re.match(r"^-\s+\S", line):
+            items.append([line])
+        elif items and line.strip():
+            items[-1].append(line)
+        elif items and not line.strip():
+            items.append([])
+            items.pop()
+    return [norm_ws(" ".join(chunk)) for chunk in items if chunk]
+
+
+def analyze_driver_order(relpath: str, text: str) -> list[tuple[str, str]]:
+    """Pure analyzer for the E5 reading order inside the driver agent."""
+    out: list[tuple[str, str]] = []
+    heads = [(h, b, i) for h, b, i in h2_sections(text)]
+    names = [h for h, _, _ in heads]
+    if "What you do" in names:
+        out.append(("DRIVER_ORDER_SECTION_NOT_RENAMED",
+                    f"{relpath}: '## What you do' still exists; E5 renames it to "
+                    f"'## {OBLIGATIONS_HEADING}' so its items read as conditional on target compatibility"))
+    if OBLIGATIONS_HEADING not in names:
+        out.append(("DRIVER_ORDER_SECTION_MISSING",
+                    f"{relpath}: no '## {OBLIGATIONS_HEADING}' section"))
+    elif "How you work" in names:
+        if names.index(OBLIGATIONS_HEADING) < names.index("How you work"):
+            out.append(("DRIVER_ORDER_SECTION_MISPLACED",
+                        f"{relpath}: '## {OBLIGATIONS_HEADING}' precedes '## How you work'; E5 moves it after the "
+                        "four reading-order bullets so the obligations are read second"))
+    if "How you work" not in names:
+        out.append(("DRIVER_ORDER_NO_WORKFLOW",
+                    f"{relpath}: no '## How you work' section, so the reading order cannot be derived"))
+        return out
+    body = heads[names.index("How you work")][1]
+    items = bullet_items(body)
+    if len(items) < 4:
+        out.append(("DRIVER_ORDER_ANCHORS_MISSING",
+                    f"{relpath}: '## How you work' has {len(items)} top-level bullets; E5 requires at least four, "
+                    "the first being the target-inventory anchor"))
+        return out
+    low = [b.lower() for b in items]
+    if "inventory" not in low[0]:
+        out.append(("DRIVER_ORDER_INVENTORY_NOT_FIRST",
+                    f"{relpath}: the first '## How you work' bullet does not require writing the target capability/"
+                    f"invariant inventory: {items[0][:160]!r}"))
+    if not re.search(r"write-clocks|write-dma|write-driver", low[1]):
+        out.append(("DRIVER_ORDER_DISPATCH_NOT_SECOND",
+                    f"{relpath}: the second bullet is not the skill-selection anchor: {items[1][:160]!r}"))
+    if not re.search(r"\b(profile|skill)\b", low[2]) or "applicable" not in low[2]:
+        out.append(("DRIVER_ORDER_PROFILE_NOT_THIRD",
+                    f"{relpath}: the third bullet does not load the selected skill/profile and separate applicable "
+                    f"from inapplicable generic patterns: {items[2][:160]!r}"))
+    if "only now" not in low[3] or "mcxa" not in low[3]:
+        out.append(("DRIVER_ORDER_REFERENCE_NOT_FOURTH",
+                    f"{relpath}: the fourth bullet does not defer reading the live embassy-mcxa references until "
+                    f"after the inventory: {items[3][:160]!r}"))
+    # No MCXA implementation PATH may appear before the end of the inventory
+    # bullet. Computed on RAW LINES: a character offset derived from the
+    # normalized bullet silently fails to locate a wrapped bullet, and a
+    # located-nothing comparison would make this assertion vacuous.
+    lines = text.split("\n")
+    head_at = next((i for i, ln in enumerate(lines) if ln.strip() == "## How you work"), -1)
+    if head_at < 0:
+        out.append(("DRIVER_ORDER_INVENTORY_UNLOCATABLE",
+                    f"{relpath}: cannot locate the '## How you work' heading on a raw line, so the "
+                    "MCXA-path-before-inventory rule would pass vacuously"))
+    else:
+        bullet_lines = [i for i in range(head_at + 1, len(lines)) if re.match(r"^-\s+\S", lines[i])]
+        if len(bullet_lines) < 2:
+            out.append(("DRIVER_ORDER_INVENTORY_UNLOCATABLE",
+                        f"{relpath}: fewer than two raw bullets follow '## How you work'; the end of the inventory "
+                        "bullet cannot be located"))
+        else:
+            inv_end = bullet_lines[1]
+            early = [i for i in range(inv_end) if MCXA_PATH_RE.search(lines[i])]
+            if early:
+                out.append(("DRIVER_ORDER_MCXA_PATH_EARLY",
+                            f"{relpath}: an embassy-mcxa implementation path appears on line {early[0] + 1}, before "
+                            f"the target-inventory bullet ends on line {inv_end}; E5 forbids opening another "
+                            "target's implementation before the inventory exists"))
+    return out
+
+
+_DRIVER_GOOD = """# x
+
+## Stance
+
+- Accepted target facts, PAC, architecture and selected profile define capability.
+
+## How you work
+
+- Validate the payload, then read target facts, PAC, architecture, startup/lifecycle
+  contract, scope/modes, dependencies and requirements; write the target capability/
+  invariant inventory before opening another target's implementation.
+- Use `write-clocks` for the first platform clock slice, `write-dma` for the shared DMA
+  subsystem, and `write-driver` for ordinary peripheral subsystems.
+- Load the selected skill/profile and identify applicable and inapplicable generic patterns.
+- Only now read the live `embassy-mcxa` references named by the skill; compare them with
+  the inventory and record accepted and rejected analogies.
+
+## Conditional implementation obligations
+
+Apply each item only after target/profile compatibility is established.
+
+- **Type erasure.** One lifetime and one Mode.
+"""
+
+_DRIVER_CASES: tuple[tuple[str, str, str], ...] = (
+    ("section not renamed",
+     _DRIVER_GOOD.replace("## Conditional implementation obligations", "## What you do"),
+     "DRIVER_ORDER_SECTION_NOT_RENAMED"),
+    ("obligations before workflow",
+     _DRIVER_GOOD.replace("## How you work", "## ZZZ").replace(
+         "## Conditional implementation obligations", "## How you work").replace(
+         "## ZZZ", "## Conditional implementation obligations"),
+     "DRIVER_ORDER_SECTION_MISPLACED"),
+    ("reference read promoted above inventory",
+     _DRIVER_GOOD.replace(
+         "- Validate the payload, then read target facts, PAC, architecture, startup/lifecycle\n"
+         "  contract, scope/modes, dependencies and requirements; write the target capability/\n"
+         "  invariant inventory before opening another target's implementation.\n",
+         "- Read the live `embassy-mcxa` references named by the skill before anything else.\n"),
+     "DRIVER_ORDER_INVENTORY_NOT_FIRST"),
+    ("profile bullet swapped out",
+     _DRIVER_GOOD.replace(
+         "- Load the selected skill/profile and identify applicable and inapplicable generic patterns.",
+         "- Write the code."),
+     "DRIVER_ORDER_PROFILE_NOT_THIRD"),
+    ("deferral removed",
+     _DRIVER_GOOD.replace("- Only now read the live `embassy-mcxa` references named by the skill; compare them with",
+                          "- Read whatever you like; compare them with"),
+     "DRIVER_ORDER_REFERENCE_NOT_FOURTH"),
+    ("mcxa path promoted into the stance",
+     _DRIVER_GOOD.replace("- Accepted target facts, PAC, architecture and selected profile define capability.",
+                          "- Read embassy-mcxa/src/i2c/ first; it is the spec."),
+     "DRIVER_ORDER_MCXA_PATH_EARLY"),
+)
+
+
+def driver_order_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_driver_order(DRIVER_AGENT_RELPATH, _DRIVER_GOOD)
+    if clean:
+        problems.append(f"the conforming E5 ordering was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _DRIVER_CASES:
+        codes = [c for c, _ in analyze_driver_order(DRIVER_AGENT_RELPATH, text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_target_first_driver_order(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, DRIVER_AGENT_RELPATH, "DRIVER_ORDER_ABORT"):
+        for problem in driver_order_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_driver_order", "DRIVER_ORDER_FIXTURE",
+                       f"the reading-order analyzer failed its in-memory near-misses: {problem}")
+        text = m6_text(root, DRIVER_AGENT_RELPATH)
+        if text is None:
+            report.bad(DRIVER_AGENT_RELPATH, "0", "DRIVER_ORDER_TARGET_MISSING",
+                       "the driver agent is absent; the E5 reading order is asserted against nothing")
+            return
+        if "is the spec" in flat_low(text):
+            report.bad(DRIVER_AGENT_RELPATH, "Stance", "DRIVER_ORDER_DEVGUIDE_IS_SPEC",
+                       "the stance still calls another target's DEVGUIDE 'the spec'; E5 makes accepted target facts, "
+                       "PAC, architecture and the selected profile the capability source")
+        for code, message in analyze_driver_order(DRIVER_AGENT_RELPATH, text):
+            report.bad(DRIVER_AGENT_RELPATH, "order", code, message)
+        report.ok("target-first-driver-order",
+                  f"the driver agent states the four E5 reading-order anchors in order, renames its obligations "
+                  f"section and places it after them, and names no embassy-mcxa implementation path before the "
+                  f"target inventory (analyzer self-tested against {len(_DRIVER_CASES)} near-misses). This asserts "
+                  "DOCUMENT ORDER only; it cannot observe what an agent actually reads first", mark)
+
+
+# --- M6/E8: checkout-context-guard ------------------------------------------
+
+CONTEXT_NO_ACTION_SENTENCE = ("HAL workflow not started: run toolkit maintenance with a non-HAL agent, "
+                              "or install halucinator into an Embassy checkout.")
+CONTEXT_MARKERS: tuple[str, ...] = (
+    "README.md", "docs/opencode.json", ".opencode/ownership.toml", "tools/selfcheck.py",
+)
+CONTEXT_CLASSES: tuple[str, ...] = ("TOOLKIT", "EMBASSY", "AMBIGUOUS")
+
+# M6 follow-up. The E8 guard as first written binds EVERY agent that reads
+# AGENTS.md, not the hal-* HAL-workflow agents it was specified for. That is a
+# demonstrated false positive: a generic reviewer dispatched to do toolkit
+# maintenance on THIS repository refused twice with the guard's own no-action
+# sentence, and was right to - "before anything else ... no write, no
+# subdispatch" outranks a dispatch instruction. The original E8 defect was a
+# prerequisite that halted toolkit maintenance; an unscoped guard reproduces it
+# in mirror image and makes it mandatory rather than merely implied.
+#
+# So the guard must now declare BOTH halves of its scope. These are matched as
+# CO-OCCURRENCE within one sentence over two open families of wording, not as
+# one literal sentence: the coder writes prose, and several reasonable
+# phrasings satisfy each half. The refusal behaviour required of hal-* agents
+# is unchanged and every assertion above still applies to them.
+
+# Who the guard binds: the HAL-workflow agent family.
+CONTEXT_FAMILY_RE = re.compile(
+    r"hal-\*|hal-workflow agents?|HAL-workflow agents?|\bHAL agents?\b|hal-<[a-z]+>|the eight hal-",
+    re.IGNORECASE)
+# ... stated as an obligation, so merely naming the family does not count.
+CONTEXT_OBLIGATION_RE = re.compile(r"classif|guard|refus|no-action|not started|halt|bound by",
+                                   re.IGNORECASE)
+# Who it does not bind: a non-HAL agent doing toolkit maintenance here.
+CONTEXT_NONHAL_RE = re.compile(
+    r"non-HAL|not a HAL|toolkit maintenance|maintenance agents?|outside the HAL workflow",
+    re.IGNORECASE)
+# ... and that such an agent carries on. Deliberately excludes "run", which the
+# existing remedy sentence already contains: the remedy tells the OPERATOR what
+# to do next, it does not tell the reading agent it may proceed.
+CONTEXT_PROCEED_RE = re.compile(
+    r"\bproceeds?\b|does not apply|not bound|never bound|exempt|continue normally|as normal"
+    r"|\bnormally\b|unaffected|no obligation",
+    re.IGNORECASE)
+
+
+
+def contract_fence_end(text: str) -> int:
+    """Character offset just past the agent contract fence, or -1."""
+    m = re.search(r"^```" + re.escape(CONTRACT_INFO) + r"\s*$", text, re.MULTILINE)
+    if not m:
+        return -1
+    close = re.search(r"^```\s*$", text[m.end():], re.MULTILINE)
+    return m.end() + close.end() if close else -1
+
+
+def analyze_context_guard(relpath: str, text: str, require_fence: bool) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    flat = norm_ws(text)
+    idx = flat.find(CONTEXT_NO_ACTION_SENTENCE)
+    if idx < 0:
+        out.append(("CONTEXT_GUARD_ABSENT",
+                    f"{relpath}: does not carry the exact no-action sentence {CONTEXT_NO_ACTION_SENTENCE!r}; "
+                    "without it an agent in the toolkit checkout has no scripted refusal"))
+    missing_class = [c for c in CONTEXT_CLASSES if c not in text]
+    if missing_class:
+        out.append(("CONTEXT_GUARD_CLASSES_MISSING",
+                    f"{relpath}: names no {', '.join(missing_class)} classification; E8 requires all three, with "
+                    "TOOLKIT winning even when Embassy markers also appear"))
+    if "precede" not in flat.lower() and "wins" not in flat.lower() and "even if" not in flat.lower():
+        out.append(("CONTEXT_GUARD_PRECEDENCE_MISSING",
+                    f"{relpath}: never states that TOOLKIT takes precedence over EMBASSY; a predicate without a "
+                    "precedence rule is ambiguous exactly where it matters"))
+    low = flat.lower()
+    for forbidden, why in (("retry", "retry"), ("subdispatch", "subdispatch")):
+        if forbidden not in low:
+            out.append(("CONTEXT_GUARD_NO_ACTION_INCOMPLETE",
+                        f"{relpath}: does not forbid {why} on a TOOLKIT/AMBIGUOUS classification; E8 requires an "
+                        "immediate return with no retry, lock, state publication, write or subdispatch"))
+    if require_fence:
+        end = contract_fence_end(text)
+        if end < 0:
+            out.append(("CONTEXT_GUARD_NO_CONTRACT",
+                        f"{relpath}: no parseable agent contract fence, so the guard's position cannot be asserted"))
+        elif idx >= 0:
+            raw_at = text.find(CONTEXT_NO_ACTION_SENTENCE.split(":")[0])
+            if 0 <= raw_at < end:
+                out.append(("CONTEXT_GUARD_MISPLACED",
+                            f"{relpath}: the context guard appears inside or before the contract fence; E8 places it "
+                            "immediately after"))
+    # Scope. Both halves are required: an unscoped guard binds every reader,
+    # and a guard that only names an exclusion leaves the binding set to
+    # inference.
+    units = sentences(text)
+    # A sentence about who is NOT bound is not a statement of who IS bound.
+    # Without this the exclusion half satisfies the binding half by accident:
+    # "non-HAL agent" contains a word-boundary match for "HAL agent", and
+    # "is not bound by it" matches the obligation family.
+    if not any(CONTEXT_FAMILY_RE.search(s) and CONTEXT_OBLIGATION_RE.search(s)
+               and not CONTEXT_NONHAL_RE.search(s) for s in units):
+        out.append(("CONTEXT_GUARD_SCOPE_UNBOUND",
+                    f"{relpath}: no sentence states that the classification obligation binds the hal-* "
+                    "HAL-workflow agents specifically. An unscoped guard binds every agent that reads this file, "
+                    "including one dispatched to maintain this toolkit, which is a demonstrated false refusal"))
+    if not any(CONTEXT_NONHAL_RE.search(s) and CONTEXT_PROCEED_RE.search(s) for s in units):
+        out.append(("CONTEXT_GUARD_EXCLUSION_ABSENT",
+                    f"{relpath}: no sentence states that a non-HAL agent performing toolkit maintenance on this "
+                    "repository is not bound and proceeds normally. Without it a good-faith reader refuses, because "
+                    "the guard's own 'before anything else' wording outranks its dispatch"))
+    return out
+
+
+_CONTEXT_SCOPE_BINDS = (
+    "This guard binds the hal-* HAL-workflow agents and nobody else. "
+)
+_CONTEXT_SCOPE_EXCLUDES = (
+    "A non-HAL agent performing toolkit maintenance on this repository is not bound by it and proceeds "
+    "normally.\n"
+)
+
+_CONTEXT_GOOD_BODY = (
+    _CONTEXT_SCOPE_BINDS +
+    "Classify the checkout read-only before anything else. TOOLKIT when README.md, docs/opencode.json, "
+    ".opencode/ownership.toml and tools/selfcheck.py exist; TOOLKIT wins even if Embassy markers also appear. "
+    "Otherwise EMBASSY, otherwise AMBIGUOUS. On TOOLKIT or AMBIGUOUS respond exactly: "
+    + CONTEXT_NO_ACTION_SENTENCE +
+    " Return immediately and list the observed markers: no retry, no lock, no state publication, no write, "
+    "no subdispatch. " + _CONTEXT_SCOPE_EXCLUDES
+)
+
+_CONTEXT_GOOD_AGENT = (
+    "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n" + _CONTEXT_GOOD_BODY
+)
+
+_CONTEXT_CASES: tuple[tuple[str, str, bool, str], ...] = (
+    ("sentence removed", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(CONTEXT_NO_ACTION_SENTENCE, "Stop."), True, "CONTEXT_GUARD_ABSENT"),
+    ("ambiguous class dropped", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace("otherwise AMBIGUOUS", "otherwise proceed").replace(
+         "On TOOLKIT or AMBIGUOUS respond", "On TOOLKIT respond"), True,
+     "CONTEXT_GUARD_CLASSES_MISSING"),
+    ("precedence dropped", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace("; TOOLKIT wins even if Embassy markers also appear", ""), True,
+     "CONTEXT_GUARD_PRECEDENCE_MISSING"),
+    ("subdispatch still permitted", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(", no subdispatch", ""), True, "CONTEXT_GUARD_NO_ACTION_INCOMPLETE"),
+    ("guard before the contract", _CONTEXT_GOOD_BODY + "\n```" + CONTRACT_INFO + "\nid: a\n```\n", True,
+     "CONTEXT_GUARD_MISPLACED"),
+    # --- scope near-misses -------------------------------------------------
+    # 1. Today's shipped state: a guard with neither half of its scope. It must
+    #    fail on BOTH codes, which is what makes the live corpus RED.
+    ("unscoped guard binds every reader", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(_CONTEXT_SCOPE_BINDS, "").replace(_CONTEXT_SCOPE_EXCLUDES, ""), True,
+     "CONTEXT_GUARD_SCOPE_UNBOUND"),
+    ("unscoped guard omits the exclusion too", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(_CONTEXT_SCOPE_BINDS, "").replace(_CONTEXT_SCOPE_EXCLUDES, ""), True,
+     "CONTEXT_GUARD_EXCLUSION_ABSENT"),
+    # 2. Names who is excluded but never who is bound.
+    ("exclusion without a binding set", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(_CONTEXT_SCOPE_BINDS, ""), True, "CONTEXT_GUARD_SCOPE_UNBOUND"),
+    # 3. Binds hal-* agents but never releases toolkit maintenance - the
+    #    demonstrated false refusal survives.
+    ("binding without an exclusion", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(_CONTEXT_SCOPE_EXCLUDES, ""), True, "CONTEXT_GUARD_EXCLUSION_ABSENT"),
+    # 4. The remedy sentence alone must NOT satisfy the exclusion: it tells the
+    #    operator what to run next, it does not release the reading agent.
+    ("remedy sentence mistaken for an exclusion", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(
+         _CONTEXT_SCOPE_EXCLUDES,
+         "Run toolkit maintenance with a non-HAL agent instead.\n"), True,
+     "CONTEXT_GUARD_EXCLUSION_ABSENT"),
+    # 5. Naming the family without an obligation is not a binding statement.
+    ("family named but not bound", "# a\n\n```" + CONTRACT_INFO + "\nid: a\n```\n\n"
+     + _CONTEXT_GOOD_BODY.replace(
+         _CONTEXT_SCOPE_BINDS, "The hal-* agents are listed in the pipeline table below. "), True,
+     "CONTEXT_GUARD_SCOPE_UNBOUND"),
+)
+
+
+
+def context_guard_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_context_guard(".opencode/agents/x.md", _CONTEXT_GOOD_AGENT, True)
+    if clean:
+        problems.append(f"the conforming guard was rejected with {[c for c, _ in clean]}")
+    for name, text, fence, expected in _CONTEXT_CASES:
+        codes = [c for c, _ in analyze_context_guard(".opencode/agents/x.md", text, fence)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_checkout_context_guard(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, ".opencode/agents", "CONTEXT_GUARD_ABORT"):
+        for problem in context_guard_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_context_guard", "CONTEXT_GUARD_FIXTURE",
+                       f"the checkout-context analyzer failed its in-memory near-misses: {problem}")
+        agents = agent_paths(root)
+        if len(agents) != 8:
+            report.bad(".opencode/agents", "0", "CONTEXT_GUARD_AGENT_COUNT",
+                       f"discovered {len(agents)} agents; E8 requires the guard in all eight copies")
+        for name in sorted(agents):
+            relpath = rel(root, agents[name])
+            for code, message in analyze_context_guard(relpath, read_text(agents[name]), True):
+                report.bad(relpath, "context-guard", code, message)
+        agents_md = m6_text(root, "AGENTS.md")
+        if agents_md is None:
+            report.bad("AGENTS.md", "0", "CONTEXT_GUARD_TARGET_MISSING", "AGENTS.md is absent")
+        else:
+            for code, message in analyze_context_guard("AGENTS.md", agents_md, False):
+                report.bad("AGENTS.md", "context-guard", code, message)
+            missing = [m for m in CONTEXT_MARKERS if m not in agents_md]
+            if missing:
+                report.bad("AGENTS.md", "Scope", "CONTEXT_GUARD_MARKERS_MISSING",
+                           f"the classification predicate omits marker(s) {', '.join(missing)}; E8 names an exact "
+                           "conservative marker set so classification is reproducible")
+            if "No HAL source lives here" not in agents_md:
+                report.bad("AGENTS.md", "Scope", "CONTEXT_GUARD_README_PROBE_MISSING",
+                           "the predicate never names the README sentence 'No HAL source lives here' it tests for")
+        readme = m6_text(root, "README.md")
+        if readme is None:
+            report.bad("README.md", "0", "CONTEXT_GUARD_TARGET_MISSING", "README.md is absent")
+        elif not re.search(r"opencode\.json[^.]{0,200}\binert\b", norm_ws(readme)):
+            report.bad("README.md", "0", "CONTEXT_GUARD_INERT_NOTE_MISSING",
+                       "README does not note that docs/opencode.json is inert product material; a config that looks "
+                       "live in the toolkit checkout is exactly the E8 confusion")
+        report.ok("checkout-context-guard",
+                  f"{len(agents)} agents plus AGENTS.md carry the exact no-action sentence, all three "
+                  f"classifications, the TOOLKIT precedence rule and the no-retry/no-subdispatch restriction, "
+                  f"AND scope the guard in both directions - one sentence binding the hal-* HAL-workflow agents "
+                  f"to the obligation, another releasing a non-HAL agent doing toolkit maintenance on this "
+                  f"repository - and README notes the inert config (analyzer self-tested against "
+                  f"{len(_CONTEXT_CASES)} near-misses, including an unscoped guard and the remedy sentence "
+                  "mistaken for an exclusion). Scope is matched as sentence-level CO-OCCURRENCE over two open "
+                  "wording families, not one literal sentence, so several phrasings satisfy it. CORPUS/CONFIG "
+                  "ONLY: no classification is executed here, the refusal strictness required of hal-* agents is "
+                  "asserted as text and not as behaviour, and nothing here can tell a correctly scoped exclusion "
+                  "from one worded so broadly that a hal-* agent reads itself out of the guard", mark)
+
+
+# --- M6/E9: install-no-overwrite --------------------------------------------
+
+COPY_VERB_RE = re.compile(r"^\s*(?:cp\s|Copy-Item\b|robocopy\b|xcopy\b)", re.MULTILINE)
+POSIX_GUARD_RE = re.compile(r"\[\s*!\s*-e\s")
+PWSH_GUARD_RE = re.compile(r"Test-Path\s+-LiteralPath")
+PWSH_THROW_RE = re.compile(r"\bthrow\b")
+FORCE_RE = re.compile(r"(?:^|\s)-Force\b|(?:^|\s)-f\b|--force\b")
+
+
+def fenced_blocks_with_info(text: str) -> list[tuple[str, str]]:
+    """[(info-string, body)] for every fenced block, in document order."""
+    out: list[tuple[str, str]] = []
+    info: str | None = None
+    body: list[str] = []
+    for line in text.split("\n"):
+        m = re.match(r"^\s*```(\S*)\s*$", line)
+        if m and info is None:
+            info = m.group(1).lower()
+            body = []
+            continue
+        if re.match(r"^\s*```\s*$", line) and info is not None:
+            out.append((info, "\n".join(body)))
+            info = None
+            continue
+        if info is not None:
+            body.append(line)
+    return out
+
+
+def analyze_install_blocks(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    if "overwrite matching files" in norm_ws(text):
+        out.append(("INSTALL_OVERWRITE_DECLARED",
+                    f"{relpath}: still announces that the commands overwrite matching files; E9 makes install a "
+                    "fresh-install operation and sends existing destinations to a manual diff/merge path"))
+    copying = 0
+    for info, body in fenced_blocks_with_info(text):
+        if not COPY_VERB_RE.search(body):
+            continue
+        copying += 1
+        if FORCE_RE.search(body):
+            out.append(("INSTALL_FORCE_USED",
+                        f"{relpath}: a {info or 'plain'} install block passes a force flag: "
+                        f"{_one_line(body, 160)!r}; E9 forbids Force so an existing destination cannot be "
+                        "silently replaced"))
+        pwsh = info in ("powershell", "pwsh", "ps1") or "Copy-Item" in body
+        if pwsh:
+            if not (PWSH_GUARD_RE.search(body) and PWSH_THROW_RE.search(body)):
+                out.append(("INSTALL_GUARD_MISSING",
+                            f"{relpath}: a PowerShell install block copies without a "
+                            "'Test-Path -LiteralPath' ... throw guard on every destination: "
+                            f"{_one_line(body, 160)!r}"))
+        else:
+            if not POSIX_GUARD_RE.search(body):
+                out.append(("INSTALL_GUARD_MISSING",
+                            f"{relpath}: a POSIX install block copies without a '[ ! -e ... ] || exit 1' guard on "
+                            f"every destination: {_one_line(body, 160)!r}"))
+    if copying == 0:
+        out.append(("INSTALL_NO_COPY_BLOCKS",
+                    f"{relpath}: no fenced block contains a copy command, so the guard assertion would pass "
+                    "vacuously"))
+    return out
+
+
+_INSTALL_GOOD = """# x
+
+Fresh install only. For an existing destination, diff and merge manually.
+
+```sh
+[ ! -e /dst/AGENTS.md ] || exit 1
+cp halucinator/AGENTS.md /dst/AGENTS.md
+```
+
+```powershell
+if (Test-Path -LiteralPath D:\\dst\\AGENTS.md) { throw "exists" }
+Copy-Item halucinator\\AGENTS.md D:\\dst\\AGENTS.md
+```
+"""
+
+_INSTALL_CASES: tuple[tuple[str, str, str], ...] = (
+    ("overwrite announcement", _INSTALL_GOOD.replace(
+        "Fresh install only.", "The commands below overwrite matching files."),
+     "INSTALL_OVERWRITE_DECLARED"),
+    ("posix guard removed", _INSTALL_GOOD.replace("[ ! -e /dst/AGENTS.md ] || exit 1\n", ""),
+     "INSTALL_GUARD_MISSING"),
+    ("powershell guard removed", _INSTALL_GOOD.replace(
+        'if (Test-Path -LiteralPath D:\\dst\\AGENTS.md) { throw "exists" }\n', ""),
+     "INSTALL_GUARD_MISSING"),
+    ("force flag", _INSTALL_GOOD.replace(
+        "Copy-Item halucinator\\AGENTS.md", "Copy-Item -Force halucinator\\AGENTS.md"),
+     "INSTALL_FORCE_USED"),
+    ("no copy blocks at all", "# x\n\nNothing here.\n", "INSTALL_NO_COPY_BLOCKS"),
+)
+
+
+def install_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_install_blocks("README.md", _INSTALL_GOOD)
+    if clean:
+        problems.append(f"the conforming fresh-install text was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _INSTALL_CASES:
+        codes = [c for c, _ in analyze_install_blocks("README.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_install_no_overwrite(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "README.md", "INSTALL_ABORT"):
+        for problem in install_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_install_blocks", "INSTALL_FIXTURE",
+                       f"the install-command analyzer failed its in-memory near-misses: {problem}")
+        text = m6_text(root, "README.md")
+        if text is None:
+            report.bad("README.md", "0", "INSTALL_TARGET_MISSING", "README.md is absent")
+            return
+        for code, message in analyze_install_blocks("README.md", text):
+            report.bad("README.md", "install", code, message)
+        report.ok("install-no-overwrite",
+                  f"every README install block that copies contains at least one absence guard and passes no "
+                  f"force flag (analyzer self-tested against {len(_INSTALL_CASES)} near-misses). The guard test "
+                  "is PER BLOCK, not per destination: a block that guards its first copy and then copies three "
+                  "more destinations unguarded passes. Establishing one-to-one guard-before-copy correspondence "
+                  "needs a shell parser, which this harness does not have. Shipped command text only", mark)
+
+
+# --- M6/H7: reference-url-pins ----------------------------------------------
+
+MOVING_REF_RE = re.compile(
+    r"https?://[^\s)<>\"']*?/(?:raw|blob|tree|archive)?/?(?:refs/heads/)?(?:main|master|HEAD)(?:/|\b)",
+    re.IGNORECASE)
+EXACT_SHA_RE = re.compile(r"\b[0-9a-f]{40}\b")
+
+
+def analyze_reference_pins(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for m in MOVING_REF_RE.finditer(text):
+        url = m.group(0)
+        if EXACT_SHA_RE.search(url):
+            continue
+        out.append(("REFERENCE_URL_MOVING",
+                    f"{relpath}: evidentiary URL {url!r} names a moving ref; H7 requires the exact inspected commit "
+                    "URL, or removal of the claim. Never substitute an invented SHA"))
+    return out
+
+
+_PINS_GOOD = (
+    "See [Cargo.toml](https://raw.githubusercontent.com/embassy-rs/embassy/"
+    "0123456789abcdef0123456789abcdef01234567/embassy-mcxa/Cargo.toml) as inspected.\n"
+    "The project home is https://github.com/embassy-rs/embassy for orientation only.\n"
+)
+
+_PINS_CASES: tuple[tuple[str, str, str], ...] = (
+    ("raw main", "https://raw.githubusercontent.com/embassy-rs/embassy/main/embassy-mcxa/Cargo.toml\n",
+     "REFERENCE_URL_MOVING"),
+    ("blob master", "https://github.com/embassy-rs/embassy/blob/master/ci.sh\n", "REFERENCE_URL_MOVING"),
+    ("tree HEAD", "https://github.com/embassy-rs/embassy/tree/HEAD/embassy-stm32\n", "REFERENCE_URL_MOVING"),
+    ("refs/heads/main", "https://github.com/x/y/raw/refs/heads/main/a.toml\n", "REFERENCE_URL_MOVING"),
+)
+
+
+def reference_pin_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_reference_pins("README.md", _PINS_GOOD)
+    if clean:
+        problems.append(f"the pinned-and-orientation sample was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _PINS_CASES:
+        codes = [c for c, _ in analyze_reference_pins("README.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_reference_url_pins(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "README.md", "REFERENCE_PIN_ABORT"):
+        for problem in reference_pin_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_reference_pins", "REFERENCE_PIN_FIXTURE",
+                       f"the moving-ref analyzer failed its in-memory near-misses: {problem}")
+        files = governed_markdown(root)
+        if not files:
+            report.bad(".opencode", "0", "REFERENCE_PIN_NO_TARGETS",
+                       "no governed Markdown discovered; the pin rule is asserted against nothing")
+            return
+        for p in files:
+            relpath = rel(root, p)
+            for code, message in analyze_reference_pins(relpath, read_text(p)):
+                report.bad(relpath, "url", code, message)
+        report.ok("reference-url-pins",
+                  f"no evidentiary URL across {len(files)} governed Markdown files names main/master/HEAD without an "
+                  f"exact 40-hex commit (analyzer self-tested against {len(_PINS_CASES)} near-misses). This proves "
+                  "PIN IMMUTABILITY only: it cannot tell whether the pinned commit says what the prose claims, and "
+                  "a non-GitHub moving reference is outside the pattern", mark)
+
+
+# --- M6/A18: tester-destination-coverage ------------------------------------
+
+DESTINATION_FILES: tuple[str, ...] = (
+    ".opencode/agents/hal-tester.md",
+    ".opencode/skills/write-examples/SKILL.md",
+    "README.md",
+)
+
+DESTINATION_CLOSURE = "closes configured-path coverage"
+DESTINATION_REOPEN = "remain leak paths"
+DESTINATION_FORBIDDEN_RE = re.compile(r"destination[_ ]crate[^.]{0,120}\barbitrary\b|\barbitrary path\b",
+                                      re.IGNORECASE)
+
+
+def analyze_destination_coverage(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    flat = norm_ws(text)
+    low = flat.lower()
+    m = DESTINATION_FORBIDDEN_RE.search(flat)
+    if m:
+        out.append(("DESTINATION_STILL_ARBITRARY",
+                    f"{relpath}: still describes the destination crate path as arbitrary: {m.group(0)!r}; schema 2 "
+                    "constrains it to a repository-root one-segment embassy-<vendor_id>"))
+    if "embassy-<vendor_id>" not in flat:
+        out.append(("DESTINATION_CONSTRAINT_ABSENT",
+                    f"{relpath}: never states the root embassy-<vendor_id> constraint"))
+    if "embassy-*/**" not in flat:
+        out.append(("DESTINATION_COVERAGE_ABSENT",
+                    f"{relpath}: never states that embassy-*/** is what covers the constrained destination"))
+    ci = low.find(DESTINATION_CLOSURE)
+    ri = low.find(DESTINATION_REOPEN)
+    if ci < 0:
+        out.append(("DESTINATION_CLOSURE_ABSENT",
+                    f"{relpath}: does not say what the constraint closes ({DESTINATION_CLOSURE!r})"))
+    if ri < 0:
+        out.append(("DESTINATION_REOPEN_ABSENT",
+                    f"{relpath}: does not reopen the residual: bash, grep, filenames, diagnostics, history and "
+                    "tools remain leak paths. A closure claim without it overstates blindness"))
+    if ci >= 0 and ri >= 0 and ri < ci:
+        out.append(("DESTINATION_ORDER_WRONG",
+                    f"{relpath}: the residual-leak sentence precedes the closure claim; A18 requires deny then "
+                    "reopen so the limitation qualifies the claim it follows"))
+    if "invalidates the run" not in low:
+        out.append(("DESTINATION_INVALIDATION_ABSENT",
+                    f"{relpath}: does not state that observed body text invalidates the run"))
+    return out
+
+
+_DEST_GOOD = (
+    "Schema 2 constrains destination_crate to root embassy-<vendor_id>, covered by embassy-*/**. This closes "
+    "configured-path coverage, not perfect blindness: bash, grep, filenames, diagnostics, history and tools "
+    "remain leak paths; observed body text invalidates the run.\n"
+)
+
+_DEST_CASES: tuple[tuple[str, str, str], ...] = (
+    ("arbitrary retained", _DEST_GOOD + "The destination crate path can be arbitrary.\n",
+     "DESTINATION_STILL_ARBITRARY"),
+    ("reopen removed", _DEST_GOOD.replace(
+        ": bash, grep, filenames, diagnostics, history and tools remain leak paths;", ":"),
+     "DESTINATION_REOPEN_ABSENT"),
+    ("order inverted",
+     "Bash, grep, filenames, diagnostics, history and tools remain leak paths. Schema 2 constrains "
+     "destination_crate to root embassy-<vendor_id>, covered by embassy-*/**, which closes configured-path "
+     "coverage; observed body text invalidates the run.\n",
+     "DESTINATION_ORDER_WRONG"),
+    ("invalidation removed", _DEST_GOOD.replace("; observed body text invalidates the run", ""),
+     "DESTINATION_INVALIDATION_ABSENT"),
+)
+
+
+def destination_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_destination_coverage(".opencode/agents/hal-tester.md", _DEST_GOOD)
+    if clean:
+        problems.append(f"the conforming A18 wording was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _DEST_CASES:
+        codes = [c for c, _ in analyze_destination_coverage(".opencode/agents/hal-tester.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_tester_destination_coverage(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, ".opencode/agents/hal-tester.md", "DESTINATION_ABORT"):
+        for problem in destination_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_destination_coverage", "DESTINATION_FIXTURE",
+                       f"the destination-coverage analyzer failed its in-memory near-misses: {problem}")
+        scanned = 0
+        for relpath in DESTINATION_FILES:
+            text = m6_text(root, relpath)
+            if text is None:
+                report.bad(relpath, "0", "DESTINATION_TARGET_MISSING",
+                           "file named by A18 is absent; the destination constraint cannot be verified")
+                continue
+            scanned += 1
+            for code, message in analyze_destination_coverage(relpath, text):
+                report.bad(relpath, "destination", code, message)
+        if scanned == 0:
+            report.bad(".opencode/agents/hal-tester.md", "0", "DESTINATION_NO_TARGETS",
+                       "no A18 target file readable; the constraint is asserted against nothing")
+        report.ok("tester-destination-coverage",
+                  f"{scanned} A18 files constrain destination_crate to root embassy-<vendor_id>, name embassy-*/** "
+                  f"as its coverage, and state the closure BEFORE the residual leak paths and the run-invalidation "
+                  f"rule (analyzer self-tested against {len(_DEST_CASES)} near-misses). The CONFIGURED PATH is what "
+                  "is closed; bash, grep, filenames, diagnostics, history and tools remain open and unasserted", mark)
+
+
+# --- M6/E6+E7: claim-truth-limit --------------------------------------------
+
+VALIDATE_DOC_RELPATH = ".opencode/schema/validate.md"
+CLAIM_DISCLOSURE_FILES: tuple[str, ...] = (
+    ".opencode/schema/validate.md",
+    ".opencode/agents/hal-coordinator.md",
+    ".opencode/agents/hal-integrator.md",
+    ".opencode/agents/hal-reviewer.md",
+    ".opencode/agents/hal-tester.md",
+    "docs/skill-template.md",
+)
+CLAIM_TERMS: tuple[tuple[str, str], ...] = (
+    ("fabricated", "that a claimant may have fabricated execution evidence"),
+    ("no external attester", "that no external attester exists"),
+)
+E6_DISCLOSURE = ("M6 does not propagate beyond declared current one-hop bindings; cycles/missing graph nodes "
+                 "are not represented.")
+
+
+def analyze_claim_truth(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    low = flat_low(text)
+    for token, why in CLAIM_TERMS:
+        if token not in low:
+            out.append(("CLAIM_LIMIT_UNDISCLOSED",
+                        f"{relpath}: does not disclose {why}; E7 requires the limitation to be stated wherever "
+                        "typed evidence is described, because it is not mechanically detectable"))
+    return out
+
+
+_CLAIM_GOOD = ("Hash/occurrence checks prove bytes and the bounded relation stated; the claimant may still have "
+               "fabricated execution evidence. No external attester exists.\n")
+
+_CLAIM_CASES: tuple[tuple[str, str, str], ...] = (
+    ("fabrication not disclosed",
+     _CLAIM_GOOD.replace("the claimant may still have fabricated execution evidence. ", ""),
+     "CLAIM_LIMIT_UNDISCLOSED"),
+    ("attester claim removed", _CLAIM_GOOD.replace(" No external attester exists.", ""),
+     "CLAIM_LIMIT_UNDISCLOSED"),
+)
+
+
+def claim_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_claim_truth(VALIDATE_DOC_RELPATH, _CLAIM_GOOD)
+    if clean:
+        problems.append(f"the conforming E7 disclosure was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _CLAIM_CASES:
+        codes = [c for c, _ in analyze_claim_truth(VALIDATE_DOC_RELPATH, text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_claim_truth_limit(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, VALIDATE_DOC_RELPATH, "CLAIM_LIMIT_ABORT"):
+        for problem in claim_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_claim_truth", "CLAIM_LIMIT_FIXTURE",
+                       f"the claim-limit analyzer failed its in-memory near-misses: {problem}")
+        scanned = 0
+        for relpath in CLAIM_DISCLOSURE_FILES:
+            text = m6_text(root, relpath)
+            if text is None:
+                report.bad(relpath, "0", "CLAIM_LIMIT_TARGET_MISSING",
+                           "file named by E7 is absent; the disclosure cannot be verified")
+                continue
+            scanned += 1
+            for code, message in analyze_claim_truth(relpath, text):
+                report.bad(relpath, "disclosure", code, message)
+        doc = m6_text(root, VALIDATE_DOC_RELPATH)
+        if doc is not None and E6_DISCLOSURE not in norm_ws(doc):
+            report.bad(VALIDATE_DOC_RELPATH, "limits", "CLAIM_LIMIT_E6_UNDISCLOSED",
+                       "validate.md does not state the exact E6 deferral sentence; transitive invalidation is "
+                       "deferred to post-M7 and a reader must not infer it is handled")
+        if scanned == 0:
+            report.bad(VALIDATE_DOC_RELPATH, "0", "CLAIM_LIMIT_NO_TARGETS",
+                       "no E7 target readable; disclosure is asserted against nothing")
+        report.ok("claim-truth-limit",
+                  f"{scanned} files disclose that typed evidence may be fabricated and that no external attester "
+                  f"exists, and validate.md states the E6 one-hop deferral "
+                  f"(analyzer self-tested against {len(_CLAIM_CASES)} near-misses). This ENSURES THE LIMITATION IS "
+                  "DISCLOSED; it does not detect a false claim and cannot", mark)
+
+
+# --- M6/E1: citation-verification-corpus ------------------------------------
+
+CITATION_FILES: tuple[str, ...] = (
+    ".opencode/schema/handoff-common.md",
+    ".opencode/schema/01-sources.md",
+    ".opencode/schema/02-facts.md",
+    ".opencode/schema/06-driver.md",
+    ".opencode/agents/hal-datasheet.md",
+    ".opencode/skills/extract-hardware-facts/SKILL.md",
+)
+# Files that declare citation fields but carry no E1 required-leaf obligation,
+# with the reason. Closes CITATION_FILES so an omission cannot be silent.
+CITATION_OUT_OF_SCOPE: dict[str, str] = {
+    "TODO.md": "deferral register; it names leaves to record deferred work",
+    ".opencode/agents/hal-tester.md": "consumes resolved assertion IDs; originates no CitationRef",
+    ".opencode/schema/07-tests.md": "references assertion IDs through the driver handoff",
+    ".opencode/schema/worked-examples.md": "worked examples, governed by the fixture generator",
+    ".opencode/skills/debug-hardware/SKILL.md": "consumes resolved assertion IDs only",
+    ".opencode/skills/generate-svd/SKILL.md": "consumes verified citations; declares no field table",
+    ".opencode/skills/review-artifact/SKILL.md": "re-verifies the same IDs; declares no field table",
+    ".opencode/skills/write-examples/SKILL.md": "consumes resolved assertion IDs only",
+}
+CITATION_MARKER_DECL_RE = re.compile(r"assertion_id|\[\[facts\.citations\]\]")
+
+# (relpath, required substring, why) - each is drawn from the exact S2.2/S2.3
+# field table or the exact E1 replacement prose.
+CITATION_REQUIRED: tuple[tuple[str, str, str], ...] = (
+    (".opencode/schema/handoff-common.md", "assertion_id",
+     "the v2 CitationRef is keyed by a stable assertion ID"),
+    (".opencode/schema/handoff-common.md", "excerpt",
+     "the excerpt is what the verifier matches"),
+    (".opencode/schema/handoff-common.md", "pdf-page",
+     "the tagged location variant the verifier derives from"),
+    (".opencode/schema/handoff-common.md", "text-lines",
+     "the tagged location variant for UTF-8 sources"),
+    (".opencode/schema/01-sources.md", "sources.documents",
+     "source IDs bind to hash-pinned bytes through one array"),
+    (".opencode/schema/02-facts.md", "citations-verified",
+     "the mandatory gate check on 02-facts"),
+    (".opencode/schema/06-driver.md", "facts_handoff",
+     "drivers reference a verified facts handoff rather than originating citations"),
+    (".opencode/schema/06-driver.md", "test_hardware_facts",
+     "the assertion-ID reference list the tester is given"),
+    (".opencode/agents/hal-datasheet.md", "assertion ID",
+     "the producer states what every fact now carries"),
+    (".opencode/skills/extract-hardware-facts/SKILL.md", "poppler-utils",
+     "the fail-closed remedy names the package that supplies pdftotext"),
+    (".opencode/skills/extract-hardware-facts/SKILL.md", "pdftotext -layout",
+     "the remedy names the exact rerun command"),
+)
+
+# Agent-authored extraction is the R1 attack: it must not reappear as a field
+# or as prose telling an agent to copy from its own extraction.
+CITATION_EXTRACTION_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"extraction_first_page|extraction_last_page|CitationRef\.extraction"),
+    re.compile(r"copied from the layout-preserving extraction", re.IGNORECASE),
+    re.compile(r"\bnot mechanically verified here\b", re.IGNORECASE),
+)
+
+# Retired v1 leaves that must not survive anywhere in the citation surface.
+CITATION_RETIRED_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("sources.source_ids", re.compile(r"\bsources\.source_ids\b")),
+    ("sources.available", re.compile(r"\bsources\.available\b")),
+    ("facts.citations.document", re.compile(r"facts\.citations\.document\b")),
+    ("facts.citations.revision", re.compile(r"facts\.citations\.revision\b")),
+)
+
+
+def analyze_citation_corpus(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    flat = norm_ws(text)
+    low = flat.lower()
+    for rx in CITATION_EXTRACTION_RES:
+        m = rx.search(flat)
+        if m:
+            out.append(("CITATION_TRUSTED_EXTRACTION",
+                        f"{relpath}: still routes citation evidence through an agent-authored extraction "
+                        f"({m.group(0)!r}); E1 regenerates the selected location from hash-pinned source bytes"))
+    for label, rx in CITATION_RETIRED_RES:
+        if rx.search(flat):
+            out.append(("CITATION_RETIRED_LEAF",
+                        f"{relpath}: retains the retired v1 leaf {label}; schema 2 replaces it with the "
+                        "sources.documents binding, and an independently-membered source list is exactly the "
+                        "flaw that removal closes"))
+    for want_path, needle, why in CITATION_REQUIRED:
+        if want_path == relpath and needle not in flat:
+            out.append(("CITATION_FIELD_ABSENT",
+                        f"{relpath}: does not name {needle!r} - {why}"))
+    # Overclaim: anything describing the gate must also state what it cannot
+    # prove. An occurrence proof read as a truth proof is the E1 failure mode.
+    if "citation_unverified" in low or "citations-verified" in low or "verify_citation" in low:
+        if "cannot prove" not in low and "does not prove" not in low:
+            out.append(("CITATION_OVERCLAIM",
+                        f"{relpath}: describes the citation gate without stating what it cannot prove; "
+                        "occurrence is not entailment, OCR correctness, or vendor truth"))
+        elif "entailment" not in low and "semantic" not in low:
+            out.append(("CITATION_OVERCLAIM",
+                        f"{relpath}: states a limit but never that semantic entailment is outside it"))
+    return out
+
+
+_CITATION_GOOD = (
+    "Record each assertion in the v2 CitationRef: assertion_id, scope_item, claim, source_id, source, "
+    "location.kind (pdf-page or text-lines), locator, excerpt and note. Do not provide or trust an extraction "
+    "path: validate.py regenerates the selected location from the bound source bytes. Run the citation gate; a "
+    "missing pdftotext fails with CITATION_UNVERIFIED and the remedy: install poppler-utils, then rerun "
+    "pdftotext -layout -f <page> -l <page> <source> -. The gate proves normalized occurrence at the cited "
+    "location; it cannot prove semantic entailment, OCR correctness or vendor truth.\n"
+)
+
+_CITATION_CASES: tuple[tuple[str, str, str, str], ...] = (
+    ("trusted extraction", ".opencode/skills/extract-hardware-facts/SKILL.md",
+     _CITATION_GOOD + "Use the excerpt copied from the layout-preserving extraction.\n",
+     "CITATION_TRUSTED_EXTRACTION"),
+    ("remedy absent", ".opencode/skills/extract-hardware-facts/SKILL.md",
+     _CITATION_GOOD.replace("install poppler-utils, then rerun ", "reinstall it, then rerun "),
+     "CITATION_FIELD_ABSENT"),
+    ("driver linkage absent", ".opencode/schema/06-driver.md",
+     "Drivers record the hardware facts their tests depend on.\n",
+     "CITATION_FIELD_ABSENT"),
+    ("overclaim", ".opencode/schema/02-facts.md",
+     "The citations-verified check passes when the validator has confirmed every cited hardware fact.\n",
+     "CITATION_OVERCLAIM"),
+    ("retired leaf", ".opencode/schema/01-sources.md",
+     "Fields: sources.source_ids required; sources.documents required.\n",
+     "CITATION_RETIRED_LEAF"),
+)
+
+
+def citation_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_citation_corpus(".opencode/skills/extract-hardware-facts/SKILL.md", _CITATION_GOOD)
+    if clean:
+        problems.append(f"the conforming E1 producer text was rejected with {[c for c, _ in clean]}")
+    for name, relpath, text, expected in _CITATION_CASES:
+        codes = [c for c, _ in analyze_citation_corpus(relpath, text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_citation_verification_corpus(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, ".opencode/schema/02-facts.md", "CITATION_CORPUS_ABORT"):
+        for problem in citation_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_citation_corpus", "CITATION_CORPUS_FIXTURE",
+                       f"the citation-corpus analyzer failed its in-memory near-misses: {problem}")
+        scanned = 0
+        for relpath in CITATION_FILES:
+            text = m6_text(root, relpath)
+            if text is None:
+                report.bad(relpath, "0", "CITATION_CORPUS_TARGET_MISSING",
+                           "file named by E1 is absent; the citation contract cannot be verified")
+                continue
+            scanned += 1
+            for code, message in analyze_citation_corpus(relpath, text):
+                report.bad(relpath, "citation", code, message)
+        if scanned == 0:
+            report.bad(".opencode/schema/02-facts.md", "0", "CITATION_CORPUS_NO_TARGETS",
+                       "no E1 target readable; the citation contract is asserted against nothing")
+        # The FORBIDDEN halves need no mapping and are scanned corpus-wide, so
+        # a retired leaf or a trusted extraction path anywhere is caught.
+        untracked = untracked_working_state(root)
+        wide = 0
+        for p in governed_markdown(root):
+            relpath = rel(root, p)
+            if is_fixture_payload(root, p) or relpath in CITATION_FILES or relpath in untracked:
+                continue
+            wide += 1
+            for code, message in analyze_citation_corpus(relpath, read_text(p)):
+                if code in ("CITATION_TRUSTED_EXTRACTION", "CITATION_RETIRED_LEAF"):
+                    report.bad(relpath, "citation", code, message)
+        for relpath, message in subject_closure_failures(
+                root, CITATION_MARKER_DECL_RE, CITATION_FILES, CITATION_OUT_OF_SCOPE,
+                "CitationRef field declaration"):
+            report.bad(relpath, "subject-closure", "CITATION_SUBJECT_UNDECLARED", message)
+        report.ok("citation-verification-corpus",
+                  f"{scanned} E1 files declare the v2 CitationRef leaves and the sources.documents binding, and "
+                  f"across a further {wide} governed files no retired v1 leaf or agent-authored extraction path "
+                  f"survives anywhere; the poppler-utils remedy carries its exact rerun command and entailment is "
+                  f"disclaimed wherever the gate is described (analyzer self-tested against "
+                  f"{len(_CITATION_CASES)} near-misses). The REQUIRED-leaf mapping is per file and hand-"
+                  f"maintained - the specification assigns specific leaves to specific files and nothing carries "
+                  f"that assignment mechanically - so it is CLOSED: any file declaring CitationRef fields must "
+                  f"appear in the subject list or a reasoned out-of-scope list. CORPUS WORDING ONLY: whether "
+                  "validate.py actually derives text from the pinned bytes is proved by the fixtures, not here", mark)
+
+
+# --- M6/H10: fixture-regeneration -------------------------------------------
+
+FIXTURE_GENERATOR_RELPATH = "tools/generate_schema_fixtures.py"
+
+
+def check_fixture_regeneration(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, FIXTURE_GENERATOR_RELPATH, "FIXTURE_REGEN_ABORT"):
+        gen = root / PurePosixPath(FIXTURE_GENERATOR_RELPATH)
+        if not gen.is_file():
+            report.bad(FIXTURE_GENERATOR_RELPATH, "0", "FIXTURE_REGEN_MISSING",
+                       "the committed fixture generator is absent; without it the fixture corpus has no in-tree "
+                       "source and byte-identical regeneration cannot be demonstrated (H10)")
+            return
+        decl = root / PurePosixPath(FIXTURE_DECL_RELPATH)
+        if not decl.is_file():
+            report.bad(FIXTURE_DECL_RELPATH, "0", "FIXTURE_REGEN_NO_INPUT",
+                       "the declarative generator input is absent; the generator would have no source of truth")
+        cmd = [sys.executable, str(gen), "--root", ".", "--check"]
+        try:
+            proc = subprocess.run(
+                cmd, cwd=str(root), capture_output=True, text=True,
+                timeout=SUBPROCESS_TIMEOUT, encoding="utf-8", errors="replace")
+        except subprocess.TimeoutExpired:
+            report.bad(FIXTURE_GENERATOR_RELPATH, "0", "FIXTURE_REGEN_TIMEOUT",
+                       f"'--check' did not finish in {SUBPROCESS_TIMEOUT}s; a hang is a failure, never a pass")
+            return
+        out = (proc.stdout or "") + (proc.stderr or "")
+        if proc.returncode != 0:
+            report.bad(FIXTURE_GENERATOR_RELPATH, "0", "FIXTURE_REGEN_DIVERGED",
+                       f"'--check' exited {proc.returncode}; a committed fixture is undeclared, missing, or differs "
+                       f"byte for byte: {_one_line(out, 500)}")
+            return
+        if out.strip():
+            report.bad(FIXTURE_GENERATOR_RELPATH, "0", "FIXTURE_REGEN_NOISY",
+                       f"'--check' exited 0 but printed output; exact equality must be silent: {_one_line(out, 300)}")
+            return
+        report.ok("fixture-regeneration",
+                  f"'{FIXTURE_GENERATOR_RELPATH} --root . --check' exits 0 silently, so every committed fixture byte "
+                  f"is declared by {FIXTURE_DECL_RELPATH} and regenerates identically. This proves REGENERATION, not "
+                  "that the declared mutations are the right ones; that judgement stays with review", mark)
+
+
+# --- M6/D17: runtime-protocol-tests -----------------------------------------
+
+RUNTIME_RELPATH = ".opencode/schema/runtime.py"
+RUNTIME_TEST_RELPATH = ".opencode/schema/test_runtime.py"
+RUNTIME_TEST_TIMEOUT = 300
+
+# Each required D17 fault, with the alternative spellings that identify it in a
+# test's function name or docstring. Written as regexes over the lowered,
+# underscore-and-hyphen-flattened test surface so a reasonable naming choice
+# satisfies them without this harness dictating one.
+RUNTIME_FAULT_CASES: tuple[tuple[str, str], ...] = (
+    ("simultaneous post-create acquisition conflict",
+     r"(simultaneous|concurrent|post.?create|race).{0,40}(conflict|acquir)|conflict.{0,40}(post.?create|simultaneous)"),
+    ("PID reuse / process-birth mismatch", r"pid.?reuse|birth.?(mismatch|identity)|process.?birth"),
+    ("orphaned probe/runner child", r"orphan|surviving.?child|child.?(survive|outliv)"),
+    ("recovery interrupted repeatedly", r"interrupt.{0,30}(twice|repeat|again)|repeat.{0,30}interrupt"),
+    ("check-token check-use pause", r"check.?use|token.?pause|pause.{0,30}token"),
+    ("Windows os.replace delete-sharing failure", r"sharing.?violation|delete.?shar|replace.?(fail|retry)"),
+    ("unsupported directory fsync", r"(dir|directory).?fsync|fsync.?unsupported|durability.?unavailable"),
+    ("fresh-clone absence", r"fresh.?clone|no.?prior.?lock|absence.?(is|not).?evidence"),
+)
+
+
+def runtime_test_surface(source: str) -> str:
+    """Lowered, flattened test names plus docstrings: the searchable surface."""
+    parts: list[str] = []
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            parts.append(node.name)
+            doc = ast.get_docstring(node)
+            if doc:
+                parts.append(doc)
+    return re.sub(r"[_\-\s]+", " ", " ".join(parts).lower())
+
+
+def _runtime_surface_failures() -> list[str]:
+    """Self-test the fault-coverage patterns against a naming-plausible sample."""
+    sample = '''
+def test_simultaneous_acquisition_conflict():
+    """Second claimant removes only its own candidate."""
+
+def test_pid_reuse_birth_mismatch():
+    pass
+
+def test_orphaned_probe_child_forces_unknown():
+    pass
+
+def test_recovery_interrupted_twice_stays_pending():
+    pass
+
+def test_check_use_window_pause():
+    pass
+
+def test_windows_replace_sharing_violation_retries_then_fails():
+    pass
+
+def test_directory_fsync_unsupported_blocks_operations():
+    pass
+
+def test_fresh_clone_starts_recovery_pending():
+    pass
+'''
+    surface = runtime_test_surface(sample)
+    problems = [label for label, pat in RUNTIME_FAULT_CASES if not re.search(pat, surface)]
+    if problems:
+        return [f"the fault-coverage patterns did not recognise a plausibly named suite: {problems}"]
+    empty = runtime_test_surface("def helper():\n    pass\n")
+    matched = [label for label, pat in RUNTIME_FAULT_CASES if re.search(pat, empty)]
+    if matched:
+        return [f"the fault-coverage patterns matched an EMPTY suite for {matched}; they would pass vacuously"]
+    return []
+
+
+def check_runtime_protocol_tests(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, RUNTIME_TEST_RELPATH, "RUNTIME_TESTS_ABORT"):
+        for problem in _runtime_surface_failures():
+            report.bad("tools/selfcheck.py", "RUNTIME_FAULT_CASES", "RUNTIME_TESTS_FIXTURE",
+                       f"the D17 fault-coverage patterns failed their self-test: {problem}")
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        suite = root / PurePosixPath(RUNTIME_TEST_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "RUNTIME_HELPER_MISSING",
+                       "the worktree-local interlock helper is absent; there is no single-operator board exclusion "
+                       "to test and no CLI for a caller to reach")
+        if not suite.is_file():
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_MISSING",
+                       "the D17 fault-injection suite is absent; every interlock claim would be unexercised")
+            return
+        source = read_text(suite)
+        try:
+            surface = runtime_test_surface(source)
+        except SyntaxError as exc:
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_UNPARSEABLE",
+                       f"the suite does not parse, so its fault coverage cannot be derived: {exc}")
+            return
+        if "subprocess" not in source:
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_NOT_BLACKBOX",
+                       "the suite never imports or names subprocess; D17 requires the production helper to be driven "
+                       "as a subprocess with file and exit-code inspection, so the test does not re-implement the "
+                       "algorithm it is meant to check")
+        uncovered = [label for label, pat in RUNTIME_FAULT_CASES if not re.search(pat, surface)]
+        if uncovered:
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_FAULT_UNCOVERED",
+                       f"{len(uncovered)} required D17 fault(s) are named by no test: {'; '.join(uncovered)}")
+        if not helper.is_file():
+            return
+        cmd = [sys.executable, str(suite)]
+        try:
+            proc = subprocess.run(
+                cmd, cwd=str(root), capture_output=True, text=True,
+                timeout=RUNTIME_TEST_TIMEOUT, encoding="utf-8", errors="replace")
+        except subprocess.TimeoutExpired:
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_TIMEOUT",
+                       f"the suite did not finish in {RUNTIME_TEST_TIMEOUT}s; a hang in an interlock test is a "
+                       "failure, never a pass - a helper that blocks forever is a board that never releases")
+            return
+        if proc.returncode != 0:
+            out = (proc.stdout or "") + (proc.stderr or "")
+            report.bad(RUNTIME_TEST_RELPATH, "0", "RUNTIME_TESTS_FAILED",
+                       f"the suite exited {proc.returncode}: {_one_line(out, 600)}")
+            return
+        report.ok("runtime-protocol-tests",
+                  f"the D17 fault-injection suite runs green and names all {len(RUNTIME_FAULT_CASES)} required "
+                  "faults - post-create acquisition conflict, PID reuse against process birth identity, orphaned "
+                  "probe child, repeatedly interrupted recovery, the check-use pause, Windows delete-sharing "
+                  "replacement failure, unsupported directory fsync, and fresh-clone absence. COVERAGE IS DERIVED "
+                  "FROM TEST NAMES AND DOCSTRINGS: a test named for a fault it does not actually inject is "
+                  "invisible here, and the broker, cross-clone and physical-truth residuals are closed by nothing "
+                  "in M6", mark)
+
+
+
+# ===========================================================================
+# M6 review follow-up: behaviour, not wording
+# ===========================================================================
+#
+# The M6 compliance review found the hardware-safety mechanism was largely
+# theatre while this harness was green: every existing M6 check asserts corpus
+# WORDING or fixture SHAPE, and none drives the helper that is supposed to keep
+# a board from being driven on unreadable evidence. The checks below execute
+# the production helper as a subprocess in a throwaway directory and assert
+# OBSERVABLE OUTCOMES - exit status and file state - never the helper's own
+# report of itself. A command that reports success while writing nothing is
+# exactly the defect being closed.
+
+RUNTIME_CLI_TIMEOUT = 60
+BOARD_FIXTURE_ID = "BOARD-FIXTURE-1"
+BOARD_FIXTURE_STAGE = "write-tests:demo"
+BOARD_FIXTURE_AUTH = "halucinator/auth.md"
+# Evidence paths that deliberately do not exist. Naming them explicitly keeps
+# the intent readable in a failure message.
+ABSENT_ATTEMPT = "evidence/recovery/does-not-exist-attempt.toml"
+ABSENT_SAFE_STATE = "evidence/safe-state/does-not-exist-observation.toml"
+ABSENT_OVERRIDE = "evidence/recovery/does-not-exist-override.toml"
+
+
+def run_runtime(root: Path, workdir: Path, args: list[str]) -> tuple[int | None, str, dict | None]:
+    """Invoke the production interlock helper as a subprocess. Never imported.
+
+    Returns (returncode, combined output, parsed JSON or None). A timeout
+    returns rc=None, which every caller must treat as a failure: a helper that
+    blocks forever is a board that never releases.
+    """
+    helper = root / PurePosixPath(RUNTIME_RELPATH)
+    cmd = [sys.executable, str(helper), "--root", str(workdir)] + args
+    try:
+        proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
+                              timeout=RUNTIME_CLI_TIMEOUT, encoding="utf-8", errors="replace")
+    except subprocess.TimeoutExpired:
+        return None, f"timed out after {RUNTIME_CLI_TIMEOUT}s", None
+    out = (proc.stdout or "") + (proc.stderr or "")
+    try:
+        parsed = json.loads(proc.stdout or "")
+    except (ValueError, TypeError):
+        parsed = None
+    return proc.returncode, out, parsed
+
+
+def acquire_fixture_board(root: Path, workdir: Path) -> tuple[dict | None, str]:
+    """Create one interlock in a fresh directory. Returns (payload, problem)."""
+    rc, out, payload = run_runtime(root, workdir, [
+        "acquire-board", "--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+        "--authorization", BOARD_FIXTURE_AUTH])
+    if rc != 0 or not payload:
+        return None, f"acquire-board did not establish a fixture interlock (rc={rc}): {_one_line(out, 240)}"
+    if not payload.get("lease_epoch") or not payload.get("check_token"):
+        return None, f"acquire-board returned no epoch/token: {_one_line(out, 240)}"
+    return payload, ""
+
+
+def live_lock_files(workdir: Path) -> list[Path]:
+    d = workdir / "halucinator" / ".run"
+    return sorted(p for p in d.glob("*.lock")) if d.is_dir() else []
+
+
+def lock_says(workdir: Path, key: str) -> str | None:
+    for p in live_lock_files(workdir):
+        m = re.search(rf"^{re.escape(key)}\s*=\s*\"?([^\"\n]*)\"?\s*$", read_text(p), re.MULTILINE)
+        if m:
+            return m.group(1)
+    return None
+
+
+# --- A: interlock-refuses-fabricated-evidence -------------------------------
+
+
+def write_lf(p: Path, text: str) -> None:
+    """Write UTF-8 with LF endings. newline='' keeps Windows from rewriting."""
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+
+
+def run_closure_scenario(root: Path, report: Report, degrade: str | None) -> tuple[str, str, str]:
+    """Drive acquire -> recovery -> verify -> release over a real evidence closure.
+
+    Returns (outcome, step, detail) with THREE distinguishable outcomes:
+
+      "released" - the sequence completed and the lock is gone.
+      "refused"  - the helper rejected the sequence at `step` with a non-zero
+                   exit. For a DEGRADED variant this is the desired result, and
+                   it is desired WHEREVER it happens: refusing an unpinned
+                   FileRef at append is strictly better than admitting it to
+                   the append-only lineage, letting verify call the board safe,
+                   and only catching it at release.
+      "unposed"  - the scenario could not be constructed or ran ambiguously
+                   (acquire failed, a command timed out, or release reported
+                   success while the lock survived). This is never evidence
+                   about the helper's integrity handling; it means this
+                   harness could not ask the question.
+
+    The earlier two-way bool conflated "refused" with "could not construct",
+    which made the only passing shape for a degraded variant "admitted at
+    append, admitted at verify, caught at release" - i.e. it demanded the
+    weaker helper. That was a defect in this check, not in the helper.
+
+    `degrade` is None for the positive control, "no-digest" to strip a nested
+    FileRef's sha256, or "mutate-nested" to alter a nested record after
+    recovery is verified.
+    """
+    workdir = Path(tempfile.mkdtemp(prefix="halucinator-closure-"))
+    try:
+        payload, problem = acquire_fixture_board(root, workdir)
+        if payload is None:
+            return ("unposed", "acquire-board", problem)
+        epoch, token = payload["lease_epoch"], payload["check_token"]
+        common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                  "--epoch", epoch, "--token", token]
+        base = workdir / "halucinator" / "test-candidates" / "demo" / "evidence"
+        nested_rel = "halucinator/test-candidates/demo/evidence/recovery/prior-lock.txt"
+        nested = workdir / PurePosixPath(nested_rel)
+        write_lf(nested, "archived prior lock bytes for the fictional fixture board\n")
+        sha = __import__("hashlib").sha256
+        digest = sha(nested.read_bytes()).hexdigest()
+        pinned = f'{{path = "{nested_rel}", sha256 = "{digest}"}}'
+        if degrade == "no-digest":
+            pinned = f'{{path = "{nested_rel}"}}'
+        safe_rel = "halucinator/test-candidates/demo/evidence/safe-state/" + f"{epoch}-0.toml"
+        safe = workdir / PurePosixPath(safe_rel)
+        hazards = "".join(
+            '[[hazards]]\n'
+            f'kind = "{k}"\n'
+            'disposition = "safe"\n'
+            'observation_method = "operator observation of the fictional fixture board"\n'
+            f'evidence = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
+            f'operator_confirmation = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
+            for k in ("outputs", "dma", "interrupts", "external-loads", "reset-halt", "probe"))
+        write_lf(safe,
+                 "schema = 2\n"
+                 f'board_id = "{BOARD_FIXTURE_ID}"\n'
+                 f'lease_epoch = "{epoch}"\n'
+                 "operation_attempt = 0\n"
+                 'observed_at = "2026-01-01T00:05:00Z"\n'
+                 "outstanding_human_actions = []\n"
+                 "[procedure]\n"
+                 f'board_id = "{BOARD_FIXTURE_ID}"\n'
+                 f'facts_handoff = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
+                 'assertion_ids = ["fixture.safe-state.procedure"]\n'
+                 f'procedure = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
+                 + hazards)
+        safe_pin = f'{{path = "{safe_rel}", sha256 = "{sha(safe.read_bytes()).hexdigest()}"}}'
+        attempt_rel = "halucinator/test-candidates/demo/evidence/recovery/" + f"{epoch}-1.toml"
+        attempt = workdir / PurePosixPath(attempt_rel)
+        write_lf(attempt,
+                 "schema = 2\n"
+                 f'board_id = "{BOARD_FIXTURE_ID}"\n'
+                 f'lease_epoch = "{epoch}"\n'
+                 "attempt_number = 1\n"
+                 'started_at = "2026-01-01T00:00:00Z"\n'
+                 'completed_at = "2026-01-01T00:05:00Z"\n'
+                 'last_operation = "none"\n'
+                 f"prior_lock = {pinned}\n"
+                 'actions = ["confirmed the fictional fixture board is de-energized"]\n'
+                 f"evidence = [{pinned}]\n"
+                 'outcome = "verified"\n'
+                 f"safe_state = {safe_pin}\n")
+        for step, args in (
+            ("append-recovery-attempt", ["append-recovery-attempt", *common, "--attempt-file", attempt_rel,
+                                         "--attempt-number", "1", "--outcome", "verified"]),
+            ("verify-board-recovery", ["verify-board-recovery", *common, "--safe-state", safe_rel]),
+        ):
+            rc, out, _ = run_runtime(root, workdir, args)
+            if rc is None:
+                return ("unposed", step, f"timed out: {_one_line(out, 160)}")
+            if rc != 0:
+                # A REFUSAL, not a construction failure. An earlier refusal is
+                # a better refusal: the helper is entitled to reject degraded
+                # evidence before it ever enters the append-only lineage.
+                return ("refused", step, _one_line(out, 220))
+        if degrade == "mutate-nested":
+            write_lf(nested, "these bytes were altered after the attempt attested them\n")
+        rc, out, _ = run_runtime(root, workdir, ["release-board", *common])
+        if rc is None:
+            return ("unposed", "release-board", f"timed out: {_one_line(out, 160)}")
+        if rc != 0:
+            return ("refused", "release-board", _one_line(out, 220))
+        if live_lock_files(workdir):
+            return ("unposed", "release-board",
+                    "release reported success but the lock survived; the outcome is neither a clean "
+                    "release nor a refusal")
+        return ("released", "release-board", _one_line(out, 160))
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_interlock_refuses_fabricated_evidence(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "INTERLOCK_EVIDENCE_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "the interlock helper is absent; nothing arbitrates board access")
+            return
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-interlock-"))
+        try:
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_SETUP_FAILED", problem)
+                return
+            epoch, token = payload["lease_epoch"], payload["check_token"]
+            common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                      "--epoch", epoch, "--token", token]
+
+            # 1. A recovery attempt whose evidence file does not exist.
+            rc, out, _ = run_runtime(root, workdir, [
+                "append-recovery-attempt", *common, "--attempt-file", ABSENT_ATTEMPT,
+                "--attempt-number", "1", "--outcome", "verified"])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "append-recovery-attempt", "INTERLOCK_TIMEOUT", out)
+                return
+            if rc == 0:
+                report.bad(RUNTIME_RELPATH, "append-recovery-attempt", "INTERLOCK_ACCEPTS_ABSENT_EVIDENCE",
+                           f"a recovery attempt naming {ABSENT_ATTEMPT!r} - a file that does not exist - was "
+                           f"accepted with outcome 'verified' and exit 0. Append-only recovery lineage is the "
+                           f"record a human later relies on to believe the board was made safe; an unreadable "
+                           f"FileRef must be refused, not recorded. Output: {_one_line(out, 200)}")
+
+            # 2. A safe-state observation whose record does not exist.
+            rc, out, _ = run_runtime(root, workdir, [
+                "verify-board-recovery", *common, "--safe-state", ABSENT_SAFE_STATE])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "verify-board-recovery", "INTERLOCK_TIMEOUT", out)
+                return
+            if rc == 0:
+                report.bad(RUNTIME_RELPATH, "verify-board-recovery", "INTERLOCK_ACCEPTS_ABSENT_EVIDENCE",
+                           f"recovery was verified against SafeStateObservation {ABSENT_SAFE_STATE!r}, which does "
+                           f"not exist, and exited 0. Output: {_one_line(out, 200)}")
+
+            # 3. The board must not be classified safe on either.
+            state = lock_says(workdir, "board_state")
+            phase = lock_says(workdir, "operation_phase")
+            if state == "safe":
+                report.bad(RUNTIME_RELPATH, "board_state", "INTERLOCK_UNSAFE_SAFE_CLAIM",
+                           f"the live lock records board_state=\"safe\" (phase {phase!r}) after evidence that "
+                           "cannot be read. 'Safe' is a claim about a physical device; it must never rest on a "
+                           "FileRef the helper never opened")
+
+            # 4. The decisive one: release must be refused.
+            rc, out, _ = run_runtime(root, workdir, ["release-board", *common])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "release-board", "INTERLOCK_TIMEOUT", out)
+                return
+            if rc == 0:
+                report.bad(RUNTIME_RELPATH, "release-board", "INTERLOCK_RELEASES_ON_ABSENT_EVIDENCE",
+                           "the interlock released on the back of unreadable recovery and safe-state evidence. "
+                           "Release hands the board to the next claimant; releasing here means the next operator "
+                           f"attaches to a device whose state nobody established. Output: {_one_line(out, 200)}")
+            elif live_lock_files(workdir) == []:
+                report.bad(RUNTIME_RELPATH, "release-board", "INTERLOCK_RELEASES_ON_ABSENT_EVIDENCE",
+                           "release-board reported failure but the lock file is gone; the interlock was released "
+                           "anyway. Assert file state, not the command's report of itself")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+        # 5. An unreadable lock is not an absent lock. A corrupted live lock
+        #    that acquisition skips makes a claimed board look free, which is
+        #    two operators on one MCU - the hazard the interlock exists for.
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-malformed-"))
+        try:
+            run_dir = workdir / "halucinator" / ".run"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "other.lock").write_text(
+                "this is not = valid toml [[[\n", encoding="utf-8", newline="\n")
+            rc, out, _ = run_runtime(root, workdir, [
+                "acquire-board", "--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                "--authorization", BOARD_FIXTURE_AUTH])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_TIMEOUT", out)
+            elif rc == 0:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_MALFORMED_LOCK_FAILS_OPEN",
+                           "acquisition succeeded with an unparseable .lock present in .run/. A lock the helper "
+                           "cannot read or structurally validate must be treated as possibly LIVE and block "
+                           "acquisition; skipping it makes a corrupted claim indistinguishable from no claim, "
+                           f"which permits two operators on one board. Output: {_one_line(out, 200)}")
+            extra = [p for p in live_lock_files(workdir) if p.name != "other.lock"]
+            if extra:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_MALFORMED_LOCK_FAILS_OPEN",
+                           f"a second lock {extra[0].name!r} was created beside an unreadable one; assert file "
+                           "state, not the command's report")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+        # 6. Nested-reference integrity, posed as a DIFFERENTIAL so it cannot
+        #    fail for the wrong reason. The baseline is the positive control:
+        #    if it does not itself reach release, the question was never asked
+        #    and that stays loud, because it means the record shape this
+        #    harness builds has drifted from the helper's schema.
+        outcome, step, detail = run_closure_scenario(root, report, degrade=None)
+        where = "positive control did not reach release"
+        if outcome != "released":
+            report.bad(RUNTIME_RELPATH, "closure", "INTERLOCK_CLOSURE_UNPOSED",
+                       f"the positive-control recovery closure ended {outcome!r} at {step!r} instead of reaching "
+                       f"release, so the nested-reference assertions prove nothing. The record shape this harness "
+                       f"builds is in run_closure_scenario(); align it or tell the tester what the helper now "
+                       f"requires. Detail: {detail}")
+        else:
+            refusal_points: list[str] = []
+            for degrade, code, why in (
+                ("no-digest", "INTERLOCK_ACCEPTS_UNPINNED_REF",
+                 "a nested FileRef carrying no sha256 was accepted all the way through a successful release. An "
+                 "unpinned reference is a name, not evidence: the bytes behind it can change freely"),
+                ("mutate-nested", "INTERLOCK_ACCEPTS_MUTATED_CLOSURE",
+                 "a nested record was altered AFTER recovery was verified and release still succeeded. Release "
+                 "must revalidate the whole closure, not only the outer attempt files"),
+            ):
+                outcome, step, detail = run_closure_scenario(root, report, degrade=degrade)
+                if outcome == "released":
+                    report.bad(RUNTIME_RELPATH, "release-board", code, why)
+                elif outcome == "refused":
+                    refusal_points.append(f"{degrade} at {step}")
+                else:
+                    report.bad(RUNTIME_RELPATH, "closure", "INTERLOCK_CLOSURE_UNPOSED",
+                               f"the {degrade!r} variant ended {outcome!r} at {step!r}, which is neither a "
+                               f"release nor a refusal, so it is not evidence about the helper. Detail: {detail}")
+            if refusal_points:
+                where = "; ".join(refusal_points)
+            else:
+                where = "no degraded variant was posed"
+        report.ok("interlock-refuses-fabricated-evidence",
+                  "the interlock helper, driven black-box through its CLI in a throwaway directory, refuses a "
+                  "recovery attempt and a safe-state observation whose FileRefs do not exist, never records "
+                  "board_state=safe on them, refuses to release, and refuses acquisition while an unreadable "
+                  "lock is present. A positive-control closure reaches release cleanly, and each DEGRADED "
+                  f"closure is refused SOMEWHERE in append -> verify -> release ({where}). The assertion is "
+                  "that a degraded closure is refused, NOT where: the helper is free to refuse earlier, and "
+                  "earlier is better - rejecting an unpinned FileRef at append keeps it out of the append-only "
+                  "lineage entirely, rather than admitting it, calling the board safe, and catching it at "
+                  "release. This proves the helper OPENS and PINS the evidence it is handed; it cannot prove "
+                  "the evidence is true, that the procedure it describes is physically sufficient, or that any "
+                  "operator followed it", mark)
+
+
+# --- B: interlock-override-requires-ambiguity -------------------------------
+
+
+def make_lock_remote_and_fresh(workdir: Path) -> bool:
+    """Rewrite the fixture lock as a remote owner with a current heartbeat.
+
+    Per the approved liveness rules a remote owner whose heartbeat is within
+    120s classifies LIVE. This is the only way to construct a live lock from a
+    one-shot CLI, whose own process exits immediately after writing.
+    """
+    locks = live_lock_files(workdir)
+    if not locks:
+        return False
+    # Must be a CURRENT timestamp: a remote heartbeat older than 120s is
+    # ambiguous, not live, and would pose the wrong question.
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for p in locks:
+        text = read_text(p)
+        text = re.sub(r"^host\s*=.*$", 'host="OTHER-HOST-FIXTURE"', text, flags=re.MULTILINE)
+        text = re.sub(r"^heartbeat_at\s*=.*$", f'heartbeat_at="{now}"', text, flags=re.MULTILINE)
+        p.write_text(text, encoding="utf-8", newline="")
+    return True
+
+
+def check_interlock_override_requires_ambiguity(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "INTERLOCK_OVERRIDE_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "the interlock helper is absent; the override path cannot be exercised")
+            return
+        # B1. Override must refuse when its operator record does not exist.
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-override-"))
+        try:
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_SETUP_FAILED", problem)
+                return
+            rc, out, _ = run_runtime(root, workdir, [
+                "override-ambiguous-owner", "--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                "--override-record", ABSENT_OVERRIDE])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "override-ambiguous-owner", "INTERLOCK_TIMEOUT", out)
+            elif rc == 0:
+                report.bad(RUNTIME_RELPATH, "override-ambiguous-owner", "OVERRIDE_ACCEPTS_ABSENT_RECORD",
+                           f"the ambiguity override succeeded while naming operator record {ABSENT_OVERRIDE!r}, "
+                           "which does not exist. That record is the ONLY thing standing between a jammed "
+                           "interlock and an operator's signed statement that the prior owner and its children "
+                           f"are stopped or the board is physically isolated. Output: {_one_line(out, 200)}")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+
+        # B2. Override must refuse a lock the helper itself classifies live.
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-override-live-"))
+        try:
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_SETUP_FAILED", problem)
+                return
+            if not make_lock_remote_and_fresh(workdir):
+                report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_SETUP_FAILED",
+                           "no lock file was written, so a live owner cannot be constructed")
+                return
+            rc, out, parsed = run_runtime(root, workdir, ["inspect", "--board", BOARD_FIXTURE_ID])
+            classification = None
+            if parsed and parsed.get("locks"):
+                classification = parsed["locks"][0].get("classification")
+            if classification != "live":
+                report.bad(RUNTIME_RELPATH, "inspect", "INTERLOCK_SETUP_FAILED",
+                           f"the constructed remote owner with a current heartbeat classified {classification!r}, "
+                           "not 'live'; the override-against-a-healthy-owner case cannot be posed and must not "
+                           "be reported as passing")
+                return
+            rc, out, _ = run_runtime(root, workdir, [
+                "override-ambiguous-owner", "--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                "--override-record", ABSENT_OVERRIDE])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "override-ambiguous-owner", "INTERLOCK_TIMEOUT", out)
+            elif rc == 0:
+                report.bad(RUNTIME_RELPATH, "override-ambiguous-owner", "OVERRIDE_SEIZES_LIVE_OWNER",
+                           "the ambiguity override seized a lock the helper had just classified LIVE. The escape "
+                           "hatch exists for one situation - a recycled PID pinning an interlock live forever - "
+                           "and an override that also takes a healthy owner's board is not an escape hatch, it is "
+                           f"a way for two operators to drive one device. Output: {_one_line(out, 200)}")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        report.ok("interlock-override-requires-ambiguity",
+                  "override-ambiguous-owner refuses an operator record that does not exist, and refuses a lock "
+                  "the helper itself classifies live. This asserts the two constructible refusals; it does not "
+                  "prove the override correctly ACCEPTS a genuinely ambiguous owner, and it cannot check that the "
+                  "operator's confirmation is true", mark)
+
+
+# --- B: interlock-recovery-can-reconnect ------------------------------------
+#
+# The counterpart to the refusal checks. Recovery must be REACHABLE: the
+# operator has to be able to attach, reset or otherwise observe the board in
+# order to establish that it is safe. If every target operation is refused
+# until recovery is already verified, the only ways out are physically
+# isolating every fixture or bypassing the helper - and a safety mechanism
+# whose documented path can only be completed by going around it is worse than
+# none, because it teaches operators to go around it.
+#
+# This asserts the PROPERTY, not one command spelling. The candidate entry
+# points are read from the helper's own --help output, so an explicitly
+# authorised recovery-operation command the coder adds later is picked up
+# without editing this harness.
+
+RECOVERY_SCOPED_OPERATIONS: tuple[str, ...] = ("attach", "reset", "halt")
+NORMAL_TEST_OPERATIONS: tuple[str, ...] = ("run", "load-ram", "program-flash")
+RECOVERY_ENTRY_RE = re.compile(r"\b([a-z][a-z-]*(?:board-op|board-operation|recovery-operation))\b")
+
+
+def helper_commands(root: Path, workdir: Path) -> list[str]:
+    """Command names the helper itself advertises, parsed from --help."""
+    rc, out, _ = run_runtime(root, workdir, ["--help"])
+    if rc is None:
+        return []
+    return sorted(set(RECOVERY_ENTRY_RE.findall(out)))
+
+
+def check_interlock_recovery_can_reconnect(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "RECOVERY_REACHABLE_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "the interlock helper is absent; the recovery path cannot be exercised")
+            return
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-recovery-"))
+        try:
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_SETUP_FAILED", problem)
+                return
+            epoch, token = payload["lease_epoch"], payload["check_token"]
+            common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                      "--epoch", epoch, "--token", token]
+            rc, out, _ = run_runtime(root, workdir, ["begin-board-recovery", *common])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "begin-board-recovery", "INTERLOCK_TIMEOUT", out)
+                return
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, "begin-board-recovery", "RECOVERY_ENTRY_REFUSED",
+                           f"entering recovery was itself refused (rc={rc}). Entry must need no evidence: "
+                           f"requiring evidence to start recovery is the circularity already ruled out. "
+                           f"Output: {_one_line(out, 200)}")
+                return
+            entries = helper_commands(root, workdir) or ["before-board-op", "begin-board-operation"]
+            permitted: list[str] = []
+            for cmd in entries:
+                for op in RECOVERY_SCOPED_OPERATIONS:
+                    rc, _out, _ = run_runtime(root, workdir, [cmd, *common, "--operation", op])
+                    if rc == 0:
+                        permitted.append(f"{cmd} {op}")
+            if not permitted:
+                report.bad(RUNTIME_RELPATH, "recovery", "RECOVERY_DEADLOCKED",
+                           f"while recovery-pending, every recovery-scoped operation "
+                           f"({', '.join(RECOVERY_SCOPED_OPERATIONS)}) was refused across every advertised entry "
+                           f"point ({', '.join(entries)}). The operator cannot observe the board to establish "
+                           "that it is safe, so the documented recovery path can only be completed by physically "
+                           "isolating every fixture or by bypassing the helper - which is the unsafe behaviour "
+                           "the workflow forbids")
+            # The rest must stay closed. Recovery is not a general unlock.
+            for op in NORMAL_TEST_OPERATIONS:
+                rc, _out, _ = run_runtime(root, workdir, [
+                    "begin-board-operation", *common, "--operation", op])
+                if rc == 0:
+                    report.bad(RUNTIME_RELPATH, "begin-board-operation", "RECOVERY_OVER_PERMITS",
+                               f"operation {op!r} was permitted while the board is unknown and recovery is "
+                               "pending. Recovery may authorise observation, never ordinary test work")
+            rc, _out, _ = run_runtime(root, workdir, ["release-board", *common])
+            if rc == 0:
+                report.bad(RUNTIME_RELPATH, "release-board", "RECOVERY_OVER_PERMITS",
+                           "release succeeded while recovery was still pending; release must wait for "
+                           "recovery-verified")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        report.ok("interlock-recovery-can-reconnect",
+                  f"after begin-board-recovery the helper permits at least one recovery-scoped operation "
+                  f"({', '.join(RECOVERY_SCOPED_OPERATIONS)}) through an entry point read from its own --help, "
+                  f"while still refusing ordinary test operations "
+                  f"({', '.join(NORMAL_TEST_OPERATIONS)}) and still refusing release until verified. This proves "
+                  "the documented recovery path is REACHABLE without bypassing the interlock. It does not prove "
+                  "the operations offered are sufficient to establish physical safety, and it cannot tell a "
+                  "correctly scoped recovery authorisation from one so broad that recovery becomes a general "
+                  "unlock beyond the three operations named here", mark)
+
+
+
+
+STATE_RELPATH = "halucinator/state.toml"
+GENERATION_RE = re.compile(r"^generation\s*=\s*(\d+)\s*$", re.MULTILINE)
+
+
+def seed_state(root: Path, workdir: Path) -> int | None:
+    """Copy the accepted fixture state into workdir. Returns its generation."""
+    src = root / ".opencode" / "schema" / "fixtures" / "valid" / "root" / "halucinator" / "state.toml"
+    if not src.is_file():
+        return None
+    dst = workdir / "halucinator" / "state.toml"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
+    m = GENERATION_RE.search(read_text(dst))
+    return int(m.group(1)) if m else None
+
+
+def check_state_publish_is_atomic(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "STATE_PUBLISH_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "the interlock helper is absent; publish-state cannot be exercised")
+            return
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-publish-"))
+        try:
+            gen = seed_state(root, workdir)
+            if gen is None:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_SETUP_FAILED",
+                           "could not seed an accepted state.toml carrying a 'generation' key")
+                return
+            target = workdir / "halucinator" / "state.toml"
+            before = target.read_bytes()
+
+            # A stale generation must be refused and must write nothing.
+            rc, out, _ = run_runtime(root, workdir, [
+                "publish-state", "--stage", BOARD_FIXTURE_STAGE, "--expect-generation", str(gen - 1)])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "publish-state", "INTERLOCK_TIMEOUT", out)
+                return
+            if rc == 0:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_STALE_ACCEPTED",
+                           f"publish-state accepted expect-generation {gen - 1} against live generation {gen}; "
+                           "compare-and-swap that does not compare is not a guard")
+            if target.read_bytes() != before:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_WROTE_ON_REFUSAL",
+                           "a refused publish-state modified state.toml; a refusal must leave the file untouched")
+                return
+
+            # A matching generation must actually publish.
+            rc, out, _ = run_runtime(root, workdir, [
+                "publish-state", "--stage", BOARD_FIXTURE_STAGE, "--expect-generation", str(gen)])
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, "publish-state", "INTERLOCK_TIMEOUT", out)
+                return
+            after = target.read_bytes()
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_REFUSED_MATCH",
+                           f"publish-state refused a matching generation {gen} (rc={rc}): {_one_line(out, 200)}")
+                return
+            if after == before:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_IS_NOOP",
+                           f"publish-state reported success on a matching generation but state.toml is byte "
+                           f"identical. A publish that writes nothing while reporting a matched CAS is worse "
+                           f"than no publish: every caller believes its state is durable. Output: "
+                           f"{_one_line(out, 200)}")
+                return
+            m = GENERATION_RE.search(after.decode("utf-8", "replace"))
+            got = int(m.group(1)) if m else None
+            if got != gen + 1:
+                report.bad(RUNTIME_RELPATH, "publish-state", "STATE_PUBLISH_GENERATION_NOT_ADVANCED",
+                           f"after a successful publish the generation is {got!r}, not {gen + 1}; a CAS token "
+                           "that does not advance lets the next writer's stale expectation match forever")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        report.ok("state-publish-is-atomic",
+                  "publish-state refuses a stale generation without touching the file, and on a matching "
+                  "generation changes the bytes and advances the generation by exactly one - asserted by reading "
+                  "state.toml, never from the command's own 'cas: matched' report. This proves the WRITE "
+                  "happened; it does not prove the write is crash-atomic, and durable cross-clone ordering "
+                  "remains deferred", mark)
+
+
+# --- D: hardware-procedure-uses-interlock -----------------------------------
+
+# The ordered interlock protocol a target-affecting procedure must name. Order
+# is asserted by first-occurrence position in the skill's own normative text.
+INTERLOCK_SEQUENCE: tuple[str, ...] = (
+    "acquire-board",
+    "before-board-op",
+    "begin-board-operation",
+    "complete-board-operation",
+    "release-board",
+)
+# At least one recovery command must appear: holder death is not operation
+# death, and a procedure with no recovery leg has nowhere to go when it does.
+INTERLOCK_RECOVERY: tuple[str, ...] = (
+    "begin-board-recovery", "append-recovery-attempt", "verify-board-recovery",
+)
+
+
+def analyze_interlock_procedure(relpath: str, text: str) -> list[tuple[str, str]]:
+    """Pure analyzer: the interlock protocol is named, and named in order."""
+    out: list[tuple[str, str]] = []
+    flat = norm_ws(text)
+    positions: dict[str, int] = {}
+    for cmd in INTERLOCK_SEQUENCE:
+        at = flat.find(cmd)
+        if at < 0:
+            out.append((
+                "HARDWARE_INTERLOCK_UNUSED",
+                f"{relpath}: the target-affecting procedure never invokes {cmd!r}. An interlock that the "
+                "procedure needing it does not call is decoration: nothing stops a second operator, and no "
+                "epoch, attempt or child session is ever recorded",
+            ))
+        else:
+            positions[cmd] = at
+    named = [c for c in INTERLOCK_SEQUENCE if c in positions]
+    for earlier, later in zip(named, named[1:]):
+        if positions[earlier] > positions[later]:
+            out.append((
+                "HARDWARE_INTERLOCK_ORDER",
+                f"{relpath}: {later!r} is described before {earlier!r}. Acquisition must precede any "
+                "target-affecting operation and release must follow teardown; a procedure written in the "
+                "other order tells the operator to drive the board before claiming it",
+            ))
+    if not any(c in flat for c in INTERLOCK_RECOVERY):
+        out.append((
+            "HARDWARE_INTERLOCK_NO_RECOVERY",
+            f"{relpath}: names no recovery command ({', '.join(INTERLOCK_RECOVERY)}). Holder death is not "
+            "operation death; a procedure with no recovery leg leaves the board in an unknown state with no "
+            "documented way out",
+        ))
+    return out
+
+
+_HW_GOOD = (
+    "8. **Acquire the interlock.** Run acquire-board for this board before touching the target.\n"
+    "9. **Precheck.** Run before-board-op, then begin-board-operation to record the attempt and child session.\n"
+    "10. **Run.** Load and run, then complete-board-operation once the child and its descendants have exited.\n"
+    "11. **Teardown.** Collect the safe-state observation, then release-board.\n"
+    "If the holder died, declare the board unknown and use begin-board-recovery before any reconnect.\n"
+)
+
+_HW_CASES: tuple[tuple[str, str, str], ...] = (
+    ("no interlock at all",
+     "8. Attach the probe, load the image, run it, then follow the documented safe teardown.\n",
+     "HARDWARE_INTERLOCK_UNUSED"),
+    ("acquisition after the operation",
+     _HW_GOOD.replace("Run acquire-board for this board before touching the target.",
+                      "Drive the board first.").replace(
+         "then release-board.", "then acquire-board and release-board."),
+     "HARDWARE_INTERLOCK_ORDER"),
+    ("no recovery leg",
+     _HW_GOOD.replace(
+         "If the holder died, declare the board unknown and use begin-board-recovery before any reconnect.\n", ""),
+     "HARDWARE_INTERLOCK_NO_RECOVERY"),
+    ("release dropped",
+     _HW_GOOD.replace("then release-board.", "then stop."), "HARDWARE_INTERLOCK_UNUSED"),
+)
+
+
+def interlock_procedure_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_interlock_procedure("x.md", _HW_GOOD)
+    if clean:
+        problems.append(f"the conforming interlocked procedure was rejected with {[c for c, _ in clean]}")
+    for name, text, expected in _HW_CASES:
+        codes = [c for c, _ in analyze_interlock_procedure("x.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_hardware_procedure_uses_interlock(root: Path, report: Report) -> None:
+    """Every skill that performs target operations must drive the interlock.
+
+    Subject derivation: skills whose PARSED contract emitter is the tester
+    agent - the same derivation validation-guidance-isolation uses - scanned
+    across SKILL.md and every reference file, because the normative
+    hardware-execution procedure lives in a reference.
+    """
+    mark = report.mark()
+    with guard(report, ".opencode/skills", "HARDWARE_INTERLOCK_ABORT"):
+        for problem in interlock_procedure_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_interlock_procedure", "HARDWARE_INTERLOCK_FIXTURE",
+                       f"the interlock-procedure analyzer failed its in-memory near-misses: {problem}")
+        paths = skill_paths(root)
+        contracts = skill_contracts(root)
+        subjects = [n for n in skills_with_emitter(contracts, TESTER_AGENT) if n in paths]
+        if not subjects:
+            report.bad(".opencode/skills", "0", "HARDWARE_INTERLOCK_NO_TARGETS",
+                       f"no skill declares {TESTER_AGENT!r} as its emitter, so the hardware procedure is "
+                       "asserted against nothing")
+            return
+        scanned = 0
+        for name in sorted(subjects):
+            skill = paths[name]
+            tree = [skill] + skill_reference_paths(root, skill)
+            blob = "\n".join(read_text(p) for p in tree if p.is_file())
+            relpath = rel(root, skill)
+            scanned += 1
+            for code, message in analyze_interlock_procedure(relpath, blob):
+                report.bad(relpath, "hardware-execution", code, message)
+        report.ok("hardware-procedure-uses-interlock",
+                  f"{scanned} tester-emitted skill tree(s) name the whole interlock protocol - acquire, "
+                  f"precheck, operation start, operation completion, release - in that order, and name a "
+                  f"recovery command (analyzer self-tested against {len(_HW_CASES)} near-misses). This asserts "
+                  "the PROCEDURE TEXT and its order only. It cannot prove an agent ran the commands, and a "
+                  "procedure that names them in the right order while describing the wrong actions between them "
+                  "passes", mark)
+
+
+# --- E: no-invented-hardware-in-corpus --------------------------------------
+#
+# Discriminator. There is NO lexical test that separates a real part number
+# from an invented one: MCXA256 exists and AX100 does not, and they are the
+# same shape. So this check never tries. It asserts three things that are
+# decidable from the corpus's own rules instead:
+#
+#   (a) the spec permits exactly ONE example target, the fictional fixture, so
+#       any other target-id or vendor occupying a halucinator/docs/<id>/ or
+#       halucinator/pac/<vendor>/ path in shipped prose is invented by
+#       construction - no hardware knowledge needed;
+#   (b) a part-number-shaped token standing in a CITATION - beside a manual,
+#       datasheet, section, table or revision - is a hardware claim, and the
+#       only hardware this toolkit legitimately cites is the north-star family
+#       it is built from. This half rests on a small allowlist and is the only
+#       part that could ever need hand-maintenance; and
+#   (c) retired schema-1 citation leaves, which is a pure schema fact and is
+#       where the invented manual and section number are actually carried.
+
+# The one permitted example target, its vendor slug, and the literal
+# placeholders that stand for a real one.
+PERMITTED_TARGET_SEGMENTS: frozenset[str] = frozenset({
+    "unobtainium-circuits-uc-not-a-real-mcu-0001",
+    "unobtainium",
+    "<target-id>",
+    "<vendor>",
+})
+TARGET_SEGMENT_RE = re.compile(r"halucinator/(?:docs|pac)/([A-Za-z0-9<>_.-]+)/")
+
+# Hardware this toolkit genuinely references, per AGENTS.md's two references.
+# Hand-maintained, and declared as such in the PASS line.
+CITABLE_HARDWARE_RE = re.compile(r"^(?:MCXA[0-9A-Z]*|STM32[0-9A-Z]*|CORTEX-?M[0-9]*)$", re.IGNORECASE)
+# Shapes that are acronyms, standards or units rather than part numbers.
+PART_SHAPE_RE = re.compile(
+    r"\b(?!SHA|UTF|RFC|ISO|IEC|ASCII|TOML|JSON|HTML|XML|SVD|PAC|HAL|DMA|GPIO|SPI|I2C|USB|NVIC|RAM|ROM|CPU"
+    r"|MHZ|KHZ|GHZ|CRC|FIFO|UART|LPUART|ARM|AHB|APB|SRAM|MMIO|CMSIS)"
+    r"[A-Z][A-Z0-9]{1,7}[0-9]{2,5}[A-Z0-9-]*\b")
+CITATION_MARKER_RE = re.compile(
+    r"reference manual|datasheet|data sheet|user guide|errata|\bsection \d|\btable \d|\bfigure \d"
+    r"|\brev\.? ?\d|\bdocument [A-Z]", re.IGNORECASE)
+# How close a part-number-shaped token must stand to a citation marker before
+# it counts as the subject of that citation.
+CITATION_WINDOW = 160
+
+RETIRED_CITATION_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("[[driver.test_hardware_facts]] as a table array",
+     re.compile(r"\[\[\s*driver\.test_hardware_facts\s*\]\]")),
+    ("driver.test_hardware_facts.document",
+     re.compile(r"driver\.test_hardware_facts\.document\b")),
+    ("driver.test_hardware_facts.revision",
+     re.compile(r"driver\.test_hardware_facts\.revision\b")),
+    ("driver.test_hardware_facts.locator",
+     re.compile(r"driver\.test_hardware_facts\.locator\b")),
+)
+
+
+def analyze_invented_hardware(relpath: str, text: str) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for seg in sorted(set(TARGET_SEGMENT_RE.findall(text))):
+        if seg not in PERMITTED_TARGET_SEGMENTS:
+            out.append((
+                "INVENTED_TARGET_EXAMPLE",
+                f"{relpath}: worked example uses target/vendor segment {seg!r}. The milestone permits exactly "
+                "one example target, the transparently fictional fixture, precisely so that no reader can "
+                "mistake example material for a hardware fact",
+            ))
+    # Proximity, not sentence co-occurrence. A TOML worked example is one
+    # enormous "sentence" to any punctuation splitter, so co-occurrence there
+    # would pair a token with a citation marker two thousand characters away
+    # and the finding would not support its own message.
+    flat = norm_ws(text)
+    seen: set[tuple[str, int]] = set()
+    for m in CITATION_MARKER_RE.finditer(flat):
+        lo = max(0, m.start() - CITATION_WINDOW)
+        hi = min(len(flat), m.end() + CITATION_WINDOW)
+        window = flat[lo:hi]
+        for tok in sorted(set(PART_SHAPE_RE.findall(window))):
+            if CITABLE_HARDWARE_RE.match(tok) or (tok, lo) in seen:
+                continue
+            seen.add((tok, lo))
+            out.append((
+                "INVENTED_CITATION_SUBJECT",
+                f"{relpath}: {tok!r} stands within {CITATION_WINDOW} characters of the citation marker "
+                f"{m.group(0)!r}: ...{window[max(0, m.start() - lo - 60):m.start() - lo + 90]!r}... Register "
+                "offsets, revisions and section numbers come from a real manual or they do not exist; a "
+                "plausible-looking citation is worse than none, because it reads as evidence",
+            ))
+    for label, rx in RETIRED_CITATION_RES:
+        if rx.search(text):
+            out.append((
+                "RETIRED_CITATION_LEAF",
+                f"{relpath}: carries the retired schema-1 form {label}. Schema 2 makes "
+                "driver.test_hardware_facts a list of verified assertion IDs precisely so a driver cannot "
+                "originate a citation; the old block is where invented manuals and section numbers live",
+            ))
+    return out
+
+
+_INVENT_GOOD = (
+    "For exact MCU `unobtainium-circuits-uc-not-a-real-mcu-0001` the coordinator dispatches `uart`.\n"
+    "notes = { path = \"halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md\" }\n"
+    "pac = \"halucinator/pac/unobtainium/unobtainium-pac\"\n"
+    "The roadmap lives at halucinator/docs/<target-id>/notes/ROADMAP.md.\n"
+    "Read `embassy-mcxa/DEVGUIDE.md` and the MCXA256 clock tree; section 3 of that guide is the model.\n"
+    "Install poppler-utils so that pdftotext -layout is available.\n"
+    "driver.facts_handoff and driver.test_hardware_facts carry verified assertion IDs.\n"
+)
+
+_INVENT_CASES: tuple[tuple[str, str, str], ...] = (
+    ("invented target directory",
+     "notes = { path = \"halucinator/docs/acme-ax100/notes/FACTS.md\" }\n", "INVENTED_TARGET_EXAMPLE"),
+    ("invented vendor directory",
+     "source = \"halucinator/pac/acme/data/svd/x/sources/x.svd\"\n", "INVENTED_TARGET_EXAMPLE"),
+    ("invented manual citation",
+     "document = \"AX100 Reference Manual, document AX100RM\"\nlocator = \"Section 42.5.3, Table 42-18\"\n",
+     "INVENTED_CITATION_SUBJECT"),
+    ("retired citation table array",
+     "[[driver.test_hardware_facts]]\nsource_id = \"doc-001\"\n", "RETIRED_CITATION_LEAF"),
+    ("retired citation leaf reference",
+     "| Cited hardware facts | `driver.test_hardware_facts.document`, `.revision` |\n",
+     "RETIRED_CITATION_LEAF"),
+)
+
+# Real, legitimate corpus material that must NOT trip the analyzer. A rule that
+# forbids citing the north-star HAL or naming a real tool is unusable.
+_INVENT_CLEAN_CASES: tuple[tuple[str, str], ...] = (
+    ("north-star reference", "See `embassy-mcxa/DEVGUIDE.md` section 4 for the MCXA577 clock tree.\n"),
+    ("pinned upstream URL",
+     "https://raw.githubusercontent.com/embassy-rs/nxp-pac/0c2b68a1c1badce2cf09ba8bb3aae25e72776b2b/"
+     "nxp-pac/Cargo.toml documents the feature set.\n"),
+    ("real tool names", "Install poppler-utils or xpdf-utils, then rerun pdftotext -layout.\n"),
+    ("standards and units in a citation",
+     "Timestamps are RFC3339 UTC; see section 2 of the datasheet template for the SHA256 field.\n"),
+    ("fictional fixture manual",
+     "document = \"FICTIONAL FIXTURE REFERENCE MANUAL\"\nrevision = \"Rev 0\"\n"),
+    ("schema-2 driver leaves",
+     "driver.facts_handoff and driver.test_hardware_facts reference verified assertion IDs.\n"),
+)
+
+
+def invented_hardware_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    clean = analyze_invented_hardware("x.md", _INVENT_GOOD)
+    if clean:
+        problems.append(f"the conforming fictional-target sample was rejected with {[c for c, _ in clean]}; "
+                        "an over-broad rule here is unusable")
+    for name, text in _INVENT_CLEAN_CASES:
+        codes = [c for c, _ in analyze_invented_hardware("x.md", text)]
+        if codes:
+            problems.append(f"legitimate corpus material {name!r} was rejected with {codes}")
+    for name, text, expected in _INVENT_CASES:
+        codes = [c for c, _ in analyze_invented_hardware("x.md", text)]
+        if expected not in codes:
+            problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    return problems
+
+
+def check_no_invented_hardware_in_corpus(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, ".opencode/skills", "INVENTED_HARDWARE_ABORT"):
+        for problem in invented_hardware_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_invented_hardware", "INVENTED_HARDWARE_FIXTURE",
+                       f"the invented-hardware analyzer failed its in-memory fixtures: {problem}")
+        files = [p for p in governed_markdown(root) if not is_fixture_payload(root, p)]
+        if not files:
+            report.bad(".opencode", "0", "INVENTED_HARDWARE_NO_TARGETS",
+                       "no governed non-fixture Markdown discovered; the rule is asserted against nothing")
+            return
+        for p in files:
+            relpath = rel(root, p)
+            for code, message in analyze_invented_hardware(relpath, read_text(p)):
+                report.bad(relpath, "hardware-fact", code, message)
+        report.ok("no-invented-hardware-in-corpus",
+                  f"across {len(files)} governed non-fixture Markdown files: every worked example uses the one "
+                  f"permitted fictional target, no part-number-shaped token stands as the subject of a manual / "
+                  f"datasheet / section citation outside the north-star families this toolkit is built from, and "
+                  f"no retired schema-1 citation block survives (analyzer self-tested against "
+                  f"{len(_INVENT_CASES)} near-misses and {len(_INVENT_CLEAN_CASES)} legitimate samples that must "
+                  "NOT trip). LIMITS: no lexical test can tell a real part number from an invented one - MCXA256 "
+                  "and AX100 are the same shape - so the citation half rests on a HAND-MAINTAINED allowlist of "
+                  "citable families and will not notice an invented part that resembles one. A fabricated "
+                  "register offset, bit position or reset value in prose matches nothing here at all", mark)
+
+
+# --- F: citation-path-tested ------------------------------------------------
+
+SCHEMA_TEST_DIR = ".opencode/schema"
+SCHEMA_TEST_PATTERN = "test_*.py"
+SCHEMA_TEST_TIMEOUT = 300
+
+CITATION_TEST_CASES: tuple[tuple[str, str], ...] = (
+    ("missing pdftotext fails closed", r"missing.?(pdftotext|tool|binary)|(pdftotext|tool|binary).?(absent|missing)"),
+    ("verifier timeout", r"timeout|timed.?out"),
+    ("PDF page error", r"page.?(error|invalid|out.?of.?range|rejected)|bad.?page|invalid.?page"),
+    ("Unicode / NFKC normalization", r"unicode|nfkc|casefold|soft.?hyphen"),
+    ("digit-safe hyphen joining", r"hyphen|digit.?safe|line.?break.?join"),
+    ("interleaving gap bound", r"interleav|gap.?bound|token.?gap|skipped.?token"),
+    ("bounded diagnostic payload", r"bounded|truncat|payload.?limit|closest.?candidate|nearest.?candidate"),
+    # M6 recheck: the external-process boundary must actually be crossed.
+    # Injecting an already-constructed CitationFailure never executes
+    # run_pdftotext, so a regression in command construction or in the
+    # subprocess exception translation passes every test.
+    ("production run_pdftotext wrapper reached", r"run.?pdftotext"),
+    ("subprocess argument array asserted", r"arg(?:ument)?.?(?:array|list|v)|cmd.?(?:array|list)|argv"),
+    ("subprocess output bound asserted", r"output.?(?:bound|cap|limit)|mib|max.?output|overflow"),
+)
+
+
+def _citation_case_failures() -> list[str]:
+    """Self-test the coverage patterns: recognise a plausible suite, reject an empty one."""
+    sample = '''
+def test_missing_pdftotext_fails_closed(): pass
+def test_runner_timeout_is_unverified(): pass
+def test_invalid_page_rejected_with_remedy(): pass
+def test_nfkc_casefold_unicode_excerpt(): pass
+def test_digit_safe_hyphen_join_fifo_zero(): pass
+def test_interleaving_gap_bound_enforced(): pass
+def test_bounded_diagnostic_payload_closest_candidate(): pass
+def test_run_pdftotext_builds_argv_and_timeout(): pass
+def test_run_pdftotext_output_bound_mib_overflow(): pass
+'''
+    surface = runtime_test_surface(sample)
+    missed = [label for label, pat in CITATION_TEST_CASES if not re.search(pat, surface)]
+    if missed:
+        return [f"the coverage patterns did not recognise a plausibly named citation suite: {missed}"]
+    empty = runtime_test_surface("def helper(): pass\n")
+    matched = [label for label, pat in CITATION_TEST_CASES if re.search(pat, empty)]
+    if matched:
+        return [f"the coverage patterns matched an EMPTY suite for {matched}; they would pass vacuously"]
+    return []
+
+
+def check_citation_path_tested(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, SCHEMA_TEST_DIR, "CITATION_TESTS_ABORT"):
+        for problem in _citation_case_failures():
+            report.bad("tools/selfcheck.py", "CITATION_TEST_CASES", "CITATION_TESTS_FIXTURE",
+                       f"the citation coverage patterns failed their self-test: {problem}")
+        d = root / PurePosixPath(SCHEMA_TEST_DIR)
+        modules = sorted(d.glob(SCHEMA_TEST_PATTERN)) if d.is_dir() else []
+        if not modules:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_MISSING",
+                       f"no {SCHEMA_TEST_PATTERN} module under {SCHEMA_TEST_DIR}; the citation verifier - the "
+                       "gate this milestone exists for - has no executable test at all")
+            return
+        surface = ""
+        joined_source = ""
+        for p in modules:
+            try:
+                text = read_text(p)
+                surface += runtime_test_surface(text) + " "
+                joined_source += text + "\n"
+            except SyntaxError as exc:
+                report.bad(rel(root, p), "0", "CITATION_TESTS_UNPARSEABLE",
+                           f"test module does not parse, so its coverage cannot be derived: {exc}")
+                return
+        # The boundary must be crossed, not simulated. A suite that only
+        # constructs a CitationFailure never executes the wrapper it claims to
+        # test, so require both the production symbol and an injected
+        # subprocess seam in the same corpus of tests.
+        if "run_pdftotext" not in joined_source:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_SKIP_BOUNDARY",
+                       "no test module names run_pdftotext. Injecting an already-built CitationFailure exercises "
+                       "the caller's error path and never the external-process wrapper, so a regression in the "
+                       "argument array, the timeout, or the translation of a subprocess exception passes")
+        elif not re.search(r"subprocess\.run|\bsubprocess\b.*\brun\b|monkeypatch|fake_run|stub_run|patch\(",
+                           joined_source):
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_SKIP_BOUNDARY",
+                       "run_pdftotext is named but no subprocess seam is injected beneath it; the wrapper must be "
+                       "driven with a substituted runner so the argument array, timeout and output bound can be "
+                       "asserted without depending on a real pdftotext being installed")
+        uncovered = [label for label, pat in CITATION_TEST_CASES if not re.search(pat, surface)]
+        if uncovered:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_UNCOVERED",
+                       f"{len(uncovered)} required citation case(s) are named by no test: {'; '.join(uncovered)}")
+        cmd = [sys.executable, "-m", "unittest", "discover", "-s", SCHEMA_TEST_DIR,
+               "-t", SCHEMA_TEST_DIR, "-p", SCHEMA_TEST_PATTERN]
+        try:
+            proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
+                                  timeout=SCHEMA_TEST_TIMEOUT, encoding="utf-8", errors="replace")
+        except subprocess.TimeoutExpired:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_TIMEOUT",
+                       f"unittest discovery did not finish in {SCHEMA_TEST_TIMEOUT}s; a hang is a failure")
+            return
+        out = (proc.stdout or "") + (proc.stderr or "")
+        # Check emptiness FIRST: unittest exits non-zero on "NO TESTS RAN", and
+        # reporting that as a test failure hides what is actually wrong.
+        if re.search(r"^Ran 0 tests", out, re.MULTILINE) or "NO TESTS RAN" in out:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_EMPTY",
+                       f"unittest discovery under {SCHEMA_TEST_DIR} ran 0 tests. The citation gate is the "
+                       "milestone's headline claim and has no executable test: nothing exercises missing "
+                       "pdftotext, timeout, page errors, normalization or the gap bound")
+            return
+        if proc.returncode != 0:
+            report.bad(SCHEMA_TEST_DIR, "0", "CITATION_TESTS_FAILED",
+                       f"unittest discovery exited {proc.returncode}: {_one_line(out, 500)}")
+            return
+        report.ok("citation-path-tested",
+                  f"{len(modules)} discovered test module(s) under {SCHEMA_TEST_DIR} run green under unittest "
+                  f"discovery and name all {len(CITATION_TEST_CASES)} required citation cases - missing "
+                  "pdftotext, timeout, PDF page error, Unicode/NFKC, digit-safe hyphen joining, the "
+                  "interleaving gap bound, and the bounded diagnostic payload. AS WITH runtime-protocol-tests, "
+                  "COVERAGE IS DERIVED FROM TEST NAMES AND DOCSTRINGS: a test named for a case it does not "
+                  "actually exercise is invisible here, and nothing checks that the assertions inside are the "
+                  "right ones", mark)
+
+
+
 def main(argv: list[str]) -> int:
     args = [a for a in argv[1:]]
     write_base = False
@@ -4885,6 +7728,33 @@ def main(argv: list[str]) -> int:
     check_debug_lineage(root, report)
     check_schema_attribution(root, report)
     check_test_candidate_layout(root, report)
+
+    # M6. Corpus-wording and record gates first (cheap, pure), then the two
+    # subprocess-bound checks. Deliberately serial: at most one build/test
+    # process runs at a time.
+    check_mcxa_example_boundary(root, report)
+    check_error_clear_semantics(root, report)
+    check_target_first_driver_order(root, report)
+    check_checkout_context_guard(root, report)
+    check_install_no_overwrite(root, report)
+    check_reference_url_pins(root, report)
+    check_tester_destination_coverage(root, report)
+    check_claim_truth_limit(root, report)
+    check_citation_verification_corpus(root, report)
+    check_fixture_regeneration(root, report)
+    check_runtime_protocol_tests(root, report)
+
+    # M6 review follow-up. Behavioural checks: these execute the production
+    # helper and the committed test suites. Deliberately serial and last - at
+    # most one build/test process at a time.
+    check_no_invented_hardware_in_corpus(root, report)
+    check_hardware_procedure_uses_interlock(root, report)
+    check_interlock_refuses_fabricated_evidence(root, report)
+    check_interlock_recovery_can_reconnect(root, report)
+    check_interlock_override_requires_ambiguity(root, report)
+    check_state_publish_is_atomic(root, report)
+    check_citation_path_tested(root, report)
+
     check_selfcheck_doc_parity(root, report)
     return report.emit()
 
