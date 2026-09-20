@@ -5,7 +5,7 @@ These are ten complete TOML documents: state, one supporting scope decision, and
 ## Scope decision
 
 ```toml
-schema = 1
+schema = 2
 revision = "scope-0123abcd"
 previous = { kind = "initial" }
 included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
@@ -16,7 +16,7 @@ reason = "Initial fictional schema fixture"
 ## 1. `halucinator/state.toml`
 
 ```toml
-schema = 1
+schema = 2
 generation = 9
 
 [target]
@@ -96,7 +96,7 @@ Each repeats full tables; nothing is implied.
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="gather-documentation"
 status="ready"
 inputs=[]
@@ -127,8 +127,7 @@ reason="An accessible fictional SVD was supplied."
 [sources]
 catalog={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 route="review-supplied"
-source_ids=["doc-001"]
-available=[{root="generation:fictional-pac",path="data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fixture.svd",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
+documents=[{source_id="doc-001",document="FICTIONAL FIXTURE REFERENCE MANUAL",revision="fixture-1",format="utf8-text",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]
 cited_notes=[]
 ```
 
@@ -136,7 +135,7 @@ cited_notes=[]
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="extract-facts"
 status="ready"
 inputs=[{path="halucinator/handoff/01-sources.toml",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
@@ -153,6 +152,10 @@ id="citations-complete"
 status="passed"
 evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 [[checks]]
+id="citations-verified"
+status="passed"
+evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+[[checks]]
 id="summary-field-cross-check"
 status="passed"
 evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
@@ -166,7 +169,7 @@ status="not-applicable"
 reason="The fictional fixture source is text, not PDF."
 [facts]
 notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
-citations=[{source_id="doc-001",document="FICTIONAL FIXTURE",revision="fixture-1",locator="schema-only",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]
+citations=[{assertion_id="fact.schema-demo.reset-state",scope_item="peripheral:schema-demo",claim="The fictional SCHEMA_DEMO block reports zero in every invented field after a fixture reset.",source_id="doc-001",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},location={kind="text-lines",line_start=7,line_end=10},locator={kind="section",value="Section 2.1"},excerpt="After a fixture reset the block reports the invented value zero in every invented field.",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]
 categories=["field-encodings","register-layout"]
 contradictions=[]
 ```
@@ -175,7 +178,7 @@ contradictions=[]
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="generate-svd"
 status="ready"
 inputs=[{path="halucinator/handoff/01-sources.toml",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{path="halucinator/handoff/02-facts.toml",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
@@ -234,7 +237,7 @@ unresolved_facts=[]
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="generate-pac"
 status="ready"
 inputs=[{path="halucinator/handoff/03-svd.toml",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
@@ -321,7 +324,7 @@ This candidate is honestly partial: review has not run, while disposable work ma
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="scaffold-hal"
 status="partial"
 can_progress=true
@@ -394,7 +397,7 @@ Because its platform input is partial, `owned_files` is under an explicitly disp
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="write-driver"
 status="partial"
 can_progress=true
@@ -443,7 +446,8 @@ capabilities=["blocking"]
 public_api=["pub struct SchemaDemo<'d>","pub fn SchemaDemo::new(peripheral: Peripheral) -> SchemaDemo<'_>","impl embedded_hal::digital::ErrorType for SchemaDemo<'_>"]
 dependencies=[{crate="embedded-hal",identity="1.0.0",features=[]}]
 trait_obligations=[{dependency_crate="embedded-hal",trait="embedded_hal::digital::ErrorType",obligations=["Expose the public associated error type."]}]
-test_hardware_facts=[]
+facts_handoff={path="halucinator/handoff/02-facts.toml",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+test_hardware_facts=["fact.schema-demo.reset-state"]
 build_contract={cargo_chip_feature="uc-not-a-real-mcu-0001",rust_compilation_target="thumbv7em-none-eabi",init_calls=["embassy_unobtainium::init(Config::default())"],memory_runtime={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},observation="debugger-visible completion marker"}
 requirement_ids=["SCHEMA-01"]
 ```
@@ -452,7 +456,7 @@ requirement_ids=["SCHEMA-01"]
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="write-tests"
 status="partial"
 can_progress=true
@@ -520,7 +524,7 @@ teardown="not-applicable"
 
 ```toml
 [handoff]
-schema=1
+schema=2
 stage="review"
 status="ready"
 inputs=[{root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]

@@ -1,6 +1,6 @@
 # Handoff schema index
 
-These documents specify schema version 1. They are contracts, not executable schemas.
+These documents specify schema version 2. They are contracts, not executable schemas. Version 1 is superseded: existing version-1 records remain historical evidence and are not current consumable roots.
 
 - [Terminology](terminology.md)
 - [Runtime layout and locks](layout.md)

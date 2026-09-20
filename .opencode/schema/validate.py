@@ -18,16 +18,22 @@ Standard library only.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import os
 import pathlib
 import re
+import shlex
+import subprocess
 import sys
 import tomllib
+import unicodedata
 
 # --------------------------------------------------------------------------
 # Diagnostics
 # --------------------------------------------------------------------------
+
+SCHEMA_VERSION_CURRENT = 2
 
 CODES = {
     "UNKNOWN_FIELD", "MISSING_FIELD", "ILLEGAL_ENUM", "DEPENDENCY_NOT_READY",
@@ -40,7 +46,10 @@ CODES = {
     "FOUNDATION_PARTITION", "SCOPE_DELETED_PREDECESSOR", "SCOPE_SECOND_INITIAL",
     "SCOPE_FORK", "SCOPE_ORPHAN", "SCOPE_CYCLE", "RESOURCE_LIMIT",
     "PATH_INSPECTION", "ATTRIBUTES_UNVERIFIED",
+    # M6 (schema 2), approved subset only.
+    "CITATION_UNVERIFIED", "BOARD_INTERLOCK_CONFLICT", "BOARD_RECOVERY_REQUIRED",
 }
+
 
 
 def _repr160(value) -> str:
@@ -183,6 +192,7 @@ ROOT_NAME_RE = re.compile(r"^generation:[a-z][a-z0-9-]{0,31}$")
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 SCOPE_REV_RE = re.compile(r"^scope-[0-9a-f]{8}$")
 SCOPE_ITEM_RE = re.compile(r"^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*:[a-z0-9][a-z0-9._-]*$")
+ASSERTION_ID_RE = re.compile(r"^[a-z][a-z0-9._-]{2,79}$")
 
 
 def path_problem(rel: str) -> str | None:
@@ -263,8 +273,39 @@ DEPENDENCY = S("struct", fields={
     "features": (SORTED_STRS, True)})
 
 CITATION = S("struct", fields={
+    "assertion_id": (S("assertionid"), True),
+    "scope_item": (S("scopeitem"), True),
+    "claim": (STR, True),
+    "source_id": (STR, True),
+    "source": (FILEREF, True),
+    "location": (S("tagged", variants={
+        "pdf-page": {"page": (S("int"), True)},
+        "text-lines": {"line_start": (S("int"), True),
+                       "line_end": (S("int"), True)}}), True),
+    "locator": (S("struct", fields={
+        "kind": (S("enum", values=["page", "section", "table", "figure"]), True),
+        "value": (STR, True)}), True),
+    "excerpt": (STR, True),
+    "note": (FILEREF, True)})
+
+SOURCE_DOCUMENT = S("struct", fields={
     "source_id": (STR, True), "document": (STR, True), "revision": (STR, True),
-    "locator": (STR, True), "note": (FILEREF, True)})
+    "format": (S("enum", values=["pdf", "utf8-text"]), True),
+    "source": (FILEREF, True)})
+
+SAFE_STATE_PROCEDURE = S("struct", fields={
+    "board_id": (STR, True),
+    "facts_handoff": (FILEREF, True),
+    "assertion_ids": (S("array", items=S("assertionid"), sorted_unique=True,
+                        nonempty=True), True),
+    "procedure": (FILEREF, True)})
+
+BOARD_INTERLOCK = S("struct", fields={
+    "board_id": (STR, True),
+    "lease_epoch": (S("hex", width=32), True),
+    "check_token": (S("hex", width=64), True),
+    "authorization": (FILEREF, True)})
+
 
 HANDOFF_TABLE = {
     "schema": (S("int"), True),
@@ -291,14 +332,13 @@ KINDS: dict[str, dict] = {
         "fields": {
             "catalog": (FILEREF, True),
             "route": (S("enum", values=["review-supplied", "author-from-docs", "unresolved"]), True),
-            "source_ids": (SORTED_STRS, True),
-            "available": (S("array", items=FILEREF), True),
+            "documents": (S("array", items=SOURCE_DOCUMENT, nonempty=True), True),
             "cited_notes": (S("array", items=FILEREF), True),
         },
         "checks": {
             "requested-inputs-accounted": check_applicable_always,
             "available-content-resolves": check_applicable_always,
-            "local-source-hashes": lambda h: bool(h.get("sources", {}).get("available")),
+            "local-source-hashes": lambda h: bool(h.get("sources", {}).get("documents")),
             "svd-search-complete": lambda h: h.get("sources", {}).get("route") == "author-from-docs",
         },
     },
@@ -314,6 +354,8 @@ KINDS: dict[str, dict] = {
         },
         "checks": {
             "citations-complete": check_applicable_always,
+            "citations-verified":
+                lambda h: bool(h.get("facts", {}).get("citations")),
             "summary-field-cross-check":
                 lambda h: "register-layout" in h.get("facts", {}).get("categories", []),
             "field-encodings-exhaustive":
@@ -424,7 +466,9 @@ KINDS: dict[str, dict] = {
             "trait_obligations": (S("array", items=S("struct", fields={
                 "dependency_crate": (STR, True), "trait": (STR, True),
                 "obligations": (STRS, True)})), True),
-            "test_hardware_facts": (S("array", items=CITATION), True),
+            "facts_handoff": (FILEREF, True),
+            "test_hardware_facts": (S("array", items=S("assertionid"),
+                                      sorted_unique=True), True),
             "build_contract": (S("struct", fields={
                 "cargo_chip_feature": (STR, True),
                 "rust_compilation_target": (STR, True),
@@ -456,6 +500,9 @@ KINDS: dict[str, dict] = {
             "dependencies": (S("array", items=DEPENDENCY), True),
             "setup_record": (FILEREF, False),
             "review_input_manifest": (FILEREF, True),
+            "board_interlock": (BOARD_INTERLOCK, False),
+            "safe_state_procedure": (SAFE_STATE_PROCEDURE, False),
+            "recovery_attempts": (S("array", items=FILEREF), False),
             "coverage": (S("array", items=S("struct", fields={
                 "id": (STR, True),
                 "status": (S("enum", values=[
@@ -468,7 +515,12 @@ KINDS: dict[str, dict] = {
                 "status": (S("enum", values=[
                     "passed", "failed", "blocked", "not-run"]), True),
                 "evidence": (FILEREF, False),
-                "teardown": (STR, True)})), True),
+                "teardown": (STR, True),
+                "lease_epoch": (S("hex", width=32), False),
+                "operation_attempt": (S("int"), False),
+                "operation_id": (S("hex", width=32), False),
+                "pre_safe_state": (FILEREF, False),
+                "post_safe_state": (FILEREF, False)})), True),
         },
         "checks": {
             "workflow-references-read": check_applicable_always,
@@ -579,7 +631,38 @@ LOCK_SCHEMA = {
     "board_state": (S("enum", values=["unknown", "safe", "active"]), False),
     "canonical": (PATHREF, False),
     "candidate": (PATHREF, False),
+    # Schema 2 worktree-local interlock members. The word "lease" survives only
+    # in these field names for compact identity; the mechanism is a
+    # worktree-local, single-operator interlock, never a lease or a broker.
+    "lease_epoch": (S("hex", width=32), False),
+    "check_token": (S("hex", width=64), False),
+    "owner_process_identity": (S("struct", fields={
+        "scheme": (S("enum", values=[
+            "windows-filetime", "linux-startticks", "unavailable"]), True),
+        "value": (S("str", allow_empty=True), False)}), False),
+    "operation_phase": (S("enum", values=[
+        "acquired", "preparing", "active", "teardown",
+        "recovery-pending", "recovery-verified"]), False),
+    "operation_attempt": (S("int"), False),
+    "operation_id": (S("hex", width=32), False),
+    "last_operation": (S("enum", values=[
+        "none", "attach", "reset", "load-ram", "program-flash", "run",
+        "halt", "detach", "power-change", "fixture-change"]), False),
+    "child_session": (S("struct", fields={
+        "kind": (S("enum", values=["windows-job", "process-group", "external"]), True),
+        "identity": (STR, True),
+        "started_at": (STR, True),
+        "completed_at": (STR, False)}), False),
+    "safe_state": (FILEREF, False),
+    "recovery_attempts": (S("array", items=FILEREF), False),
+    "override_record": (FILEREF, False),
 }
+
+# A repository-root destination crate is exactly one path segment named
+# `embassy-<vendor_id>`. Nesting, aliases and named roots are refused with the
+# existing ILLEGAL_ENUM; no extra diagnostic was approved for A18.
+DESTINATION_CRATE_RE = re.compile(r"^embassy-[a-z0-9]+(?:-[a-z0-9]+)*$")
+
 
 FORBIDDEN_API_TOKENS = ("pac::", "unsafe {")
 
@@ -595,6 +678,466 @@ REQUIRED_ATTRS = [
     "examples/** text eol=lf",
     "embassy-unobtainium/** text eol=lf",
 ]
+
+
+# --------------------------------------------------------------------------
+# Citation verification (schema 2)
+#
+# `run_pdftotext` is the ONLY function in this file permitted to invoke an
+# external program. Everything else is Python 3.11 standard library and starts
+# no process. The gate fails closed: a missing binary makes the citation check
+# FAIL, never skip, because a gate bypassable by uninstalling a binary is not a
+# gate. The diagnostic therefore always names the remedy.
+# --------------------------------------------------------------------------
+
+PDFTOTEXT_TIMEOUT = 30
+PDFTOTEXT_MAX_BYTES = 16 * 1024 * 1024
+EXCERPT_MIN_CODEPOINTS = 32
+EXCERPT_MAX_CODEPOINTS = 4096
+EXCERPT_MIN_ALNUM = 8
+EXCERPT_MAX_TOKENS = 256
+SOURCE_MAX_TOKENS = 100_000
+MAX_TOKEN_GAP = 8
+MAX_PAYLOAD_BYTES = 2048
+# Declared work bounds. Reaching one emits RESOURCE_LIMIT - a loud, nameable
+# outcome - and NEVER a silent "not found": reporting absence about a region we
+# did not finish searching is exactly the false rejection these replaced.
+MATCH_WORK_BUDGET = 20_000_000
+CANDIDATE_WORK_BUDGET = 2_000_000
+CANDIDATE_PREFILTER_KEEP = 32
+
+PDFTOTEXT_REMEDY = (
+    "Install poppler-utils (or xpdf-utils where that package supplies "
+    "pdftotext), then rerun: pdftotext -layout -f <page> -l <page> <source> -")
+
+
+class CitationFailure(Exception):
+    """A citation could not be verified. Carries the bounded operator payload."""
+
+    def __init__(self, field: str, reason: str, remedy: str) -> None:
+        super().__init__(reason)
+        self.field = field
+        self.reason = reason
+        self.remedy = remedy
+
+
+def run_pdftotext(source_abs: str, page: int) -> str:
+    """Derive one physical PDF page as text. The single external-program call."""
+    cmd = ["pdftotext", "-layout", "-f", str(page), "-l", str(page), source_abs, "-"]
+    display = " ".join(shlex.quote(part) for part in cmd)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=PDFTOTEXT_TIMEOUT)
+    except FileNotFoundError:
+        raise CitationFailure(
+            "", "pdftotext is not installed or not on PATH (attempted %s)" % display,
+            PDFTOTEXT_REMEDY)
+    except subprocess.TimeoutExpired:
+        raise CitationFailure(
+            "", "pdftotext did not finish in %ds (attempted %s)"
+                % (PDFTOTEXT_TIMEOUT, display),
+            "shrink or replace the source PDF, then rerun: " + display)
+    except OSError as exc:
+        raise CitationFailure(
+            "", "pdftotext could not be executed: %s (attempted %s)" % (exc, display),
+            PDFTOTEXT_REMEDY)
+    if proc.returncode != 0:
+        tail = _clip(proc.stderr.decode("utf-8", "replace"), 512)
+        raise CitationFailure(
+            "", "pdftotext exited %d (attempted %s); stderr: %s"
+                % (proc.returncode, display, tail),
+            "correct the physical page ordinal or the source, then rerun: " + display)
+    if len(proc.stdout) > PDFTOTEXT_MAX_BYTES:
+        raise CitationFailure(
+            "", "pdftotext produced %d bytes, over the %d-byte cap (attempted %s)"
+                % (len(proc.stdout), PDFTOTEXT_MAX_BYTES, display),
+            "cite a narrower page, then rerun: " + display)
+    try:
+        return proc.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CitationFailure(
+            "", "pdftotext output is not valid UTF-8: %s (attempted %s)" % (exc, display),
+            "supply a text-capable authoritative source, then rerun: " + display)
+
+
+def _clip(text: str, limit: int) -> str:
+    raw = text.encode("utf-8", "replace")
+    if len(raw) <= limit:
+        return text
+    return raw[:limit].decode("utf-8", "ignore") + "\u2026"
+
+
+def _is_hspace(ch: str) -> bool:
+    return ch == "\t" or unicodedata.category(ch) == "Zs"
+
+
+def _is_letter_or_mark(ch: str) -> bool:
+    return unicodedata.category(ch)[0] in ("L", "M")
+
+
+def _rejoin_line_end_hyphens(text: str) -> str:
+    """Rejoin a line-end ASCII hyphen only between letters/marks.
+
+    Never between digits: `FIFO-\\n0` must stay two tokens, and a digit-bearing
+    range such as `0x1-0x3` must never be altered.
+    """
+    out: list[str] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        ch = text[index]
+        if ch == "-":
+            after_hyphen = index + 1
+            while after_hyphen < length and _is_hspace(text[after_hyphen]):
+                after_hyphen += 1
+            if after_hyphen < length and text[after_hyphen] == "\n":
+                resume = after_hyphen + 1
+                while resume < length and _is_hspace(text[resume]):
+                    resume += 1
+                before = index - 1
+                while before >= 0 and _is_hspace(text[before]):
+                    before -= 1
+                left = text[before] if before >= 0 else ""
+                right = text[resume] if resume < length else ""
+                if left and right and _is_letter_or_mark(left) and _is_letter_or_mark(right):
+                    index = resume
+                    continue
+        out.append(ch)
+        index += 1
+    return "".join(out)
+
+
+def normalize_citation_text(text: str) -> str:
+    """NFKC, casefold, soft-hyphen removal, line joining, whitespace collapse."""
+    text = unicodedata.normalize("NFKC", text).casefold()
+    text = text.replace("\u00ad", "")
+    for separator in ("\r\n", "\r", "\u0085", "\u2028", "\u2029"):
+        text = text.replace(separator, "\n")
+    text = _rejoin_line_end_hyphens(text)
+    return " ".join(text.split())
+
+
+def citation_tokens(text: str) -> list[str]:
+    """Maximal word-token runs; every other non-space code point is its own token."""
+    out: list[str] = []
+    run: list[str] = []
+    for ch in text:
+        category = unicodedata.category(ch)
+        if category[0] in ("L", "M", "N") or category == "Pc":
+            run.append(ch)
+            continue
+        if run:
+            out.append("".join(run))
+            run = []
+        if not ch.isspace():
+            out.append(ch)
+    if run:
+        out.append("".join(run))
+    return out
+
+
+def ordered_token_match(excerpt: list[str], source: list[str]) -> bool | None:
+    """Exact ordered occurrence with bounded gaps, tolerating column interleaving.
+
+    EVERY viable start is inspected. An earlier build capped the search at the
+    first 4096 occurrences of the excerpt's leading token, which false-rejected
+    an honest excerpt beginning with a common word after occurrence 4096 - and
+    a gate that false-rejects honest evidence is a gate people route around,
+    which is worse than a gate that is slightly wide.
+
+    Returns True (matched), False (searched exhaustively, no match), or None
+    (the declared work bound was reached). None is NOT "no match": the caller
+    emits RESOURCE_LIMIT, because saying "absent" about a region we did not
+    finish searching is the false rejection this exists to prevent.
+
+    Greedy-earliest from a fixed start is optimal here: taking the nearest
+    admissible next token minimizes both the cursor position and the cumulative
+    skip, so it can never lose a match a later choice would have found.
+
+    This DELIBERATELY broadens what a fabricated excerpt could match. It proves
+    ordered normalized token occurrence under the stated gap bound, not visual
+    contiguity and not semantic support. Excerpt tokens `reset value zero` do
+    match source tokens `reset unrelated value unrelated zero`; that is the
+    accepted, disclosed consequence of aggressive normalization, and comparing
+    the claim against the rendered page remains a human obligation.
+    """
+    if not excerpt:
+        return False
+    budget = min(EXCERPT_MAX_TOKENS, 2 * len(excerpt))
+    first = excerpt[0]
+    work = 0
+    for start, token in enumerate(source):
+        if token != first:
+            continue
+        cursor = start + 1
+        skipped = 0
+        matched = 1
+        for want in excerpt[1:]:
+            step = 0
+            # `step < MAX_TOKEN_GAP`, not `<=`: the bound is at most eight
+            # NONMATCHING tokens between adjacent excerpt tokens, and `<=`
+            # admitted nine, making the gate one token wider than the approved
+            # algorithm.
+            while cursor < len(source) and step < MAX_TOKEN_GAP and source[cursor] != want:
+                cursor += 1
+                step += 1
+                work += 1
+                if work > MATCH_WORK_BUDGET:
+                    return None
+            if cursor >= len(source) or source[cursor] != want:
+                break
+            skipped += step
+            if skipped > budget:
+                break
+            cursor += 1
+            matched += 1
+        work += len(excerpt)
+        if work > MATCH_WORK_BUDGET:
+            return None
+        if matched == len(excerpt) and skipped <= budget:
+            return True
+    return False
+
+
+def nearest_candidate(excerpt: list[str], source: list[str]) -> tuple[float, str, bool]:
+    """Highest-scoring source window, then shortest span, then earliest offset.
+
+    Returns (score, window text, complete). `complete` is False when the full
+    span-by-span scan would have exceeded the declared work bound and a
+    cheaper multiset-overlap prefilter over EVERY start was used to choose the
+    windows actually scored. The diagnostic says which it was, so a reader is
+    never told "closest candidate" about a search that silently skipped most of
+    the region.
+    """
+    if not excerpt or not source:
+        return (0.0, "", True)
+    budget = min(EXCERPT_MAX_TOKENS, 2 * len(excerpt))
+    spans = list(range(len(excerpt), len(excerpt) + budget + 1))
+    starts = range(len(source))
+    complete = True
+    if len(source) * len(spans) > CANDIDATE_WORK_BUDGET:
+        complete = False
+        starts = _overlap_prefilter(excerpt, source)
+    best = (-1.0, 0, 0)
+    for start in starts:
+        for span in spans:
+            window = source[start:start + span]
+            if not window:
+                break
+            score = difflib.SequenceMatcher(None, excerpt, window, autojunk=False).ratio()
+            if score > best[0] or (score == best[0] and span < best[1]):
+                best = (score, span, start)
+            if start + span >= len(source):
+                break
+    if best[0] < 0:
+        return (0.0, "", complete)
+    window = source[best[2]:best[2] + best[1]]
+    return (best[0], _clip(" ".join(window), 768), complete)
+
+
+def _overlap_prefilter(excerpt: list[str], source: list[str]) -> list[int]:
+    """Every start scored by sliding multiset overlap; the best few survive.
+
+    No position is excluded a priori - the window slides across the whole
+    selected region - but only the highest-overlap starts are handed to the
+    exact scorer. This is a diagnostic aid, never the gate.
+    """
+    width = len(excerpt)
+    wanted: dict[str, int] = {}
+    for token in excerpt:
+        wanted[token] = wanted.get(token, 0) + 1
+    have: dict[str, int] = {}
+    overlap = 0
+    scored: list[tuple[int, int]] = []
+    for index, token in enumerate(source):
+        if wanted.get(token, 0) > have.get(token, 0):
+            overlap += 1
+        have[token] = have.get(token, 0) + 1
+        if index >= width:
+            gone = source[index - width]
+            have[gone] -= 1
+            if wanted.get(gone, 0) > have.get(gone, 0):
+                overlap -= 1
+        if index >= width - 1:
+            scored.append((overlap, index - width + 1))
+    scored.sort(key=lambda pair: (-pair[0], pair[1]))
+    return [start for _score, start in scored[:CANDIDATE_PREFILTER_KEEP]]
+
+
+def verify_citation(ctx, index: int, citation: dict, documents: dict,
+                    runner=run_pdftotext) -> None:
+    """Verify one CitationRef. Emits at most one CITATION_UNVERIFIED."""
+    base = "facts.citations.%d" % index
+    try:
+        _verify_citation_inner(ctx, base, citation, documents, runner)
+    except CitationFailure as failure:
+        field = failure.field or base
+        ctx.err(field, "CITATION_UNVERIFIED",
+                "a citation whose excerpt is derivable from the bound source bytes",
+                _clip(failure.reason, MAX_PAYLOAD_BYTES), failure.remedy)
+
+
+def _verify_citation_inner(ctx, base: str, citation: dict, documents: dict,
+                           runner) -> None:
+    if not isinstance(citation, dict):
+        raise CitationFailure(base, "a CitationRef table", "use a table literal")
+    source_id = citation.get("source_id")
+    document = documents.get(source_id)
+    if document is None:
+        raise CitationFailure(
+            base + ".source_id",
+            "source ID %r selects no sources.documents entry" % (source_id,),
+            "bind the citation to a declared source document")
+    if citation.get("source") != document.get("source"):
+        raise CitationFailure(
+            base + ".source_id",
+            "citation source %r differs from the bound document source %r"
+            % (citation.get("source"), document.get("source")),
+            "record the exact FileRef of the bound source document")
+
+    fmt = document.get("format")
+    location = citation.get("location")
+    if not isinstance(location, dict):
+        raise CitationFailure(base + ".location", "a tagged location table",
+                              "declare a pdf-page or text-lines location")
+    variant = location.get("kind")
+    expected = "pdf-page" if fmt == "pdf" else "text-lines"
+    if variant != expected:
+        raise CitationFailure(
+            base + ".location",
+            "format %r requires location kind %r; found %r" % (fmt, expected, variant),
+            "use the location variant the source format supports")
+
+    excerpt = citation.get("excerpt")
+    if not isinstance(excerpt, str):
+        raise CitationFailure(base + ".excerpt", "a string excerpt",
+                              "quote the source text")
+    normalized_excerpt = normalize_citation_text(excerpt)
+    if not EXCERPT_MIN_CODEPOINTS <= len(normalized_excerpt) <= EXCERPT_MAX_CODEPOINTS:
+        raise CitationFailure(
+            base + ".excerpt",
+            "normalized excerpt length %d outside %d-%d code points"
+            % (len(normalized_excerpt), EXCERPT_MIN_CODEPOINTS, EXCERPT_MAX_CODEPOINTS),
+            "quote a longer or shorter passage")
+    alnum = sum(1 for ch in normalized_excerpt
+                if unicodedata.category(ch)[0] in ("L", "M", "N"))
+    if alnum < EXCERPT_MIN_ALNUM:
+        raise CitationFailure(
+            base + ".excerpt",
+            "normalized excerpt carries %d letters/digits, fewer than %d"
+            % (alnum, EXCERPT_MIN_ALNUM),
+            "quote a passage with substantive text")
+
+    source_ref = document.get("source")
+    abs_source = _resolve_ref(ctx, source_ref)
+    if abs_source is None:
+        raise CitationFailure(
+            base + ".source_id", "the bound source path does not resolve inside its root",
+            "restore the authoritative source bytes")
+
+    if variant == "pdf-page":
+        page = location.get("page")
+        if not isinstance(page, int) or isinstance(page, bool) or page < 1:
+            raise CitationFailure(base + ".location",
+                                  "physical PDF page ordinal %r is not >= 1" % (page,),
+                                  "record the one-based physical page ordinal")
+        derived = runner(abs_source, page)
+        where = "physical PDF page %d" % page
+        command = "pdftotext -layout -f %d -l %d %s -" % (
+            page, page, shlex.quote(abs_source))
+    else:
+        line_start = location.get("line_start")
+        line_end = location.get("line_end")
+        for name, value in (("line_start", line_start), ("line_end", line_end)):
+            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+                raise CitationFailure(base + ".location",
+                                      "%s %r is not >= 1" % (name, value),
+                                      "record one-based inclusive line numbers")
+        line_start = int(line_start)
+        line_end = int(line_end)
+        if line_end < line_start:
+            raise CitationFailure(base + ".location",
+                                  "line_end %d precedes line_start %d" % (line_end, line_start),
+                                  "record an ordered inclusive line range")
+        try:
+            with open(abs_source, "rb") as handle:
+                raw = handle.read(Limits.MAX_TEXT_BYTES + 1)
+        except OSError as exc:
+            raise CitationFailure(base + ".source_id",
+                                  "the bound source cannot be read: %s" % exc,
+                                  "restore the authoritative source bytes")
+        if len(raw) > Limits.MAX_TEXT_BYTES:
+            raise CitationFailure(base + ".source_id",
+                                  "the bound source exceeds the text read bound",
+                                  "split the source or cite a smaller document")
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise CitationFailure(base + ".source_id",
+                                  "the bound source is not strict UTF-8: %s" % exc,
+                                  "record format='pdf' or supply valid UTF-8 bytes")
+        lines = text.splitlines()
+        if line_end > len(lines):
+            raise CitationFailure(
+                base + ".location",
+                "line_end %d is past the %d-line source" % (line_end, len(lines)),
+                "correct the cited line range")
+        derived = "\n".join(lines[line_start - 1:line_end])
+        where = "text lines %d-%d" % (line_start, line_end)
+        command = "sed -n '%d,%dp' %s" % (line_start, line_end, shlex.quote(abs_source))
+
+    normalized_source = normalize_citation_text(derived)
+    if normalized_excerpt in normalized_source:
+        return
+
+    excerpt_tokens = citation_tokens(normalized_excerpt)
+    source_tokens = citation_tokens(normalized_source)
+    if len(excerpt_tokens) > EXCERPT_MAX_TOKENS:
+        ctx.err(base + ".excerpt", "RESOURCE_LIMIT",
+                "an excerpt of at most %d tokens" % EXCERPT_MAX_TOKENS,
+                len(excerpt_tokens), "quote a shorter passage")
+        return
+    if len(source_tokens) > SOURCE_MAX_TOKENS:
+        ctx.err(base + ".location", "RESOURCE_LIMIT",
+                "a selected region of at most %d tokens" % SOURCE_MAX_TOKENS,
+                len(source_tokens), "cite a narrower location")
+        return
+    outcome = ordered_token_match(excerpt_tokens, source_tokens)
+    if outcome is True:
+        return
+    if outcome is None:
+        ctx.err(base + ".location", "RESOURCE_LIMIT",
+                "an ordered-token search completable within %d steps" % MATCH_WORK_BUDGET,
+                {"excerpt_tokens": len(excerpt_tokens),
+                 "source_tokens": len(source_tokens)},
+                "cite a narrower location or a more distinctive excerpt; the search was "
+                "NOT completed, so this is not a finding that the excerpt is absent")
+        return
+
+    score, window, complete = nearest_candidate(excerpt_tokens, source_tokens)
+    payload = (
+        "assertion %r; source %r sha256 %s; %s; attempted: %s; "
+        "attempt-1 normalized excerpt: %s; attempt-2 tokens: %s; "
+        "closest candidate (%s scan) score %.4f: %s"
+        % (citation.get("assertion_id"), citation.get("source_id"),
+           (source_ref or {}).get("sha256"), where, command,
+           _clip(normalized_excerpt, 512),
+           _clip(" ".join(excerpt_tokens), 512),
+           "exhaustive" if complete else "overlap-prefiltered", score, window))
+    raise CitationFailure(
+        base + ".excerpt", payload,
+        "quote text that actually occurs at the cited location, or correct the "
+        "location; rerun the displayed command to see what the verifier reads")
+
+
+def _resolve_ref(ctx, ref) -> str | None:
+    """Absolute path of an already structurally validated FileRef, or None."""
+    if not isinstance(ref, dict) or not isinstance(ref.get("path"), str):
+        return None
+    base = ctx.roots.base(ref.get("root"))
+    if base is None:
+        return None
+    target = os.path.abspath(os.path.join(base, ref["path"].replace("/", os.sep)))
+    return target if contained(base, target) else None
 
 
 # --------------------------------------------------------------------------
@@ -654,6 +1197,19 @@ def validate_value(ctx: Ctx, field: str, spec: dict, value, depth: int = 0) -> N
         if not isinstance(value, str) or not SCOPE_REV_RE.match(value):
             ctx.err(field, "ILLEGAL_ENUM", "a scope revision ID 'scope-<8 lowercase hex>'",
                     value, "use a well-formed revision ID")
+        return
+    if kind == "assertionid":
+        if not isinstance(value, str) or not ASSERTION_ID_RE.match(value):
+            ctx.err(field, "ILLEGAL_ENUM",
+                    "an assertion ID matching [a-z][a-z0-9._-]{2,79}", value,
+                    "use a well-formed assertion ID")
+        return
+    if kind == "hex":
+        width = spec["width"]
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{%d}" % width, value):
+            ctx.err(field, "ILLEGAL_ENUM",
+                    "exactly %d lowercase hexadecimal characters" % width, value,
+                    "record the canonical lowercase hexadecimal value")
         return
     if kind == "array":
         if not isinstance(value, list):
@@ -831,8 +1387,9 @@ def validate_handoff(rep, loader, roots, h: Handoff, world) -> None:
     hd = data.get("handoff", {}) if isinstance(data.get("handoff"), dict) else {}
 
     # schema version
-    if hd.get("schema") != 1:
-        ctx.err("handoff.schema", "SCHEMA_VERSION", "schema version 1", hd.get("schema"),
+    if hd.get("schema") != SCHEMA_VERSION_CURRENT:
+        ctx.err("handoff.schema", "SCHEMA_VERSION",
+                "schema version %d" % SCHEMA_VERSION_CURRENT, hd.get("schema"),
                 "rewrite the artifact for a supported schema version")
         return
     if hd.get("stage") != spec["stage"]:
@@ -1030,6 +1587,34 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
     if h.kind in ("05-platform", "06-driver", "07-tests"):
         _dep_check(ctx, KINDS[h.kind]["table"] + ".dependencies", table.get("dependencies"))
 
+    if h.kind == "01-sources":
+        docs = table.get("documents")
+        if isinstance(docs, list):
+            ids = [d.get("source_id") for d in docs if isinstance(d, dict)]
+            if len(set(map(str, ids))) != len(ids):
+                ctx.err("sources.documents", "ILLEGAL_ENUM",
+                        "source IDs unique across sources.documents", ids,
+                        "remove the duplicate source document")
+            elif list(map(str, ids)) != sorted(map(str, ids)):
+                ctx.err("sources.documents", "ILLEGAL_ENUM",
+                        "sources.documents sorted by source_id", ids,
+                        "sort the source documents by source_id")
+
+    if h.kind == "02-facts":
+        citations = table.get("citations")
+        if isinstance(citations, list) and citations:
+            documents = world.source_documents
+            for index, citation in enumerate(citations):
+                verify_citation(ctx, index, citation, documents)
+            seen_ids: list[str] = []
+            for citation in citations:
+                if isinstance(citation, dict) and isinstance(citation.get("assertion_id"), str):
+                    seen_ids.append(citation["assertion_id"])
+            if len(set(seen_ids)) != len(seen_ids):
+                ctx.err("facts.citations", "ILLEGAL_ENUM",
+                        "assertion IDs unique within facts.citations", seen_ids,
+                        "give every assertion a distinct ID")
+
     if h.kind == "06-driver":
         api = table.get("public_api")
         if isinstance(api, list):
@@ -1040,6 +1625,7 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
                             ctx.err("driver.public_api", "DRIVER_API_LEAK",
                                     "no occurrence of forbidden token %r" % token, item,
                                     "remove implementation detail from the tester-facing API")
+        validate_driver_fact_linkage(ctx, h, table, world)
 
     if h.kind == "03-svd":
         sources = world.by_stage.get("gather-documentation")
@@ -1104,6 +1690,7 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
                         "the bound driver handoff %r to be ready" % target.rel,
                         tstatus,
                         "complete the bound driver before declaring tests ready")
+        validate_board_records(ctx, h, table, world)
 
     # dependency graph for ready
     if status == "ready":
@@ -1132,6 +1719,135 @@ def kind_rules(ctx: Ctx, h: Handoff, world) -> None:
                         "complete the upstream stage before declaring ready")
 
     validate_independent_review(ctx, h, world)
+
+
+def validate_driver_fact_linkage(ctx: Ctx, h: Handoff, table: dict, world) -> None:
+    """A driver references verified assertions; it never originates a citation.
+
+    This is what makes the citation gate protect the tester transitively: the
+    tester receives assertion IDs resolved through a handoff the validator has
+    already checked, not an agent-authored duplicate of the quotation.
+    """
+    wanted = table.get("test_hardware_facts")
+    ref = table.get("facts_handoff")
+    if not isinstance(ref, dict):
+        return
+    target = world.by_path.get(ref.get("path"))
+    field = "driver.facts_handoff"
+    if target is None or target.kind != "02-facts":
+        ctx.err(field, "ILLEGAL_ENUM",
+                "a path naming a present 02-facts handoff", ref.get("path"),
+                "bind the driver to the facts handoff carrying its cited assertions")
+        return
+    if target.data.get("scope", {}).get("revision") != h.data.get("scope", {}).get("revision"):
+        ctx.err(field, "ILLEGAL_ENUM",
+                "a facts handoff pinned to scope revision %r"
+                % h.data.get("scope", {}).get("revision"),
+                target.data.get("scope", {}).get("revision"),
+                "bind to the facts handoff for the current scope revision")
+    if not isinstance(wanted, list) or not wanted:
+        return
+    tstatus = target.data.get("handoff", {}).get("status")
+    if tstatus != "ready":
+        ctx.err(field, "DEPENDENCY_NOT_READY",
+                "the bound facts handoff %r to be ready" % target.rel, tstatus,
+                "complete the facts stage before naming its assertions")
+    verified = None
+    for entry in target.data.get("checks", []) or []:
+        if isinstance(entry, dict) and entry.get("id") == "citations-verified":
+            verified = entry.get("status")
+    if verified != "passed":
+        ctx.err(field, "DEPENDENCY_NOT_READY",
+                "a passed citations-verified check in %r" % target.rel, verified,
+                "verify the citations before a driver may reference them")
+    available = set()
+    for citation in target.data.get("facts", {}).get("citations", []) or []:
+        if isinstance(citation, dict) and isinstance(citation.get("assertion_id"), str):
+            available.add(citation["assertion_id"])
+    missing = sorted(set(str(a) for a in wanted) - available)
+    if missing:
+        ctx.err("driver.test_hardware_facts", "ILLEGAL_ENUM",
+                "every assertion ID to resolve in %r" % target.rel, missing,
+                "reference only assertions present in the bound facts handoff")
+
+
+def validate_board_records(ctx: Ctx, h: Handoff, table: dict, world) -> None:
+    """Interlock, safe-state and recovery record rules for a tests handoff.
+
+    The interlock is worktree-local and single-operator: a strong default and a
+    statement of intent, not a sandbox. These rules enforce RECORD consistency
+    only. They cannot establish physical ownership of a board, and a direct
+    probe command bypasses the mechanism entirely.
+    """
+    scope = table.get("execution_scope")
+    hardware = scope == "hardware-validation"
+    for name in ("board_interlock", "safe_state_procedure", "recovery_attempts"):
+        present = name in table
+        if hardware and not present:
+            ctx.err("tests." + name, "MISSING_FIELD",
+                    "the field to be present for hardware-validation", None,
+                    "record the worktree-local interlock evidence")
+        if not hardware and present:
+            ctx.err("tests." + name, "UNKNOWN_FIELD",
+                    "the field to be absent for build-only execution", name,
+                    "remove the hardware-only field")
+
+    epoch_of_interlock = None
+    interlock = table.get("board_interlock")
+    if hardware and isinstance(interlock, dict):
+        epoch_of_interlock = interlock.get("lease_epoch")
+
+    runs = table.get("hardware_runs")
+    required = ("lease_epoch", "operation_attempt", "operation_id", "pre_safe_state")
+    if isinstance(runs, list):
+        for index, run in enumerate(runs):
+            if not isinstance(run, dict):
+                continue
+            base = "tests.hardware_runs.%d" % index
+            status = run.get("status")
+            if status == "not-run":
+                for name in required + ("post_safe_state", "evidence"):
+                    if name in run:
+                        ctx.err(base + "." + name, "UNKNOWN_FIELD",
+                                "no operation members on a not-run entry", name,
+                                "remove the member; nothing was attempted")
+                continue
+            for name in required:
+                if name not in run:
+                    ctx.err(base + "." + name, "MISSING_FIELD",
+                            "the member to be present for an attempted run", None,
+                            "record the epoch, attempt, operation and pre-run safe state")
+            attempt = run.get("operation_attempt")
+            if isinstance(attempt, int) and not isinstance(attempt, bool) and attempt < 0:
+                ctx.err(base + ".operation_attempt", "ILLEGAL_ENUM",
+                        "a nonnegative operation attempt", attempt,
+                        "record a monotonically increasing attempt number")
+            if status in ("passed", "failed") and "post_safe_state" not in run:
+                ctx.err(base + ".post_safe_state", "MISSING_FIELD",
+                        "a post-run safe-state observation for a completed run", None,
+                        "observe and record the safe state before releasing")
+            if epoch_of_interlock is not None and run.get("lease_epoch") != epoch_of_interlock:
+                ctx.err(base + ".lease_epoch", "ILLEGAL_ENUM",
+                        "the run epoch to equal the interlock epoch %r" % epoch_of_interlock,
+                        run.get("lease_epoch"),
+                        "record runs under the epoch that owned the board")
+
+    if not hardware or not isinstance(interlock, dict):
+        return
+    board_id = interlock.get("board_id")
+    for lock in world.board_locks.get(board_id, []):
+        phase = lock.get("operation_phase")
+        state = lock.get("board_state")
+        if phase == "recovery-verified" and state == "safe":
+            continue
+        ctx.err("tests.board_interlock.lease_epoch", "BOARD_RECOVERY_REQUIRED",
+                "the interlock for board %r to have reached recovery-verified with a "
+                "safe board state before release and publication" % board_id,
+                {"operation_phase": phase, "board_state": state},
+                "declare the board state unknown, confirm the recorded child session "
+                "terminated or physically isolate board and probe, then append recovery "
+                "attempts until recovery-verified; never infer teardown from exit or age")
+        break
 
 
 def _ref_key(ref) -> tuple:
@@ -1324,6 +2040,33 @@ def lock_id(stage: str) -> str:
     return "%s-%s" % (slug, digest8)
 
 
+def index_board_locks(loader, run_dir, world) -> None:
+    """Index board-test locks by board ID without emitting diagnostics.
+
+    Read-only and side-effect free on purpose: classification and conflict
+    reporting belong to `validate_locks`, and nothing here may remove a lock.
+    A lock is never stolen.
+    """
+    if not os.path.isdir(run_dir):
+        return
+    try:
+        names = sorted(os.listdir(run_dir))
+    except OSError:
+        return
+    quiet = Reporter()
+    quiet_loader = Loader(quiet)
+    for name in names:
+        if not name.endswith(".lock"):
+            continue
+        data = quiet_loader.load_toml(os.path.join(run_dir, name),
+                                      "halucinator/.run/" + name)
+        if not isinstance(data, dict) or data.get("kind") != "board-test":
+            continue
+        board = data.get("board_id")
+        if isinstance(board, str) and board:
+            world.board_locks.setdefault(board, []).append(data)
+
+
 def validate_locks(rep, loader, run_dir, state, state_stage_status) -> None:
     if not os.path.isdir(run_dir):
         return
@@ -1360,9 +2103,17 @@ def validate_locks(rep, loader, run_dir, state, state_stage_status) -> None:
                      "declare the stage resource")
         for resource in resources:
             if resource in claimed and claimed[resource] != name:
-                rep.emit(rel, "-", "MALFORMED_LOCK",
-                         "non-intersecting lock resources", resource,
-                         "release the conflicting lock")
+                if str(resource).startswith("board:"):
+                    rep.emit(rel, "resources", "BOARD_INTERLOCK_CONFLICT",
+                             "no other structurally valid lock holding %r" % resource,
+                             claimed[resource],
+                             "the new claimant removes only its own candidate lock and "
+                             "fails; never touch or steal the existing lock, and treat "
+                             "the board as unknown until recovery is verified")
+                else:
+                    rep.emit(rel, "-", "MALFORMED_LOCK",
+                             "non-intersecting lock resources", resource,
+                             "release the conflicting lock")
             claimed[resource] = name
         if state_stage_status.get(stage) == "ready":
             rep.emit(rel, "-", "LOCK_COMPLETE_CONFLICT",
@@ -1384,6 +2135,11 @@ class World:
         # Current coordinator-owned decisions from state.toml, used to prove a
         # ready PAC handoff does not contradict them.
         self.state_decisions: dict = {}
+        # source_id -> SourceDocument, from the 01-sources handoff. One binding
+        # array, so an ID cannot name bytes the catalog never admitted.
+        self.source_documents: dict = {}
+        # board_id -> structurally parseable board-test locks still present.
+        self.board_locks: dict[str, list[dict]] = {}
 
 
 def parse_args(argv):
@@ -1475,8 +2231,9 @@ def run(root_dir, bindings, kind) -> int:
         state = loader.load_toml(state_abs, state_rel)
     if state is not None:
         ctx = Ctx(rep, loader, roots, state_rel)
-        if state.get("schema") != 1:
-            ctx.err("schema", "SCHEMA_VERSION", "schema version 1", state.get("schema"),
+        if state.get("schema") != SCHEMA_VERSION_CURRENT:
+            ctx.err("schema", "SCHEMA_VERSION",
+                    "schema version %d" % SCHEMA_VERSION_CURRENT, state.get("schema"),
                     "rewrite state for a supported schema version")
             state = None
         else:
@@ -1488,6 +2245,28 @@ def run(root_dir, bindings, kind) -> int:
             decisions = state.get("decisions", {})
             if isinstance(decisions, dict):
                 world.state_decisions = decisions
+                destination = decisions.get("destination_crate")
+                if isinstance(destination, dict):
+                    # A18. Constraining the configured destination to a
+                    # repository-root `embassy-<vendor_id>` is what makes the
+                    # tester's `embassy-*/**` deny rule actually cover it. It
+                    # closes CONFIGURED-PATH coverage only: bash, grep,
+                    # filenames, diagnostics, history and tools remain leak
+                    # paths, and observed body text still invalidates a run.
+                    vendor_id = state.get("target", {}).get("vendor_id") \
+                        if isinstance(state.get("target"), dict) else None
+                    expected = "embassy-%s" % vendor_id if isinstance(vendor_id, str) else None
+                    path = destination.get("path")
+                    ok = (isinstance(path, str) and "/" not in path
+                          and destination.get("root") is None
+                          and DESTINATION_CRATE_RE.match(path)
+                          and (expected is None or path == expected))
+                    if not ok:
+                        ctx.err("decisions.destination_crate", "ILLEGAL_ENUM",
+                                "a repository-root single-segment crate directory %r"
+                                % (expected or "embassy-<vendor_id>"), destination,
+                                "place the destination crate at the repository root so "
+                                "the tester's embassy-*/** denial covers it")
                 peripheral = decisions.get("first_peripheral")
                 modes = decisions.get("first_peripheral_modes")
                 if bool(peripheral) != bool(modes):
@@ -1520,8 +2299,9 @@ def run(root_dir, bindings, kind) -> int:
             if data is None:
                 continue
             ctx = Ctx(rep, loader, roots, rel)
-            if data.get("schema") != 1:
-                ctx.err("schema", "SCHEMA_VERSION", "schema version 1", data.get("schema"),
+            if data.get("schema") != SCHEMA_VERSION_CURRENT:
+                ctx.err("schema", "SCHEMA_VERSION",
+                        "schema version %d" % SCHEMA_VERSION_CURRENT, data.get("schema"),
                         "rewrite the decision for a supported schema version")
                 continue
             validate_table(ctx, "", SCOPE_SCHEMA, data)
@@ -1585,6 +2365,18 @@ def run(root_dir, bindings, kind) -> int:
                 # validate_independent_review); an 08-review is never a
                 # `by_stage` consumer.
                 world.reviews_by_path["halucinator/handoff/" + name] = handoff
+            if khint == "01-sources":
+                docs = data.get("sources", {}).get("documents") \
+                    if isinstance(data.get("sources"), dict) else None
+                if isinstance(docs, list):
+                    for entry in docs:
+                        if isinstance(entry, dict) and isinstance(entry.get("source_id"), str):
+                            world.source_documents.setdefault(entry["source_id"], entry)
+
+    # Board locks are indexed before handoff validation so a published tests
+    # handoff can be compared with an interlock that never reached
+    # recovery-verified. Absence of a lock is NOT evidence of safe teardown.
+    index_board_locks(loader, os.path.join(hal, ".run"), world)
 
     for handoff in handoffs:
         if kind not in ("all", handoff.kind):
