@@ -5,18 +5,49 @@
 This file governs work on a **new `embassy-<vendor>` HAL crate** destined
 for upstream `embassy-rs/embassy`.
 
-If you are reading this inside the **halucinator** repository itself, you
-are working on the toolkit — the agents and skills that produce HALs, not
-a HAL. See `README.md`. The rules below still describe the domain those
-agents operate in, so they remain useful context.
+## Checkout context guard
 
-## Prerequisite
+This guard binds the eight `hal-*` HAL-workflow agents: each of them must
+classify the checkout **read-only** before anything else, and must not write,
+lock or dispatch while classifying.
 
-Work happens inside a clone of `embassy-rs/embassy`. The new crate lives
-at `embassy-<vendor>/`, a sibling of `embassy-mcxa/`, `embassy-stm32/`,
-and the rest. Paths in this file are relative to the repository root and
-are expected to resolve. If they do not, stop and say so rather than
-guessing at the contents.
+A non-HAL agent — a maintenance agent working outside the HAL workflow, dispatched
+to the halucinator toolkit itself — is not bound by this guard and proceeds
+normally.
+
+That exclusion is settled by agent identity alone and never by an agent's own
+judgement of its task. A `hal-*` agent is bound here whatever it believes its
+current work to be; it may not relabel itself a maintenance agent to escape the
+refusal, and the refusal it owes stays terminal.
+
+- **TOOLKIT** when `README.md`, `docs/opencode.json`, `.opencode/ownership.toml`
+  and `tools/selfcheck.py` all exist and `README.md` contains the sentence
+  `No HAL source lives here`. TOOLKIT wins even if Embassy markers also appear:
+  it takes precedence over EMBASSY, because a toolkit checkout can legitimately
+  vendor Embassy-looking files while containing no HAL to work on.
+- **EMBASSY** only when the classification is not TOOLKIT and a root
+  `Cargo.toml`, the `embassy-mcxa` crate's `DEVGUIDE.md` and the ownership file
+  all exist.
+- **AMBIGUOUS** otherwise.
+
+On TOOLKIT or AMBIGUOUS, respond exactly:
+
+HAL workflow not started: run toolkit maintenance with a non-HAL agent, or
+install halucinator into an Embassy checkout.
+
+Then return immediately and list the observed markers. No retry, no lock, no
+state publication, no write, no subdispatch. A clear refusal is better than a
+loop against paths that do not exist. This classification is conservative
+evidence about the checkout, not proof of identity, and nothing mechanical
+proves an agent performed it.
+
+Minimum context: the HAL workflow needs an `embassy-rs/embassy` clone. The
+new crate lives at `embassy-<vendor>/`, a sibling of `embassy-mcxa/`,
+`embassy-stm32/`, and the rest. Paths in this file are relative to the
+repository root and are expected to resolve. In a toolkit checkout they do
+not, and that is the point of the guard above: `README.md`,
+`docs/opencode.json`, `.opencode/ownership.toml` and `tools/selfcheck.py`
+are the halucinator toolkit, and `README.md` says `No HAL source lives here`.
 
 ---
 
@@ -324,10 +355,17 @@ These are failure conditions, not preferences. The `HAL-RULE-01` through `HAL-RU
    field has four legal values, the type has four inhabitants. See the
    design discipline above.
 
-4. **[HAL-RULE-04] Never hand-roll clock gating or reset in a driver.** That policy
-   lives in the `clocks` subsystem and is reached through the `Gate` trait
-   and `enable_and_reset`. A driver poking `MRCC`/`SPC`/`SCG` directly
-   means the policy is now configured in two places that can disagree.
+4. **[HAL-RULE-04] Never duplicate clock, reset, or power policy in a peripheral
+   driver.** One architected owning layer records, per resource, policy
+   owners, acquisition/initialization, reset arbitration, lifetime accounting
+   or its explicit absence, teardown/quiescence, frequency source or
+   irrelevance, and cancellation behavior. Peripheral modules use that
+   contract. A driver that configures the same resource itself means the
+   policy is now configured in two places that can disagree. `Gate` and
+   `enable_and_reset` are MCXA examples, not required names or shapes: a
+   target may have shared reset domains, reference-counted gates, immutable
+   always-on clocks, split clock and reset controllers, or no lifetime power
+   vote at all, and must state its actual form.
    DEVGUIDE §"Bringing Up Clocks and Resets".
 
 5. **[HAL-RULE-05] Never vendor a forked PAC.** A `Cargo.toml` pointing a dependency at
@@ -338,8 +376,14 @@ These are failure conditions, not preferences. The `HAL-RULE-01` through `HAL-RU
 6. **[HAL-RULE-06] Never hand-edit generated code.** `_generated.rs` and the PAC crate
    are outputs. Fix the generator or the metadata.
 
-7. **[HAL-RULE-07] Clear all error flags before returning.** An early return on the
-   first error leaves the others latched and the peripheral wedged.
+7. **[HAL-RULE-07] Observe and account for every relevant error condition according to cited
+   read and clear semantics before returning.** Preserve unrelated and control
+   bits and leave no recoverable condition latched. Read-to-clear state need
+   not and sometimes cannot be snapshotted first: a W1C flag is cleared by
+   writing one to it, a W0C flag by writing zero, and a read-to-clear flag by
+   the read itself.
+   An early return on the first error leaves the others latched and the
+   peripheral wedged.
    DEVGUIDE §"Checking Errors".
 
 8. **[HAL-RULE-08] Register the waker before checking the condition.** Check-then-
