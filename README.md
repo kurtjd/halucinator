@@ -81,14 +81,26 @@ unrelated files and configuration.
 **`opencode.json`** — the root config that sets `default_agent` to
 `hal-coordinator`. Without it a user who follows the install lands on the
 built-in `build` agent and bypasses the whole topology. Merge it into an
-existing root config rather than overwriting one.
+existing root config rather than overwriting one. Inside this toolkit
+checkout `docs/opencode.json` is **inert product material**: it is shipped
+to a user's Embassy clone and is not the configuration this repository runs
+under. A config that looks live here is exactly the confusion the checkout
+context guard exists to prevent.
 
-The commands below overwrite matching files.
+The commands below are a **fresh install**. Every one of them refuses when
+the destination already exists, because upstream Embassy may carry its own
+`AGENTS.md` or `opencode.json` and silently replacing it loses work. When a
+destination exists, stop and diff/merge it manually: compare the shipped file
+with the existing one, carry over the halucinator sections, and keep unrelated
+configuration.
 
 Per project:
 
 ```sh
 # POSIX
+[ ! -e /path/to/embassy/AGENTS.md ] || exit 1
+[ ! -e /path/to/embassy/opencode.json ] || exit 1
+[ ! -e /path/to/embassy/.opencode ] || exit 1
 cp halucinator/AGENTS.md /path/to/embassy/AGENTS.md
 cp halucinator/docs/opencode.json /path/to/embassy/opencode.json
 mkdir -p /path/to/embassy/.opencode
@@ -97,23 +109,28 @@ cp -R halucinator/.opencode/. /path/to/embassy/.opencode/
 
 ```powershell
 # PowerShell
+if (Test-Path -LiteralPath D:\path\to\embassy\AGENTS.md) { throw "AGENTS.md exists; diff and merge manually" }
+if (Test-Path -LiteralPath D:\path\to\embassy\opencode.json) { throw "opencode.json exists; diff and merge manually" }
+if (Test-Path -LiteralPath D:\path\to\embassy\.opencode) { throw ".opencode exists; diff and merge manually" }
 Copy-Item halucinator\AGENTS.md D:\path\to\embassy\AGENTS.md
 Copy-Item halucinator\docs\opencode.json D:\path\to\embassy\opencode.json
-New-Item -ItemType Directory -Force -Path D:\path\to\embassy\.opencode
-Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination D:\path\to\embassy\.opencode\
+New-Item -ItemType Directory -Path D:\path\to\embassy\.opencode
+Copy-Item -Recurse -Path halucinator\.opencode\* -Destination D:\path\to\embassy\.opencode\
 ```
 
 Or install the agents and skills globally, for every project:
 
 ```sh
+[ ! -e ~/.config/opencode/opencode.json ] || exit 1
 mkdir -p ~/.config/opencode
 cp -R halucinator/.opencode/. ~/.config/opencode/
 cp halucinator/docs/opencode.json ~/.config/opencode/opencode.json
 ```
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "$HOME\.config\opencode"
-Copy-Item -Recurse -Force -Path halucinator\.opencode\* -Destination "$HOME\.config\opencode\"
+if (Test-Path -LiteralPath "$HOME\.config\opencode\opencode.json") { throw "global config exists; diff and merge manually" }
+New-Item -ItemType Directory -Path "$HOME\.config\opencode" -ErrorAction SilentlyContinue
+Copy-Item -Recurse -Path halucinator\.opencode\* -Destination "$HOME\.config\opencode\"
 Copy-Item halucinator\docs\opencode.json "$HOME\.config\opencode\opencode.json"
 ```
 
@@ -263,9 +280,14 @@ statement of intent, not a sandbox. The known escape hatches:
   `hal-integrator` builds the isolated candidate and returns only sanitized
   `{category, error_code, test_location, public_signature_mismatch, message}`.
 - `glob` and `list` still reveal filenames.
-- The deny patterns are static globs. An arbitrary
-  `state.decisions.destination_crate` pointing a HAL crate somewhere outside
-  `embassy-*/` is not covered. See `TODO.md`.
+
+Schema 2 constrains `destination_crate` to a repository-root one-segment
+`embassy-<vendor_id>`; a named root, a nested path or an alias is rejected with
+`ILLEGAL_ENUM`. That root is covered by the deny glob `embassy-*/**`. This
+closes configured-path coverage, not perfect blindness: `bash` is `ask`, `grep`
+is matched against the query rather than the path, and filenames, compiler and
+build-script diagnostics, history and tools remain leak paths; observed body
+text invalidates the run.
 
 An observed leak invalidates that run, and `hal-coordinator` must dispatch a
 fresh tester context. Nothing mechanically enforces that.
