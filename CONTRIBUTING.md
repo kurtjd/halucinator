@@ -41,6 +41,7 @@ Run these commands from the repository root with Python 3.11 or newer:
 python tools/selfcheck.py
 python tools/generate_schema_fixtures.py --root . --check
 python -m unittest discover -s .opencode/schema -p "test_*.py"
+python .opencode/schema/test_runtime.py
 ```
 
 The commands answer different questions:
@@ -60,16 +61,21 @@ The commands answer different questions:
    prove that a declared mutation is semantically correct. Check mode does not
    rewrite fixtures.
 3. `python -m unittest discover -s .opencode/schema -p "test_*.py"` discovers
-   the schema test modules and runs the citation and runtime suites. These tests
-   exercise production helpers, including subprocess boundaries and fault
-   injection. A passing suite does not close the documented broker,
-   cross-clone, physical-truth, or test-intent limits. Read
-   [`test_citation.py`](.opencode/schema/test_citation.py) and
+   and runs the citation suite only. It exercises the production citation
+   helpers across the `pdftotext` subprocess boundary and their fault paths. A
+   green run establishes only the cases its names, docstrings, and assertions
+   cover; read [`test_citation.py`](.opencode/schema/test_citation.py) when
+   changing that behavior.
+4. `python .opencode/schema/test_runtime.py` runs the standalone runtime
+   fault-injection suite against the production interlock helper as a
+   subprocess. A green run establishes the 22 constructed cases, not that test
+   names match their intent or that recovery works end to end on hardware. It
+   does not close the broker, cross-clone, or physical-truth residuals. Read
    [`test_runtime.py`](.opencode/schema/test_runtime.py) when changing the
    covered behavior.
 
 The self-check also invokes fixture regeneration and both schema suites, but run
-all three commands directly. Direct runs make failures attributable and confirm
+all four commands directly. Direct runs make failures attributable and confirm
 that the commands documented here still work.
 
 ## How to add a skill

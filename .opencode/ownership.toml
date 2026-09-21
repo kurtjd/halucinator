@@ -25,9 +25,10 @@
 # neither reviewable nor durable across clones.
 #
 # Inside a candidate root, a file keeps the owner its canonical counterpart has.
-# The crate root, the chip modules and the generated output are shared files in
-# a driver candidate exactly as they are in `embassy-*/src/`, which is why the
-# shared classes name both locations and override the broad driver classes.
+# The crate root and chip modules are shared files in a driver candidate exactly
+# as they are in `embassy-*/src/`, so those shared classes name both locations
+# and override the broad driver classes. The integrator-owned build script emits
+# generated declarations into Cargo's `OUT_DIR`, not into a committed source path.
 
 schema = 1
 
@@ -44,12 +45,7 @@ patterns = [".gitattributes"]
 [[file_classes]]
 id = "build-generation"
 owner = "hal-integrator"
-patterns = [
-  "embassy-*/build.rs",
-  "embassy-*/src/_generated.rs",
-  "halucinator/candidates/driver-*/src/_generated.rs",
-]
-overrides = ["driver-candidates", "peripheral-modules"]
+patterns = ["embassy-*/build.rs"]
 
 [[file_classes]]
 id = "chip-modules"

@@ -15,9 +15,9 @@ Requirement IDs belong to the coordinator's dispatch, not to this file.
 - Read the live `embassy-mcxa/DEVGUIDE.md` and the actual implementation of the
   nearest comparable subsystem **in this checkout** before choosing types or
   ordering. Discover the layout rather than assuming a module path. Relevant
-  sections include "The top level of the crate", "Type Erasure and
-  Constructors", "Configuration", "Error types", "Bringing Up Clocks and
-  Resets", "Implementing Upstream Trait Contracts", "Asynchronous
+  sections include "The top level of the crate - `lib.rs`", "Type Erasure and
+  Constructors", "Configuration: Defaults and Validation", "Error types",
+  "Bringing Up Clocks and Resets", "Implementing Upstream Trait Contracts", "Asynchronous
   (Interrupt-Driven) Drivers", and "Shared Static State and DMA".
 - Record the actual section and file citations from the executing checkout.
   Missing live references block the affected implementation; this toolkit is not

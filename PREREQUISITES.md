@@ -16,8 +16,8 @@ setup gap. A board, probe, and runner first become relevant for authorized
 
 | Prerequisite | What it is and why it is needed | First stage that needs it | Status | POSIX check | PowerShell check |
 |---|---|---|---|---|---|
-| Embassy checkout | A clone of `embassy-rs/embassy`. Agents read the live `embassy-mcxa/DEVGUIDE.md` and implementation rather than a bundled snapshot. The rules require refusal outside a checkout with the three classification markers. The scaffold contract designates a new repository-root sibling at `embassy-<vendor>/` as the eventual destination; that crate need not exist at intake. | Before the pipeline starts | Required | `test -f Cargo.toml && test -f embassy-mcxa/DEVGUIDE.md && test -f .opencode/ownership.toml` | `Test-Path -LiteralPath Cargo.toml; Test-Path -LiteralPath embassy-mcxa/DEVGUIDE.md; Test-Path -LiteralPath .opencode/ownership.toml` |
-| OpenCode and installed toolkit config | OpenCode runs the agents and skills. The install must place or merge `AGENTS.md`, `.opencode/`, and `opencode.json` in the Embassy checkout. The shipped config selects `hal-coordinator`. OpenCode reads config once, so restart it after installation. | Before the pipeline starts | Required | `opencode --version && test -f AGENTS.md && test -f .opencode/ownership.toml && test -f opencode.json` | `opencode --version; Test-Path -LiteralPath AGENTS.md; Test-Path -LiteralPath .opencode\ownership.toml; Test-Path -LiteralPath opencode.json` |
+| Embassy checkout | A clone of `embassy-rs/embassy`. Agents read the live `embassy-mcxa/DEVGUIDE.md` and implementation rather than a bundled snapshot. The guard resolves the Git worktree root, with a bounded parent-search fallback, and requires `embassy-mcxa/DEVGUIDE.md` there. The scaffold contract designates a new repository-root sibling at `embassy-<vendor>/` as the eventual destination; that crate need not exist at intake. | Before the pipeline starts | Required | `test -f "$(git rev-parse --show-toplevel)/embassy-mcxa/DEVGUIDE.md"` | `$r = git rev-parse --show-toplevel; if (-not (Test-Path -LiteralPath "$r\embassy-mcxa\DEVGUIDE.md")) { throw "Embassy marker not found" }` |
+| OpenCode and installed toolkit config | OpenCode runs the agents and skills. Install or merge the toolkit configuration either in the checkout or in the effective global OpenCode configuration directory. The shipped config selects `hal-coordinator`. OpenCode reads config once, so restart it after installation. File presence confirms visible files only; it does not prove which configuration OpenCode loaded. | Before the pipeline starts | Required | `opencode --version && { test -f .opencode/ownership.toml -a -f opencode.json || test -f "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/ownership.toml" -a -f "${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.json"; }` | `opencode --version; $g = if ($env:XDG_CONFIG_HOME) { $env:XDG_CONFIG_HOME } else { "$HOME\.config" }; $local = (Test-Path .opencode\ownership.toml) -and (Test-Path opencode.json); $global = (Test-Path "$g\opencode\ownership.toml") -and (Test-Path "$g\opencode\opencode.json"); if (-not ($local -or $global)) { throw "Toolkit config not found" }` |
 | Python 3.11 or newer | Runs the typed handoff validator and board-interlock helper. In this toolkit checkout it also runs `tools/selfcheck.py`. These programs use the standard-library `tomllib` module and explicitly state Python 3.11+. | Before any handoff is consumed; toolkit maintenance uses it immediately | Required | `python3 -c 'import sys; assert sys.version_info >= (3, 11); print(sys.version)'` | `python -c "import sys; assert sys.version_info >= (3, 11); print(sys.version)"` |
 | `pdftotext -layout` | Poppler/Xpdf PDF extraction used both to preserve table alignment during fact extraction and by the schema-2 citation verifier to derive text from hash-pinned PDF bytes. Without it, PDF citation verification fails closed. | `gather-documentation` intake identifies PDF availability; `extract-hardware-facts` first executes it | Required when admitted evidence includes PDF; not applicable to UTF-8-text-only evidence | `command -v pdftotext && pdftotext -v` | `Get-Command pdftotext; pdftotext -v` |
 | chiptool | Extracts SVD content, applies transforms, checks YAML intermediate representation, and supports the PAC generation toolchain. The selected revision and CLI must be inspected and recorded. The toolkit does not bundle chiptool. | `generate-svd`; reused by `generate-pac` as selected tooling | Required when the selected SVD/PAC recipe uses it | `command -v chiptool && chiptool --help` | `Get-Command chiptool; chiptool --help` |
@@ -34,12 +34,15 @@ successful end-to-end operation.
 ## Checkout and OpenCode installation
 
 The [checkout context guard](AGENTS.md#checkout-context-guard) requires agents
-to classify the working directory before any HAL workflow action. The Embassy classification
-requires a root `Cargo.toml`, `embassy-mcxa/DEVGUIDE.md`, and the installed
-ownership file. It does not require the destination crate to exist at intake;
-the scaffold contract assigns the repository-root sibling named
-`embassy-<vendor>/` as the eventual destination. The rules require a toolkit or ambiguous checkout to be
-refused. The self-check verifies the guard text, not that an agent performs the
+to classify the working directory before any HAL workflow action. It resolves
+the Git worktree root, with a bounded parent-search fallback when Git cannot
+provide one. Embassy classification requires `embassy-mcxa/DEVGUIDE.md` at that
+root. It does not require the destination crate to exist at intake; the scaffold
+contract assigns the repository-root sibling named `embassy-<vendor>/` as the
+eventual destination. The ownership registry may be installed checkout-locally
+or globally: it is an installation prerequisite, not an Embassy identity
+marker. The rules require a toolkit or ambiguous checkout to be refused. The
+self-check verifies the guard text, not that an agent performs the
 classification or refusal.
 
 Follow the [fresh-install or merge procedure](README.md#install). Existing

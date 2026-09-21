@@ -58,7 +58,7 @@ The owning agent is **hal-integrator**, which is also the emitter. It
 materializes five classes it owns, per
 [`ownership.toml`](../../ownership.toml): `integration-candidates`, the
 candidate tree and its evidence and snapshots; `build-generation`, the build
-script and the generated interrupt declarations it produces;
+script that produces the generated interrupt declarations into `OUT_DIR`;
 `chip-modules`, the per-chip modules that name the vectors a part carries;
 `platform-lib`, the crate-level `interrupt_mod!` integration; and
 `platform-handoff`, the deterministic `halucinator/handoff/05-platform.toml`.
