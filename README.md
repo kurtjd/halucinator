@@ -9,32 +9,43 @@ review looking like it belongs in the tree.
 
 No HAL source lives here. This repository is the toolkit.
 
+## Start here
+
+New to halucinator? Follow [Start a HAL workflow](WALKTHROUGH.md). It gives you
+the exact first message to send and stops at a validated documentation-intake
+handoff; it does not claim that the toolkit has built a HAL.
+
+- [Prerequisites](PREREQUISITES.md) is the stage-indexed environment and
+  tooling matrix.
+- [Glossary](GLOSSARY.md) defines the toolkit's workflow vocabulary.
+- [Contributing to halucinator](CONTRIBUTING.md) explains how to change an
+  agent, skill, fixture, or self-check without breaking the repository checks.
+
 ## Status
 
 | Component | State |
 |---|---|
 | `AGENTS.md` | written |
 | Agents | 8 written |
-| Ownership registry | `.opencode/ownership.toml`, 45 file classes |
+| Ownership registry | `.opencode/ownership.toml`, 46 file classes |
 | Example root config | `docs/opencode.json`, `default_agent: hal-coordinator` |
-| Skills | 6 written |
+| Skills | 13 written |
+| Repository self-checks | 56 PASS |
 
-[gather-documentation](.opencode/skills/gather-documentation/SKILL.md),
-[generate-svd](.opencode/skills/generate-svd/SKILL.md),
-[generate-pac](.opencode/skills/generate-pac/SKILL.md),
-[scaffold-hal](.opencode/skills/scaffold-hal/SKILL.md),
-[write-driver](.opencode/skills/write-driver/SKILL.md), and
-[write-examples](.opencode/skills/write-examples/SKILL.md) are implemented.
-Three of the eight agents — `hal-coordinator`, `hal-integrator` and
-`hal-reviewer` — have no dedicated skill at all, and `hal-architect` has no
-design-only skill of its own; all four run on their agent contract, plus
-whatever domain skill the dispatched task names.
+These counts are projections of the live tree, not a claim that the pipeline
+has run end to end. Run `python tools/selfcheck.py` from this repository: its
+`topology`, `skill-discovery-closure`, `ownership`, and
+`selfcheck-doc-parity` PASS lines report the corresponding counts.
 
 ## Prerequisite
 
 halucinator assumes you are working **inside a clone of
 `embassy-rs/embassy`**, with your new crate at `embassy-<vendor>/`
 alongside `embassy-mcxa/`.
+
+See the [full prerequisite matrix](PREREQUISITES.md) for the tools and inputs
+needed at each stage, including the conditions under which hardware becomes
+relevant.
 
 This is deliberate. Rather than embedding snapshots of embassy
 patterns that go stale, the agents cite live paths —
@@ -65,6 +76,21 @@ See [artifact storage and handoff](AGENTS.md#artifact-storage-and-handoff)
 for defaults, overrides, and preserving existing locations, and
 [PAC placement](AGENTS.md#pac-placement) for local dependency setup. HAL source,
 examples, and HIL tests retain their upstream/build-system layouts.
+
+### Worked artifact set
+
+To see what complete typed artifacts look like, read the
+[hand-written worked examples](.opencode/schema/worked-examples.md): ten TOML
+documents covering state, one scope decision, and all eight handoff kinds for
+the transparently fictional target. The matching
+[on-disk fixture tree](.opencode/schema/fixtures/valid/root/halucinator/state.toml)
+is generated under `.opencode/schema/fixtures/valid/` and byte-verified by
+`python tools/generate_schema_fixtures.py --root . --check`.
+
+These are TOML syntax examples and schema fixtures. They are not hardware
+evidence, do not describe a real target, and do not show that the pipeline has
+run in an Embassy checkout or on hardware. Maintain this one coherent example
+set rather than creating a second copy that can drift.
 
 ## Install
 
@@ -142,9 +168,11 @@ hot-reloaded.
 Everything here rests on two sources, both cited throughout
 `AGENTS.md`:
 
-- **`embassy-mcxa/`** — the north star. `DEVGUIDE.md` in that crate is
-  the closest thing embassy has to a "how to write a HAL" guide, and
-  it was written to be generalized. Read it first.
+- **`embassy-mcxa/`** — the north star. Start with
+  [the concern map in `AGENTS.md`](AGENTS.md#the-two-references), which points
+  each concern to the relevant `DEVGUIDE.md`, source, example, or build-policy
+  location. `DEVGUIDE.md` is the closest thing embassy has to a "how to write a
+  HAL" guide and was written to be generalized.
 - **["Making Smaller Things"](https://balbi.sh/posts/making-smaller-things/)**
   — the design discipline. Functional core and imperative shell;
   primitives at the edges and meaning in the middle; parse rather than
@@ -389,4 +417,7 @@ register offsets.
 
 ## License
 
-TBD.
+**Open question:** this repository does not currently declare a license, while
+the installation procedure copies toolkit files into other repositories. The
+maintainer must choose and document a license before users can know what reuse
+and redistribution are permitted. No license is selected here.
