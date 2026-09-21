@@ -653,7 +653,7 @@ Verified as grep-absences across all agents and skills.
   implementing compare-and-swap exists. Operational tests written now would
   embed the algorithms under test and prove only the test code. The Windows
   raw-colon lock filename case is individually safe but not worth a separate
-  mechanism before the operational tooling exists. Owner: post-M7 handover, with F10/F11,
+  mechanism before the operational tooling exists. Owner: M6, with F10/F11,
   which introduce that tooling.* *(Closed by M6.
   **ENFORCED, over the constructed cases only:** `.opencode/schema/runtime.py`
   is the production helper, `.opencode/schema/test_runtime.py` drives it as a
@@ -728,7 +728,7 @@ Verified as grep-absences across all agents and skills.
   The skill explicitly disclaims mechanical verification rather than
   implying it, which is the right disclosure and not a fix. A fabricated
   locator with a fabricated excerpt still passes every check in the suite.
-  Owner: post-M7 handover, with E2.* *(Closed by M6.
+  Owner: M6, with E2.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** schema 2 replaces the independently-membered
   source list with a `sources.documents` binding of source ID to hash-pinned
   bytes; the v2 `CitationRef` carries `assertion_id`, `scope_item`, `claim`,
@@ -826,7 +826,8 @@ Verified as grep-absences across all agents and skills.
 - [ ] **E7** No mechanism makes a false verification claim detectable.
   Records are ordinary Markdown written by the same agent doing the work.
   *Unchanged by M4: hashing the driver record improves stale-evidence
-  detection, not claim truthfulness. Owner: post-M7 handover, with E6's residual.*
+  detection, not claim truthfulness. Owner: post-M7 handover, with E6's
+  residual.*
   *M6 disposition: **DOCUMENTED, not closed.** `claim-truth-limit` mechanically
   requires `validate.md`, `hal-coordinator`, `hal-integrator`, `hal-reviewer`,
   `hal-tester` and `docs/skill-template.md` to disclose that a claimant may have
@@ -915,7 +916,7 @@ Verified as grep-absences across all agents and skills.
   the older fixtures assert less than they appear to. Tightening them means
   auditing each multi-code case and recording the full expected set, which is
   a separate normalization pass rather than a side effect of any milestone's
-  feature work. *Owner: post-M7 handover.* *(Closed by M6.
+  feature work. *Owner: M6.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** the legacy contains-code mode is gone. Every
   invalid fixture root declares one
   `Expected diagnostic: <file>|<field>|<code>` line per expected diagnostic, and
@@ -995,7 +996,8 @@ Zero concurrency vocabulary exists across all agents and skills:
   N concurrent drivers now contend for the same shared clock files.
   Per-driver candidate path locking reduces cooperative overlap but converts
   what was a crash window into an **active writer race** on
-  `embassy-*/src/clocks/**`. Still open. Owner: post-M7 handover.*
+  `embassy-*/src/clocks/**`. Still open. Owner: post-M7
+  handover.*
   *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
   is a real worktree-local, single-operator interlock with exact `path:` and
   `board:` resources, and `runtime-protocol-tests` drives it through eight
@@ -1033,7 +1035,8 @@ Zero concurrency vocabulary exists across all agents and skills:
   physical, not a merge conflict. *Progress: `.opencode/schema/layout.md`
   reserves a `board:<board_id>` lease keyed by physical device rather than
   by stage, but M1 implements no reader, so no exclusion is enforced yet.
-  Owner: post-M7 handover.* *M6 disposition: **PARTIALLY ENFORCED, still open.** A reader now
+  Owner: post-M7 handover.* *M6 disposition: **PARTIALLY ENFORCED, still
+  open.** A reader now
   exists. `runtime.py` acquires, prechecks and releases a `board:<board_id>`
   resource with an unpredictable `lease_epoch` and a revalidated `check_token`,
   any post-create rescan conflict makes the new claimant remove only its own
@@ -1188,8 +1191,9 @@ Zero concurrency vocabulary exists across all agents and skills:
   probe session, safe-state procedure, teardown evidence), an owner
   fencing token, and PAC baseline/candidate manifests. Adding them
   requires the schema-version transition defined in
-  `.opencode/schema/handoff-common.md`. *Owner: post-M7 handover.* *M6 correction: the
-  "reserve identities only" sentence above is **obsolete**. The `schema = 2`
+  `.opencode/schema/handoff-common.md`. *Owner: post-M7 handover.*
+  *M6 correction: the "reserve identities only" sentence above is **obsolete**.
+  The `schema = 2`
   transition landed the structural fields it asks for - `operation_phase`,
   `operation_attempt`, `operation_id`, `last_operation`, `child_session`,
   `safe_state`, `recovery_attempts` and `override_record` on the lock, plus the
@@ -1217,7 +1221,8 @@ Zero concurrency vocabulary exists across all agents and skills:
   indistinguishable from one that never started. This generalizes F8 from the
   PAC to every canonical mutation and needs F10's cross-clone durability and
   F11's phase and fencing fields; it is not a separate mechanism, and closing
-  it requires the `schema = 2` transition. *Owner: post-M7 handover, with F8/F10/F11.*
+  it requires the `schema = 2` transition. *Owner: post-M7 handover, with
+  F8/F10/F11.*
   *M6 disposition: **deliberately deferred, documented only.** M6 added no
   journal fields and no journal diagnostics. The scaffold record now says that
   canonical copy is serialized by the worktree interlock and an immediate
@@ -1235,7 +1240,8 @@ Zero concurrency vocabulary exists across all agents and skills:
   enumerates every expected `write-driver:<name>` dispatch, so a returned
   handoff can be tied to the dispatch that asked for it — but more
   concurrent named drivers make a missing durable dispatch record **more
-  frequent**, not less. Still open. *Owner: post-M7 handover, with F10/F11.*
+  frequent**, not less. Still open. *Owner: post-M7 handover, with
+  F10/F11.*
   *M6 disposition: **deliberately deferred, documented only.** ROADMAP and locks
   remain procedural evidence; no typed pre-dispatch publication exists. Carried
   forward as F19. Owner: post-M7.*
@@ -1357,10 +1363,11 @@ Zero concurrency vocabulary exists across all agents and skills:
   `README.md`: start with the concern map and read the part of the north-star
   crate matching the work; `src/i2c/` remains the reference for peripheral
   driver anatomy, not the fallback for every concern.)*
-- [x] **G13** README manually carried stale counts — 6 skills and 45 ownership
-  classes against a live 13 and 46 — and was drift-prone. *(Closed twice over:
-  the Status table now reports
-  the live 8 agents, 13 skills, 46 ownership classes, and 59 self-checks, and
+- [x] **G13** README manually counts six agents and seven skills
+  (`:14-26`) — drift-prone. *(The original observation was partly wrong: the
+  stale table actually reported 6 skills and 45 ownership classes against a
+  live 13 and 46. Closed twice over: the Status table now reports 8 agents,
+  13 skills, 46 ownership classes, and 59 self-checks, and
   `readme-live-counts` guards all four rows.
   **MECHANICALLY ENFORCED:** the check derives each count from the live tree,
   including the check count from the same AST-derived invocation registry used
@@ -1368,11 +1375,11 @@ Zero concurrency vocabulary exists across all agents and skills:
   **DOCUMENTED ONLY / LIMITS:** it checks only the four known rows, so a fifth
   counted row added later would be unchecked, and matching numbers do not prove
   the counted artifacts are valid.)*
-- [ ] **G14** No license is declared while the install procedure copies the
-  toolkit into other repositories. `README.md` now states the open question
-  explicitly instead of leaving a bare `TBD`, but M7 was not authorized to
-  choose a license. The decision remains the maintainer's. *Owner: post-M7
-  handover.*
+- [ ] **G14** License is `TBD` (`README.md:203-205`) while the install
+  procedure copies the toolkit into other repositories. *(M7 replaced the bare
+  `TBD` with an explicit open-question statement, but was not authorized to
+  choose a license. The decision remains the maintainer's. Owner: post-M7
+  handover.)*
 - [~] **G15** No changelog or versioning story for skills. *Deferred. Owner:
   post-M7 handover.*
 - [~] **G16** Quoted DEVGUIDE section names are not exact current
@@ -1452,7 +1459,7 @@ Asserted capabilities with no procedure sufficient to perform them.
 - [x] **H10** The 944-file fixture tree was generated by a script that
   lives outside the repository. The fixtures are committed and
   self-sufficient, but nothing in-tree can regenerate them and no owner is
-  named. *Owner: post-M7 handover.* *(Closed by M6.
+  named. *Owner: M3 or M7.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** `tools/generate_schema_fixtures.py` and its
   declarative input `tools/schema-fixtures.toml` are committed, stdlib-only and
   deterministic; `--write` regenerates both valid roots and every invalid root
@@ -1489,7 +1496,7 @@ Asserted capabilities with no procedure sufficient to perform them.
   can therefore lose its immediate validation while the check stays green.
   Binding every publishing step is not a check-only fix: it needs 7 of the
   13 skills to name the command stem at their final gate rather than only
-  `--kind all`, which is a change to skill text. *Owner: post-M7 handover.* *(Closed by M6.
+  `--kind all`, which is a change to skill text. *Owner: M6.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** `skill-validator-wiring` now derives every
   handoff-publishing step and requires a `validate.py` invocation at **each** of
   them, in addition to one before the first and the `--kind all` gate at or
