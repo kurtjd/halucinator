@@ -52,6 +52,20 @@ EXIT_CONFLICT = 4
 EXIT_RECOVERY = 5
 EXIT_CAS = 6
 
+
+class Refusal(Exception):
+    """A refusal with an exit code. Every refusal is fail-closed.
+
+    Defined before the lock-schema loader below, which raises it. It used to be
+    defined after, so the loader's own refusal would have raised NameError and
+    an operator with a broken install would have debugged the wrong thing.
+    """
+
+    def __init__(self, code: int, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 SCHEMA = 2
 HEARTBEAT_AMBIGUOUS_SECONDS = 120
 REPLACE_RETRY_DELAYS_MS = (50, 100, 200, 400)
@@ -67,15 +81,25 @@ _SCHEMA_MODULE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 
 def _load_lock_schema_module():
+    def refuse(detail: str) -> Refusal:
+        return Refusal(EXIT_USAGE,
+                       "cannot load the lock schema from %r (%s); the helper refuses "
+                       "to write a lock whose vocabulary it cannot check against the "
+                       "validator" % (_SCHEMA_MODULE_PATH, detail))
+
     spec = importlib.util.spec_from_file_location("halucinator_lock_schema",
                                                   _SCHEMA_MODULE_PATH)
     if spec is None or spec.loader is None:
-        raise Refusal(EXIT_USAGE,
-                      "cannot load the lock schema from %r; the helper refuses to "
-                      "write a lock whose vocabulary it cannot check against the "
-                      "validator" % _SCHEMA_MODULE_PATH)
+        raise refuse("no import loader for that path")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        # `spec_from_file_location` does not stat the file, so an absent or
+        # unreadable validate.py surfaces here rather than above. Without this
+        # the operator saw a raw FileNotFoundError and never the message that
+        # tells them what is actually wrong.
+        raise refuse("%s: %s" % (type(exc).__name__, exc)) from exc
     return module
 
 
@@ -98,14 +122,6 @@ RECOVERY_SCOPED_OPERATIONS = ("attach", "reset", "halt", "detach",
                               "power-change", "fixture-change")
 
 FAULT_ENV = "HALUCINATOR_RUNTIME_FAULTS"
-
-
-class Refusal(Exception):
-    """A refusal with an exit code. Every refusal is fail-closed."""
-
-    def __init__(self, code: int, message: str) -> None:
-        super().__init__(message)
-        self.code = code
 
 
 # --------------------------------------------------------------------------
