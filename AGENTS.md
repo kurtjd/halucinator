@@ -5,6 +5,20 @@
 This file governs work on a **new `embassy-<vendor>` HAL crate** destined
 for upstream `embassy-rs/embassy`.
 
+## Start here
+
+HAL-workflow agents must apply the [checkout context guard](#checkout-context-guard)
+before following the rest of this file. Then use this map to go directly to
+the material needed for the task:
+
+| Need | Go to |
+|---|---|
+| Find the next workflow stage and its owner | [The pipeline](#the-pipeline) |
+| Store or hand off documentation and PAC artifacts | [Artifact storage and handoff](#artifact-storage-and-handoff) |
+| Check a non-negotiable constraint | [Hard rules](#hard-rules) |
+| Choose the relevant north-star implementation | [`embassy-mcxa` concern map](#1-embassy-mcxa--the-north-star) |
+| Apply the project's type-design discipline | [Making Smaller Things](#2-making-smaller-things--the-design-discipline) |
+
 ## Checkout context guard
 
 This guard binds the eight `hal-*` HAL-workflow agents: each of them must
@@ -58,12 +72,14 @@ Every agent relies on these two sources. Neither is optional.
 ### 1. `embassy-mcxa/` — the north star
 
 `embassy-mcxa` is the most recently designed HAL in the tree and the
-pattern this project replicates. **`embassy-mcxa/DEVGUIDE.md` is the
-single most important file to read before writing any HAL code.** It is
-the closest thing embassy has to a "how to write a HAL" guide, and it was
-written specifically to be generalised to other HALs.
+whole crate is the north-star pattern this project replicates. Use the concern
+map below as the entry point: read `embassy-mcxa/DEVGUIDE.md` first, then follow
+the row for the work at hand. **`embassy-mcxa/DEVGUIDE.md` is the single most
+important file to read before writing any HAL code.** It is the closest thing
+embassy has to a "how to write a HAL" guide, and it was written specifically
+to be generalised to other HALs.
 
-Read it first. Cite it by section when you make a design decision.
+Cite it by section when you make a design decision.
 
 Map of what to read for each concern:
 
@@ -408,9 +424,10 @@ These are failure conditions, not preferences. The `HAL-RULE-01` through `HAL-RU
 
 ## Working style
 
-- Read before writing. `embassy-mcxa` has already solved most of what you
-  are about to solve; the cost of reading `src/i2c/` is far lower than the
-  cost of a review cycle that says "look at how i2c does it".
+- Read before writing. Start with the `embassy-mcxa` concern map above and read
+  the part of the north-star crate that matches the work; `src/i2c/` is the
+  reference implementation for peripheral driver anatomy, not the fallback
+  for every concern.
 - Prefer patching the PAC over working around it in a driver. A driver
   describes behaviour; it does not re-encode the memory map.
 - Keep `cargo fmt` and `clippy` clean. They are CI failures in this
