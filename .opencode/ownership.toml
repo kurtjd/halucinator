@@ -1,0 +1,298 @@
+# halucinator ownership registry — the single machine-readable source of truth
+# for which agent may write which file class, and who may commit.
+#
+# This file ships with the toolkit: installed agents need the same ownership
+# boundary they were authored against. Agent definitions declare only the `id`
+# of a class; the patterns and the owner live here and nowhere else.
+#
+# Rules enforced by `tools/selfcheck.py`:
+#   * schema is the integer 1;
+#   * `[[file_classes]]` entries appear in ascending `id` order;
+#   * every entry has exactly `id`, `owner`, `patterns`, plus optional
+#     `overrides`; unknown keys fail;
+#   * `patterns` and `overrides` are sorted, unique string arrays;
+#   * every class is claimed by exactly one agent contract, and that agent is
+#     the `owner` recorded here;
+#   * two classes whose patterns overlap must share an owner or the narrower
+#     one must name the broader one in `overrides`;
+#   * `[operations]` contains exactly `commit_owner`.
+#
+# Candidate work uses committed, clone-durable roots:
+#   halucinator/candidates/driver-*/       driver-owned scratch implementation
+#   halucinator/candidates/integration-*/  integrator-owned full crate candidate
+#   halucinator/test-candidates/<name>/    tester-owned black-box test revision
+# The hidden `.run` scratch convention is rejected: it is gitignored, so it is
+# neither reviewable nor durable across clones.
+#
+# Inside a candidate root, a file keeps the owner its canonical counterpart has.
+# The crate root, the chip modules and the generated output are shared files in
+# a driver candidate exactly as they are in `embassy-*/src/`, which is why the
+# shared classes name both locations and override the broad driver classes.
+
+schema = 1
+
+[[file_classes]]
+id = "architecture-spec"
+owner = "hal-architect"
+patterns = ["halucinator/docs/*/notes/ARCHITECTURE.md"]
+
+[[file_classes]]
+id = "attributes"
+owner = "hal-integrator"
+patterns = [".gitattributes"]
+
+[[file_classes]]
+id = "build-generation"
+owner = "hal-integrator"
+patterns = [
+  "embassy-*/build.rs",
+  "embassy-*/src/_generated.rs",
+  "halucinator/candidates/driver-*/src/_generated.rs",
+]
+overrides = ["driver-candidates", "peripheral-modules"]
+
+[[file_classes]]
+id = "chip-modules"
+owner = "hal-integrator"
+patterns = [
+  "embassy-*/src/chips/**",
+  "halucinator/candidates/driver-*/src/chips/**",
+  "halucinator/candidates/integration-*/src/chips/**",
+]
+overrides = ["driver-candidates", "peripheral-modules"]
+
+[[file_classes]]
+id = "ci"
+owner = "hal-integrator"
+patterns = ["ci.sh"]
+
+[[file_classes]]
+id = "clock-modules"
+owner = "hal-driver"
+patterns = ["embassy-*/src/clocks/**", "halucinator/candidates/driver-*/src/clocks/**"]
+
+[[file_classes]]
+id = "crate-manifest"
+owner = "hal-integrator"
+patterns = ["embassy-*/Cargo.toml", "halucinator/candidates/integration-*/Cargo.toml"]
+
+[[file_classes]]
+id = "driver-candidates"
+owner = "hal-driver"
+patterns = ["halucinator/candidates/driver-*/src/**"]
+
+[[file_classes]]
+id = "driver-evidence"
+owner = "hal-driver"
+patterns = ["halucinator/candidates/driver-*/evidence/**"]
+
+[[file_classes]]
+id = "driver-handoff"
+owner = "hal-driver"
+patterns = ["halucinator/handoff/06-driver-*.toml"]
+
+[[file_classes]]
+id = "driver-records"
+owner = "hal-integrator"
+patterns = [
+  "halucinator/docs/*/notes/GPIO.md",
+  "halucinator/docs/*/notes/TIME-DRIVER.md",
+  "halucinator/docs/*/notes/drivers/**",
+]
+
+[[file_classes]]
+id = "example-binaries"
+owner = "hal-integrator"
+patterns = ["examples/*/src/bin/**"]
+
+[[file_classes]]
+id = "example-manifest"
+owner = "hal-integrator"
+patterns = ["examples/*/Cargo.toml"]
+
+# `write-examples` requires the live checkout's target/link configuration and
+# build conventions for `examples/<chip>/`, not only a manifest and a binary.
+# Those produced files are shared wiring, so they carry the shared-file owner.
+[[file_classes]]
+id = "example-support"
+owner = "hal-integrator"
+patterns = ["examples/*/*.x", "examples/*/.cargo/**", "examples/*/build.rs"]
+
+[[file_classes]]
+id = "fact-notes"
+owner = "hal-datasheet"
+patterns = [
+  "halucinator/docs/*/notes/FACTS.md",
+  "halucinator/docs/*/notes/fact-checks.md",
+  "halucinator/docs/*/notes/facts/**",
+]
+
+[[file_classes]]
+id = "facts-handoff"
+owner = "hal-datasheet"
+patterns = ["halucinator/handoff/02-facts.toml"]
+
+[[file_classes]]
+id = "format-policy"
+owner = "hal-integrator"
+patterns = ["rustfmt.toml"]
+
+[[file_classes]]
+id = "hil-tests"
+owner = "hal-integrator"
+patterns = ["tests/*/**"]
+
+[[file_classes]]
+id = "ignore-policy"
+owner = "hal-integrator"
+patterns = [".gitignore"]
+
+[[file_classes]]
+id = "integration-candidates"
+owner = "hal-integrator"
+patterns = ["halucinator/candidates/integration-*/**"]
+
+[[file_classes]]
+id = "linker"
+owner = "hal-integrator"
+patterns = [
+  "embassy-*/link*.x",
+  "embassy-*/memory.x",
+  "halucinator/candidates/integration-*/link*.x",
+  "halucinator/candidates/integration-*/memory.x",
+]
+
+[[file_classes]]
+id = "pac-handoff"
+owner = "hal-svd"
+patterns = ["halucinator/handoff/04-pac.toml"]
+
+[[file_classes]]
+id = "pac-project"
+owner = "hal-svd"
+patterns = ["halucinator/pac/**"]
+
+[[file_classes]]
+id = "peripheral-modules"
+owner = "hal-driver"
+patterns = ["embassy-*/src/**", "halucinator/candidates/driver-*/src/**"]
+
+[[file_classes]]
+id = "platform-handoff"
+owner = "hal-integrator"
+patterns = ["halucinator/handoff/05-platform.toml"]
+
+[[file_classes]]
+id = "platform-lib"
+owner = "hal-integrator"
+patterns = [
+  "embassy-*/src/lib.rs",
+  "halucinator/candidates/driver-*/src/lib.rs",
+  "halucinator/candidates/integration-*/src/lib.rs",
+]
+overrides = ["driver-candidates", "peripheral-modules"]
+
+[[file_classes]]
+id = "platform-notes"
+owner = "hal-integrator"
+patterns = ["halucinator/docs/*/notes/SCAFFOLD.md", "halucinator/docs/*/notes/STARTUP.md"]
+
+[[file_classes]]
+id = "recovery-records"
+owner = "hal-integrator"
+patterns = ["halucinator/docs/*/notes/recovery/**"]
+
+[[file_classes]]
+id = "review-handoff"
+owner = "hal-reviewer"
+patterns = ["halucinator/handoff/08-review-*.toml"]
+
+[[file_classes]]
+id = "review-notes"
+owner = "hal-integrator"
+patterns = ["halucinator/docs/*/notes/REVIEW-*.md"]
+
+[[file_classes]]
+id = "roadmap"
+owner = "hal-coordinator"
+patterns = ["halucinator/docs/*/notes/ROADMAP.md"]
+
+[[file_classes]]
+id = "runtime-wiring"
+owner = "hal-integrator"
+patterns = ["embassy-*/Cargo.toml", "examples/*/Cargo.toml", "tests/*/Cargo.toml"]
+
+[[file_classes]]
+id = "scope-decisions"
+owner = "hal-coordinator"
+patterns = ["halucinator/scope/*.toml"]
+
+[[file_classes]]
+id = "sources-catalog"
+owner = "hal-integrator"
+patterns = ["halucinator/docs/*/SOURCES.md"]
+
+[[file_classes]]
+id = "sources-handoff"
+owner = "hal-datasheet"
+patterns = ["halucinator/handoff/01-sources.toml"]
+
+[[file_classes]]
+id = "svd-handoff"
+owner = "hal-svd"
+patterns = ["halucinator/handoff/03-svd.toml"]
+
+[[file_classes]]
+id = "svd-pac-notes"
+owner = "hal-svd"
+patterns = ["halucinator/docs/*/notes/PAC.md", "halucinator/docs/*/notes/SVD.md"]
+
+[[file_classes]]
+id = "test-candidate-evidence"
+owner = "hal-tester"
+patterns = ["halucinator/test-candidates/*/evidence/**"]
+
+[[file_classes]]
+id = "test-candidate-manifests"
+owner = "hal-tester"
+patterns = ["halucinator/test-candidates/*/*.toml", "halucinator/test-candidates/*/INVENTORY.md"]
+
+[[file_classes]]
+id = "test-candidate-source"
+owner = "hal-tester"
+patterns = ["halucinator/test-candidates/*/src/**"]
+
+[[file_classes]]
+id = "test-records"
+owner = "hal-integrator"
+patterns = ["halucinator/docs/*/notes/tests/**"]
+
+[[file_classes]]
+id = "tests-handoff"
+owner = "hal-tester"
+patterns = ["halucinator/handoff/07-tests-*.toml"]
+
+[[file_classes]]
+id = "toolchain"
+owner = "hal-integrator"
+patterns = ["rust-toolchain.toml"]
+
+[[file_classes]]
+id = "vendor-extractions"
+owner = "hal-datasheet"
+patterns = ["halucinator/docs/*/extracted/**"]
+
+[[file_classes]]
+id = "vendor-source-bytes"
+owner = "hal-datasheet"
+patterns = ["halucinator/docs/*/sources/**"]
+
+[[file_classes]]
+id = "workflow-state"
+owner = "hal-coordinator"
+patterns = ["halucinator/state.toml"]
+
+# Committing is an operation, not a path glob, so it is not misrepresented as
+# a file class. Exactly one agent may run it.
+[operations]
+commit_owner = "hal-integrator"

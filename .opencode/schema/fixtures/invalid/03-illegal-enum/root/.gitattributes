@@ -1,0 +1,11 @@
+# FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+halucinator/state.toml text eol=lf
+halucinator/scope/*.toml text eol=lf
+halucinator/handoff/*.toml text eol=lf
+halucinator/docs/**/*.md text eol=lf
+halucinator/docs/**/sources/** -text
+halucinator/pac/** -text
+halucinator/candidates/** text eol=lf
+halucinator/.run/*.lock text eol=lf
+examples/** text eol=lf
+embassy-unobtainium/** text eol=lf

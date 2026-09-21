@@ -1,0 +1,25 @@
+checks=[{id="workflow-references-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}},{id="live-conventions-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}},{id="format-lint",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}},{id="target-build-link",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}},{id="build-only-ci",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}},{id="hardware-admission",status="not-applicable",reason="Execution scope is build-only."},{id="hardware-execution",status="not-applicable",reason="Execution scope is build-only."},{id="independent-review",status="unrun",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}}]
+[handoff]
+schema=2
+stage="write-tests"
+status="partial"
+can_progress=true
+inputs=[{path="halucinator/handoff/06-driver-schema-demo.toml",sha256="14bfeee51b5cc0eb95cf7fd28e6cb9006796bed09f4aa1db84097da833047c4f"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
+[coverage]
+complete=[]
+incomplete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+[tests]
+name="schema-demo"
+output_kind="validation"
+execution_scope="build-only"
+owned_files=[{path="examples/unobtainium/src/bin/schema_demo.rs",sha256="2b588a58591447d93266cec8854438d4c86384becc0fa8d41a8430b36f1d1775"}]
+dependencies=[{crate="embedded-hal",identity="1.0.0",features=[]}]
+coverage=[{id="SCHEMA-01",status="blocked",test_case="schema-demo-build",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md",sha256="277d0473928d7e3bd075c4641f0d6344785a6076d2830023cbea2107d35aac57"}}]
+hardware_runs=[{test_case="schema-demo-build",status="not-run",teardown="not-applicable"}]
+api_handoff={path="halucinator/handoff/06-driver-schema-demo.toml",sha256="14bfeee51b5cc0eb95cf7fd28e6cb9006796bed09f4aa1db84097da833047c4f"}
+review_input_manifest={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/INVENTORY.md",sha256="2a23ffb56caf4e6c1b3db13cf7d036dacc1cd9c327f2c53045b9151b0a896bff"}

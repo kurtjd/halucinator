@@ -1,0 +1,2222 @@
+# Declarative source for every committed schema fixture.
+# Regenerate with: python tools/generate_schema_fixtures.py --root . --write
+
+[meta]
+target_id = "unobtainium-circuits-uc-not-a-real-mcu-0001"
+vendor = "Unobtainium Circuits"
+mcu_part_number = "UC-NOT-A-REAL-MCU-0001"
+document_title = "FICTIONAL FIXTURE REFERENCE MANUAL"
+
+[payloads]
+"generation-roots/fictional-pac/data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fixture.svd" = """
+<!-- FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE -->
+<device><name>UC_NOT_A_REAL_MCU_0001</name><peripherals/></device>
+"""
+"generation-roots/fictional-pac/unobtainium-pac/INVENTORY.md" = """
+# PAC crate inventory
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+package: unobtainium-pac
+
+This inventory lists no registers because the fixture SVD declares none.
+"""
+"root/.gitattributes" = """
+# FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+halucinator/state.toml text eol=lf
+halucinator/scope/*.toml text eol=lf
+halucinator/handoff/*.toml text eol=lf
+halucinator/docs/**/*.md text eol=lf
+halucinator/docs/**/sources/** -text
+halucinator/pac/** -text
+halucinator/candidates/** text eol=lf
+halucinator/.run/*.lock text eol=lf
+examples/** text eol=lf
+embassy-unobtainium/** text eol=lf
+"""
+"root/embassy-unobtainium/Cargo.toml" = """
+# FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+[package]
+name = "embassy-unobtainium"
+version = "0.0.0"
+edition = "2021"
+"""
+"root/examples/unobtainium/src/bin/schema_demo.rs" = """
+// FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+// Build-only example placeholder.
+"""
+"root/halucinator/candidates/schema-demo/src/schema_demo.rs" = """
+// FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+// Disposable candidate. Not production source.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md" = """
+# Source catalog
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Target: Unobtainium Circuits UC-NOT-A-REAL-MCU-0001 (fictional).
+
+| Source ID | Kind | Availability |
+|---|---|---|
+| doc-001 | fixture register description | local, supplied |
+
+No real document, revision, section, table, or page is referenced.
+This catalog exists only to give the schema fixtures a hashable file.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md" = """
+# Driver record
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Candidate driver work performed against a partial platform input, so owned
+files live under an explicitly disposable candidate root.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md" = """
+# External generation root authorization
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Name: generation:fictional-pac
+
+This fixture authorizes one named generation root. Its absolute host location
+is supplied at validation time via `--root generation:fictional-pac=<abs>`
+and is deliberately not committed.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md" = """
+# Extracted facts
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+This note deliberately records NO register offsets, bit positions, reset
+values, clock topology, or manual section numbers. The fixture target does
+not exist and has no such facts.
+
+Categories claimed: field-encodings, register-layout.
+Locator style used by the fixture citation: `schema-only`.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md" = """
+# PAC generation record
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Generated into the fixture-local generation root bound as
+`generation:fictional-pac`. Nothing in this note asserts hardware behavior.
+
+Foundation coverage: foundation:init-api and foundation:interrupt-metadata
+are both recorded covered against the architect-owned requirement list.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md" = """
+# Review of the PAC artifact
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Reviewed artifact: the PAC crate inventory manifest pinned by this review.
+Findings: none. Verdict: ready. Lineage: initial.
+
+No hardware claim was reviewed because the artifact contains none.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md" = """
+# Roadmap
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+1. schema-demo driver (in progress, candidate only)
+2. nothing else; this fixture exists to exercise the handoff schema.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md" = """
+# Scaffold record
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+The fixture crate is a shape, not a working HAL. Independent review of the
+platform artifact has not been performed; that check is honestly `unrun`.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md" = """
+# Startup and clock contract
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+The fixture declares no clock tree and no memory map values. Linking and
+memory layout for the fictional target are out of scope for schema fixtures.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md" = """
+# SVD preparation record
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Route: review-supplied. The supplied fixture input is a minimal, obviously
+fictional CMSIS-SVD-shaped document with no claimed hardware meaning.
+
+input-identity / xml-well-formed / schema-validation / source-fact-comparison /
+structural-inventory / information-limits / preparation-replay: recorded here
+as fixture bookkeeping only.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md" = """
+# Fact check evidence
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+citations-complete: the one fixture citation names all required members.
+summary-field-cross-check: performed over the fixture's placeholder entries.
+field-encodings-exhaustive: the fixture declares an empty encoding domain.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md" = """
+# Intake check evidence
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+requested-inputs-accounted: every requested fixture input is listed above.
+available-content-resolves: the single listed source resolves locally.
+local-source-hashes: the supplied fixture source was hashed on intake.
+
+These are statements about fixture bookkeeping, not about silicon.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/INVENTORY.md" = """
+# Review input manifest: schema-demo tests
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+- examples/unobtainium/src/bin/schema_demo.rs
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md" = """
+# Test record: schema-demo
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Execution scope: build-only. No hardware was admitted, powered, or operated.
+Requirement SCHEMA-01 is blocked pending a ready driver input.
+"""
+"root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt" = """
+FICTIONAL FIXTURE REFERENCE MANUAL
+Unobtainium Circuits UC-NOT-A-REAL-MCU-0001
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+Section 2.1 Schema-demo reset state
+
+The SCHEMA_DEMO block is an invented fixture peripheral that exists only to
+exercise this schema. After a fixture reset the block reports the invented
+value zero in every invented field. No sentence in this file describes real
+silicon, and nothing here may be copied into a driver.
+"""
+
+[[base]]
+name = "valid"
+order = [
+  "root/halucinator/scope/scope-0123abcd.toml",
+  "root/halucinator/handoff/01-sources.toml",
+  "root/halucinator/handoff/02-facts.toml",
+  "root/halucinator/handoff/03-svd.toml",
+  "root/halucinator/handoff/08-review-pac.toml",
+  "root/halucinator/handoff/04-pac.toml",
+  "root/halucinator/handoff/05-platform.toml",
+  "root/halucinator/handoff/06-driver-schema-demo.toml",
+  "root/halucinator/handoff/07-tests-schema-demo.toml",
+  "root/halucinator/state.toml",
+]
+
+[base.documents."root/halucinator/scope/scope-0123abcd.toml"]
+schema = 2
+revision = "scope-0123abcd"
+included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+excluded = ["peripheral:adc"]
+reason = "Initial fictional schema fixture"
+
+[base.documents."root/halucinator/scope/scope-0123abcd.toml".previous]
+kind = "initial"
+
+[base.documents."root/halucinator/handoff/01-sources.toml"]
+checks = [{id = "requested-inputs-accounted", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md", sha256 = "@auto"}}, {id = "available-content-resolves", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md", sha256 = "@auto"}}, {id = "local-source-hashes", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md", sha256 = "@auto"}}, {id = "svd-search-complete", status = "not-applicable", reason = "An accessible fictional SVD was supplied."}]
+
+[base.documents."root/halucinator/handoff/01-sources.toml".handoff]
+schema = 2
+stage = "gather-documentation"
+status = "ready"
+inputs = []
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/01-sources.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/01-sources.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/01-sources.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/01-sources.toml".sources]
+route = "review-supplied"
+documents = [{source_id = "doc-001", document = "FICTIONAL FIXTURE REFERENCE MANUAL", revision = "fixture-1", format = "utf8-text", source = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt", sha256 = "@auto"}}]
+cited_notes = []
+
+[base.documents."root/halucinator/handoff/01-sources.toml".sources.catalog]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/02-facts.toml"]
+checks = [{id = "citations-complete", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md", sha256 = "@auto"}}, {id = "citations-verified", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md", sha256 = "@auto"}}, {id = "summary-field-cross-check", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md", sha256 = "@auto"}}, {id = "field-encodings-exhaustive", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md", sha256 = "@auto"}}, {id = "pdf-layout-extraction", status = "not-applicable", reason = "The fictional fixture source is text, not PDF."}]
+
+[base.documents."root/halucinator/handoff/02-facts.toml".handoff]
+schema = 2
+stage = "extract-facts"
+status = "ready"
+inputs = [{path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/02-facts.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/02-facts.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/02-facts.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/02-facts.toml".facts]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}]
+citations = [{assertion_id = "fact.schema-demo.reset-state", scope_item = "peripheral:schema-demo", claim = "The fictional SCHEMA_DEMO block reports zero in every invented field after a fixture reset.", source_id = "doc-001", source = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt", sha256 = "@auto"}, location = {kind = "text-lines", line_start = 7, line_end = 10}, locator = {kind = "section", value = "Section 2.1"}, excerpt = "After a fixture reset the block reports the invented value zero in every invented field.", note = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}}]
+categories = ["field-encodings", "register-layout"]
+contradictions = []
+
+[base.documents."root/halucinator/handoff/03-svd.toml"]
+checks = [{id = "input-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "xml-well-formed", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "schema-validation", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "source-fact-comparison", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "correction-effects", status = "not-applicable", reason = "No transforms are present."}, {id = "structural-inventory", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "information-limits", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "preparation-replay", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/03-svd.toml".handoff]
+schema = 2
+stage = "generate-svd"
+status = "ready"
+inputs = [{path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}, {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/03-svd.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/03-svd.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/03-svd.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/03-svd.toml".svd]
+route = "review-supplied"
+transforms = []
+includes = []
+extraction_mode = "peripheral"
+namespace_mode = "none"
+representation_limits = []
+unresolved_facts = []
+
+[base.documents."root/halucinator/handoff/03-svd.toml".svd.source]
+root = "generation:fictional-pac"
+path = "data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fixture.svd"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml"]
+checks = [{id = "applicable-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md", sha256 = "@auto"}}, {id = "artifact-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md", sha256 = "@auto"}}, {id = "hardware-claims-cited", status = "not-applicable", reason = "The reviewed scope contains no hardware fact ID."}, {id = "upstream-contracts-reviewed", status = "not-applicable", reason = "The PAC artifact declares no upstream trait obligation."}]
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".handoff]
+schema = 2
+stage = "review"
+status = "ready"
+inputs = [{root = "generation:fictional-pac", path = "unobtainium-pac/INVENTORY.md", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".review]
+artifact_id = "pac"
+scope = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+unreviewed = []
+dependencies = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}]
+findings = []
+verdict = "ready"
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".review.artifact]
+root = "generation:fictional-pac"
+path = "unobtainium-pac/INVENTORY.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/08-review-pac.toml".review.lineage]
+kind = "initial"
+
+[base.documents."root/halucinator/handoff/04-pac.toml"]
+checks = [{id = "input-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "expected-inventory", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "representation-limits", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "target-build-api", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "host-metadata-api", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "negative-chip-selection", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "The fictional generator declares no authored pure logic."}, {id = "format-lint", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "generation-replay", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "final-path-build", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/04-pac.toml".handoff]
+schema = 2
+stage = "generate-pac"
+status = "ready"
+inputs = [{path = "halucinator/handoff/03-svd.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/04-pac.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/04-pac.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/04-pac.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/04-pac.toml".pac]
+package = "unobtainium-pac"
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
+runtime_features = ["pac", "rt"]
+metadata_features = ["metadata"]
+rust_compilation_target = "thumbv7em-none-eabi"
+source_ids = ["doc-001"]
+cited_notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}]
+temporary_fork = false
+foundation = [{id = "foundation:init-api", kind = "api", location = "embassy_unobtainium::init", status = "covered", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "foundation:interrupt-metadata", kind = "metadata", location = "metadata.interrupts", status = "covered", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/04-pac.toml".pac.crate_manifest]
+root = "generation:fictional-pac"
+path = "unobtainium-pac/INVENTORY.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/04-pac.toml".pac.revision]
+kind = "workspace"
+
+[base.documents."root/halucinator/handoff/05-platform.toml"]
+checks = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "foundation-coverage", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "format-lint", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "advertised-builds", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "negative-chip-selection", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure platform logic is declared."}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "target-link", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "build-only-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "independent-review", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/05-platform.toml".handoff]
+schema = 2
+stage = "scaffold-hal"
+status = "partial"
+can_progress = true
+inputs = [{path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/05-platform.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/05-platform.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/05-platform.toml".coverage]
+complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+incomplete = []
+
+[base.documents."root/halucinator/handoff/05-platform.toml".platform]
+supporting_subsystems = ["foundation:init-api", "foundation:interrupt-metadata"]
+foundation_api = ["pub fn init(config: Config) -> Peripherals"]
+source_ids = ["doc-001"]
+cited_notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}]
+dependencies = [{crate = "unobtainium-pac", identity = "fixture-rev-1", features = ["pac", "rt"]}]
+first_driver = "schema-demo"
+first_driver_modes = ["blocking"]
+
+[base.documents."root/halucinator/handoff/05-platform.toml".platform.crate_manifest]
+path = "embassy-unobtainium/Cargo.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/05-platform.toml".platform.roadmap]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/05-platform.toml".platform.startup_clock_contract]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/05-platform.toml".platform.pac_manifest]
+root = "generation:fictional-pac"
+path = "unobtainium-pac/INVENTORY.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml"]
+checks = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "format-lint-build", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure driver logic is declared."}, {id = "trait-conformance", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "target-link-ci", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "independent-review", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".handoff]
+schema = 2
+stage = "write-driver"
+status = "partial"
+can_progress = true
+inputs = [{path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".coverage]
+complete = []
+incomplete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".driver]
+name = "schema-demo"
+scope_kind = "full"
+owned_files = [{path = "halucinator/candidates/schema-demo/src/schema_demo.rs", sha256 = "@auto"}]
+capabilities = ["blocking"]
+public_api = ["pub struct SchemaDemo<'d>", "pub fn SchemaDemo::new(peripheral: Peripheral) -> SchemaDemo<'_>", "impl embedded_hal::digital::ErrorType for SchemaDemo<'_>"]
+dependencies = [{crate = "embedded-hal", identity = "1.0.0", features = []}]
+trait_obligations = [{dependency_crate = "embedded-hal", trait = "embedded_hal::digital::ErrorType", obligations = ["Expose the public associated error type."]}]
+test_hardware_facts = ["fact.schema-demo.reset-state"]
+requirement_ids = ["SCHEMA-01"]
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".driver.facts_handoff]
+path = "halucinator/handoff/02-facts.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".driver.build_contract]
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
+rust_compilation_target = "thumbv7em-none-eabi"
+init_calls = ["embassy_unobtainium::init(Config::default())"]
+observation = "debugger-visible completion marker"
+
+[base.documents."root/halucinator/handoff/06-driver-schema-demo.toml".driver.build_contract.memory_runtime]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml"]
+checks = [{id = "workflow-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}, {id = "live-conventions-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}, {id = "format-lint", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}, {id = "target-build-link", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}, {id = "build-only-ci", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}, {id = "hardware-admission", status = "not-applicable", reason = "Execution scope is build-only."}, {id = "hardware-execution", status = "not-applicable", reason = "Execution scope is build-only."}, {id = "independent-review", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".handoff]
+schema = 2
+stage = "write-tests"
+status = "partial"
+can_progress = true
+inputs = [{path = "halucinator/handoff/06-driver-schema-demo.toml", sha256 = "@auto"}]
+notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}]
+blockers = []
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".scope]
+revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".scope.decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".coverage]
+complete = []
+incomplete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"]
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".tests]
+name = "schema-demo"
+output_kind = "validation"
+execution_scope = "build-only"
+owned_files = [{path = "examples/unobtainium/src/bin/schema_demo.rs", sha256 = "@auto"}]
+dependencies = [{crate = "embedded-hal", identity = "1.0.0", features = []}]
+coverage = [{id = "SCHEMA-01", status = "blocked", test_case = "schema-demo-build", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}]
+hardware_runs = [{test_case = "schema-demo-build", status = "not-run", teardown = "not-applicable"}]
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".tests.api_handoff]
+path = "halucinator/handoff/06-driver-schema-demo.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/handoff/07-tests-schema-demo.toml".tests.review_input_manifest]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/INVENTORY.md"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/state.toml"]
+schema = 2
+generation = 9
+stages = [{id = "gather-documentation", status = "ready", handoff = {path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}}, {id = "extract-facts", status = "ready", handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}}, {id = "generate-svd", status = "ready", handoff = {path = "halucinator/handoff/03-svd.toml", sha256 = "@auto"}}, {id = "generate-pac", status = "ready", handoff = {path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}}, {id = "scaffold-hal", status = "partial", handoff = {path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}}, {id = "write-driver:schema-demo", status = "partial", handoff = {path = "halucinator/handoff/06-driver-schema-demo.toml", sha256 = "@auto"}}, {id = "write-tests:schema-demo", status = "partial", handoff = {path = "halucinator/handoff/07-tests-schema-demo.toml", sha256 = "@auto"}}, {id = "review:pac", status = "ready", handoff = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/state.toml".target]
+vendor = "Unobtainium Circuits"
+mcu_part_number = "UC-NOT-A-REAL-MCU-0001"
+target_id = "unobtainium-circuits-uc-not-a-real-mcu-0001"
+vendor_id = "unobtainium"
+core = "fictional-core"
+
+[base.documents."root/halucinator/state.toml".target.package]
+kind = "unknown"
+
+[base.documents."root/halucinator/state.toml".scope]
+current_revision = "scope-0123abcd"
+
+[base.documents."root/halucinator/state.toml".scope.current_decision]
+path = "halucinator/scope/scope-0123abcd.toml"
+sha256 = "@auto"
+
+[base.documents."root/halucinator/state.toml".decisions]
+cargo_chip_feature = "uc-not-a-real-mcu-0001"
+rust_compilation_target = "thumbv7em-none-eabi"
+first_peripheral = "schema-demo"
+first_peripheral_modes = ["blocking"]
+foundation_requirements = [{id = "foundation:init-api", kind = "api", location = "embassy_unobtainium::init"}, {id = "foundation:interrupt-metadata", kind = "metadata", location = "metadata.interrupts"}]
+
+[base.documents."root/halucinator/state.toml".decisions.destination_crate]
+path = "embassy-unobtainium"
+
+[base.documents."root/halucinator/state.toml".roots]
+generation = [{name = "fictional-pac", authorization = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md", sha256 = "@auto"}}]
+
+[base.documents."root/halucinator/state.toml".roots.documentation]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001"
+
+[base.documents."root/halucinator/state.toml".roots.sources]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md"
+
+[base.documents."root/halucinator/state.toml".roots.pac_project]
+root = "generation:fictional-pac"
+path = "."
+
+[base.documents."root/halucinator/state.toml".roots.svd_inputs]
+root = "generation:fictional-pac"
+path = "data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001"
+
+[base.documents."root/halucinator/state.toml".roots.generator]
+root = "generation:fictional-pac"
+path = "generator"
+
+[base.documents."root/halucinator/state.toml".roots.pac_crate]
+root = "generation:fictional-pac"
+path = "unobtainium-pac"
+
+[base.documents."root/halucinator/state.toml".roots.roadmap]
+path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md"
+
+[[base]]
+name = "valid-multi-driver"
+base = "valid"
+readme = """
+# `valid-multi-driver`
+
+FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+
+A **second complete, coherent, accepted** artifact set. It exists to prove that
+correct `write-tests` binding is independent of how many `06-driver` handoffs a
+repository contains, and to pin the rule that must *not* be written.
+
+Differences from `fixtures/valid/`:
+
+- Two drivers, both `ready`: `06-driver-alpha.toml` and `06-driver-beta.toml`.
+- A `ready` `07-tests-beta-loopback.toml` whose `tests.api_handoff` binds
+  `halucinator/handoff/06-driver-beta.toml` — the **second** driver by filename
+  sort order.
+- `tests.name = "beta-loopback"` deliberately **differs** from
+  `driver.name = "beta"`. There is no `tests.name == driver.name` equality rule
+  and there must never be one: the toolkit's own canonical example binds
+  `tests.name = "uart-loopback"` to `06-driver-uart.toml`
+  (`.opencode/skills/write-examples/SKILL.md`). A validator that asserted name
+  equality would reject the documented workflow, so this fixture is the
+  regression guard against it.
+- Scope is `["foundation:init-api", "foundation:interrupt-metadata",
+  "peripheral:alpha", "peripheral:beta"]`, and `05-platform.toml` is `ready`
+  (a ready driver requires a ready `scaffold-hal`), which in turn requires the
+  additional review handoffs `08-review-platform.toml`,
+  `08-review-driver-alpha.toml`, `08-review-driver-beta.toml` and
+  `08-review-tests-beta-loopback.toml`.
+- `state.toml` records `write-driver:alpha`, `write-driver:beta` and
+  `write-tests:beta-loopback` as separate stage entries.
+
+Honest status: this fixture is **regression coverage, not new RED**. It exits 0
+with no diagnostics both before and after the A19 repair. Its value is that it
+fails loudly if the repair over-reaches — for example by keying drivers on
+`handoff.stage` alone, by demanding `tests.name == driver.name`, or by rejecting
+a second handoff for a repeatable kind.
+
+Invoke as:
+
+```text
+python .opencode/schema/validate.py <this-dir>/root \\
+  --root generation:fictional-pac=<abs-path-to>/valid-multi-driver/generation-roots/fictional-pac
+```
+
+Expected exit code: 0, with no diagnostics on stdout or stderr.
+"""
+order = [
+  "root/halucinator/scope/scope-0123abcd.toml",
+  "root/halucinator/handoff/01-sources.toml",
+  "root/halucinator/handoff/02-facts.toml",
+  "root/halucinator/handoff/03-svd.toml",
+  "root/halucinator/handoff/08-review-driver-alpha.toml",
+  "root/halucinator/handoff/08-review-driver-beta.toml",
+  "root/halucinator/handoff/08-review-pac.toml",
+  "root/halucinator/handoff/08-review-platform.toml",
+  "root/halucinator/handoff/08-review-tests-beta-loopback.toml",
+  "root/halucinator/handoff/04-pac.toml",
+  "root/halucinator/handoff/05-platform.toml",
+  "root/halucinator/handoff/06-driver-alpha.toml",
+  "root/halucinator/handoff/06-driver-beta.toml",
+  "root/halucinator/handoff/07-tests-beta-loopback.toml",
+  "root/halucinator/state.toml",
+]
+[[base.ops]]
+op = "set-payload"
+path = "root/examples/unobtainium/src/bin/beta_loopback.rs"
+value = "// FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\nfn main() {}\n"
+
+[[base.ops]]
+op = "drop-payload"
+path = "root/examples/unobtainium/src/bin/schema_demo.rs"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/candidates/alpha/src/alpha.rs"
+value = "// FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n// fictional alpha driver candidate\n"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/candidates/beta/src/beta.rs"
+value = "// FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n// fictional beta driver candidate\n"
+
+[[base.ops]]
+op = "drop-payload"
+path = "root/halucinator/candidates/schema-demo/src/schema_demo.rs"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md"
+value = "# Driver review note\n\nFICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n\nSchema-only fictional record.\n"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PLATFORM.md"
+value = "# Platform review note\n\nFICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n\nSchema-only fictional record.\n"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md"
+value = "# Tests review note\n\nFICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n\nSchema-only fictional record.\n"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md"
+value = "# beta-loopback INVENTORY\n\nFICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n\nSchema-only fictional record.\n"
+
+[[base.ops]]
+op = "set-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md"
+value = "# beta-loopback TESTS\n\nFICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE\n\nSchema-only fictional record.\n"
+
+[[base.ops]]
+op = "drop-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/INVENTORY.md"
+
+[[base.ops]]
+op = "drop-payload"
+path = "root/halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md"
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/06-driver-alpha.toml"
+value = {handoff = {schema = 2, stage = "write-driver", status = "ready", inputs = [{path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "format-lint-build", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure driver logic is declared."}, {id = "trait-conformance", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "target-link-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-driver-alpha.toml", sha256 = "@auto"}}], driver = {name = "alpha", scope_kind = "full", owned_files = [{path = "halucinator/candidates/alpha/src/alpha.rs", sha256 = "@auto"}], capabilities = ["blocking"], public_api = ["pub struct Alpha<'d>", "pub fn Alpha::new(peripheral: Peripheral) -> Alpha<'_>", "impl embedded_hal::digital::ErrorType for Alpha<'_>"], dependencies = [{crate = "embedded-hal", identity = "1.0.0", features = []}], trait_obligations = [{dependency_crate = "embedded-hal", trait = "embedded_hal::digital::ErrorType", obligations = ["Expose the public associated error type."]}], facts_handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}, test_hardware_facts = ["fact.schema-demo.reset-state"], build_contract = {cargo_chip_feature = "uc-not-a-real-mcu-0001", rust_compilation_target = "thumbv7em-none-eabi", init_calls = ["embassy_unobtainium::init(Config::default())"], memory_runtime = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md", sha256 = "@auto"}, observation = "debugger-visible completion marker"}, requirement_ids = ["ALPHA-01"]}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+value = {handoff = {schema = 2, stage = "write-driver", status = "ready", inputs = [{path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "format-lint-build", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure driver logic is declared."}, {id = "trait-conformance", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "target-link-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-driver-beta.toml", sha256 = "@auto"}}], driver = {name = "beta", scope_kind = "full", owned_files = [{path = "halucinator/candidates/beta/src/beta.rs", sha256 = "@auto"}], capabilities = ["blocking"], public_api = ["pub struct Beta<'d>", "pub fn Beta::new(peripheral: Peripheral) -> Beta<'_>", "impl embedded_hal::digital::ErrorType for Beta<'_>"], dependencies = [{crate = "embedded-hal", identity = "1.0.0", features = []}], trait_obligations = [{dependency_crate = "embedded-hal", trait = "embedded_hal::digital::ErrorType", obligations = ["Expose the public associated error type."]}], facts_handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}, test_hardware_facts = ["fact.schema-demo.reset-state"], build_contract = {cargo_chip_feature = "uc-not-a-real-mcu-0001", rust_compilation_target = "thumbv7em-none-eabi", init_calls = ["embassy_unobtainium::init(Config::default())"], memory_runtime = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md", sha256 = "@auto"}, observation = "debugger-visible completion marker"}, requirement_ids = ["BETA-01"]}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/07-tests-beta-loopback.toml"
+value = {handoff = {schema = 2, stage = "write-tests", status = "ready", inputs = [{path = "halucinator/handoff/06-driver-beta.toml", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "workflow-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}, {id = "live-conventions-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}, {id = "format-lint", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}, {id = "target-build-link", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}, {id = "build-only-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}, {id = "hardware-admission", status = "not-applicable", reason = "Execution scope is build-only."}, {id = "hardware-execution", status = "not-applicable", reason = "Execution scope is build-only."}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-tests-beta-loopback.toml", sha256 = "@auto"}}], tests = {name = "beta-loopback", output_kind = "validation", execution_scope = "build-only", api_handoff = {path = "halucinator/handoff/06-driver-beta.toml", sha256 = "@auto"}, owned_files = [{path = "examples/unobtainium/src/bin/beta_loopback.rs", sha256 = "@auto"}], dependencies = [{crate = "embedded-hal", identity = "1.0.0", features = []}], review_input_manifest = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md", sha256 = "@auto"}, coverage = [{id = "BETA-01", status = "passed", test_case = "beta-loopback-build", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}}], hardware_runs = [{test_case = "beta-loopback-build", status = "not-run", teardown = "not-applicable"}]}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/08-review-driver-alpha.toml"
+value = {handoff = {schema = 2, stage = "review", status = "ready", inputs = [{path = "halucinator/candidates/alpha/src/alpha.rs", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "applicable-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}, {id = "artifact-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}, {id = "hardware-claims-cited", status = "not-applicable", reason = "The reviewed scope contains no hardware fact ID."}, {id = "upstream-contracts-reviewed", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}], review = {artifact_id = "driver-alpha", artifact = {path = "halucinator/candidates/alpha/src/alpha.rs", sha256 = "@auto"}, scope = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], unreviewed = [], dependencies = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}], findings = [], verdict = "ready", lineage = {kind = "initial"}}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/08-review-driver-beta.toml"
+value = {handoff = {schema = 2, stage = "review", status = "ready", inputs = [{path = "halucinator/candidates/beta/src/beta.rs", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "applicable-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}, {id = "artifact-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}, {id = "hardware-claims-cited", status = "not-applicable", reason = "The reviewed scope contains no hardware fact ID."}, {id = "upstream-contracts-reviewed", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-DRIVER.md", sha256 = "@auto"}}], review = {artifact_id = "driver-beta", artifact = {path = "halucinator/candidates/beta/src/beta.rs", sha256 = "@auto"}, scope = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], unreviewed = [], dependencies = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}], findings = [], verdict = "ready", lineage = {kind = "initial"}}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/08-review-platform.toml"
+value = {handoff = {schema = 2, stage = "review", status = "ready", inputs = [{path = "embassy-unobtainium/Cargo.toml", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PLATFORM.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "applicable-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PLATFORM.md", sha256 = "@auto"}}, {id = "artifact-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PLATFORM.md", sha256 = "@auto"}}, {id = "hardware-claims-cited", status = "not-applicable", reason = "The reviewed scope contains no hardware fact ID."}, {id = "upstream-contracts-reviewed", status = "not-applicable", reason = "The platform artifact declares no upstream trait obligation."}], review = {artifact_id = "platform", artifact = {path = "embassy-unobtainium/Cargo.toml", sha256 = "@auto"}, scope = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], unreviewed = [], dependencies = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}], findings = [], verdict = "ready", lineage = {kind = "initial"}}}
+
+[[base.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/08-review-tests-beta-loopback.toml"
+value = {handoff = {schema = 2, stage = "review", status = "ready", inputs = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "applicable-references-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md", sha256 = "@auto"}}, {id = "artifact-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md", sha256 = "@auto"}}, {id = "hardware-claims-cited", status = "not-applicable", reason = "The reviewed scope contains no hardware fact ID."}, {id = "upstream-contracts-reviewed", status = "not-applicable", reason = "The tests artifact declares no upstream trait obligation."}], review = {artifact_id = "tests-beta-loopback", artifact = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md", sha256 = "@auto"}, scope = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], unreviewed = [], dependencies = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md", sha256 = "@auto"}], findings = [], verdict = "ready", lineage = {kind = "initial"}}}
+
+[[base.ops]]
+op = "drop-doc"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+
+[[base.ops]]
+op = "drop-doc"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "handoff.status"
+value = "ready"
+
+[[base.ops]]
+op = "unset"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "handoff.can_progress"
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "checks"
+value = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "foundation-coverage", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "format-lint", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "advertised-builds", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "negative-chip-selection", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure platform logic is declared."}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "target-link", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "build-only-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-platform.toml", sha256 = "@auto"}}]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "platform.first_driver"
+value = "alpha"
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "review.scope"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/scope/scope-0123abcd.toml"
+path = "included"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/scope/scope-0123abcd.toml"
+path = "reason"
+value = "Initial fictional multi-driver schema fixture"
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "decisions.first_peripheral"
+value = "alpha"
+
+[[base.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "stages"
+value = [{id = "gather-documentation", status = "ready", handoff = {path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}}, {id = "extract-facts", status = "ready", handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}}, {id = "generate-svd", status = "ready", handoff = {path = "halucinator/handoff/03-svd.toml", sha256 = "@auto"}}, {id = "generate-pac", status = "ready", handoff = {path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}}, {id = "scaffold-hal", status = "ready", handoff = {path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}}, {id = "write-driver:alpha", status = "ready", handoff = {path = "halucinator/handoff/06-driver-alpha.toml", sha256 = "@auto"}}, {id = "write-driver:beta", status = "ready", handoff = {path = "halucinator/handoff/06-driver-beta.toml", sha256 = "@auto"}}, {id = "write-tests:beta-loopback", status = "ready", handoff = {path = "halucinator/handoff/07-tests-beta-loopback.toml", sha256 = "@auto"}}, {id = "review:pac", status = "ready", handoff = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}, {id = "review:platform", status = "ready", handoff = {path = "halucinator/handoff/08-review-platform.toml", sha256 = "@auto"}}, {id = "review:driver-alpha", status = "ready", handoff = {path = "halucinator/handoff/08-review-driver-alpha.toml", sha256 = "@auto"}}, {id = "review:driver-beta", status = "ready", handoff = {path = "halucinator/handoff/08-review-driver-beta.toml", sha256 = "@auto"}}, {id = "review:tests-beta-loopback", status = "ready", handoff = {path = "halucinator/handoff/08-review-tests-beta-loopback.toml", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "01-unknown-field"
+base = "valid"
+summary = """
+Defect: the `01-unknown-field` case. The validator must emit exactly 1 diagnostic(s):
+UNKNOWN_FIELD
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/01-sources.toml"
+field = "sources.note"
+code = "UNKNOWN_FIELD"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "sources.note"
+value = "unknown field"
+
+[[invalid]]
+name = "02-missing-required"
+base = "valid"
+summary = """
+Defect: the `02-missing-required` case. The validator must emit exactly 1 diagnostic(s):
+MISSING_FIELD
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/01-sources.toml"
+field = "sources.route"
+code = "MISSING_FIELD"
+[[invalid.ops]]
+op = "unset"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "sources.route"
+
+[[invalid]]
+name = "03-illegal-enum"
+base = "valid"
+summary = """
+Defect: the `03-illegal-enum` case. The validator must emit exactly 2 diagnostic(s):
+ILLEGAL_ENUM, ROUTE_INCOMPATIBILITY
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/01-sources.toml"
+field = "sources.route"
+code = "ILLEGAL_ENUM"
+[[invalid.expect]]
+file = "halucinator/handoff/03-svd.toml"
+field = "svd.route"
+code = "ROUTE_INCOMPATIBILITY"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "sources.route"
+value = "supplied"
+
+[[invalid]]
+name = "04-ready-dependency-not-ready"
+base = "valid"
+summary = """
+Defect: the `04-ready-dependency-not-ready` case. The validator must emit exactly 1 diagnostic(s):
+DEPENDENCY_NOT_READY
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/04-pac.toml"
+field = "handoff.inputs"
+code = "DEPENDENCY_NOT_READY"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "handoff.status"
+value = "partial"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "handoff.can_progress"
+value = true
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "checks"
+value = [{id = "input-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "xml-well-formed", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "schema-validation", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "source-fact-comparison", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "correction-effects", status = "not-applicable", reason = "No transforms are present."}, {id = "structural-inventory", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "information-limits", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "preparation-replay", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}]
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "stages"
+value = [{id = "gather-documentation", status = "ready", handoff = {path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}}, {id = "extract-facts", status = "ready", handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}}, {id = "generate-svd", status = "partial", handoff = {path = "halucinator/handoff/03-svd.toml", sha256 = "@auto"}}, {id = "generate-pac", status = "ready", handoff = {path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}}, {id = "scaffold-hal", status = "partial", handoff = {path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}}, {id = "write-driver:schema-demo", status = "partial", handoff = {path = "halucinator/handoff/06-driver-schema-demo.toml", sha256 = "@auto"}}, {id = "write-tests:schema-demo", status = "partial", handoff = {path = "halucinator/handoff/07-tests-schema-demo.toml", sha256 = "@auto"}}, {id = "review:pac", status = "ready", handoff = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "05-input-hash-mismatch"
+base = "valid"
+summary = """
+Defect: the `05-input-hash-mismatch` case. The validator must emit exactly 1 diagnostic(s):
+INPUT_HASH_MISMATCH
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "handoff.inputs"
+code = "INPUT_HASH_MISMATCH"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "handoff.inputs"
+value = [{path = "halucinator/handoff/01-sources.toml", sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
+
+[[invalid]]
+name = "06-stale-review"
+base = "valid"
+summary = """
+Defect: the `06-stale-review` case. The validator must emit exactly 3 diagnostic(s):
+REVIEW_NONACCEPTING, STALE_EVIDENCE, STALE_REVIEW
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/04-pac.toml"
+field = "checks.independent-review"
+code = "REVIEW_NONACCEPTING"
+[[invalid.expect]]
+file = "halucinator/handoff/08-review-pac.toml"
+field = "review.artifact"
+code = "STALE_EVIDENCE"
+[[invalid.expect]]
+file = "halucinator/handoff/08-review-pac.toml"
+field = "review.artifact"
+code = "STALE_REVIEW"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "review.artifact.sha256"
+value = "e155d741052b14dbdc565536191c4b5e044be2fc8985aea92ff7897f252285d3"
+
+[[invalid]]
+name = "07-in-progress-handoff"
+base = "valid"
+summary = """
+Defect: the `07-in-progress-handoff` case. The validator must emit exactly 4 diagnostic(s):
+DEPENDENCY_NOT_READY, HANDOFF_IN_PROGRESS, ILLEGAL_ENUM
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "handoff.status"
+code = "HANDOFF_IN_PROGRESS"
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "handoff.status"
+code = "ILLEGAL_ENUM"
+[[invalid.expect]]
+file = "halucinator/handoff/06-driver-schema-demo.toml"
+field = "driver.facts_handoff"
+code = "DEPENDENCY_NOT_READY"
+[[invalid.expect]]
+file = "halucinator/state.toml"
+field = "stages.extract-facts.status"
+code = "DEPENDENCY_NOT_READY"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "handoff.status"
+value = "in-progress"
+
+[[invalid]]
+name = "08-lock-complete-conflict"
+base = "valid"
+summary = """
+Defect: the `08-lock-complete-conflict` case. The validator must emit exactly 1 diagnostic(s):
+LOCK_COMPLETE_CONFLICT
+"""
+[[invalid.expect]]
+file = "halucinator/.run/review-pac-068841a2.lock"
+field = "-"
+code = "LOCK_COMPLETE_CONFLICT"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/.run/review-pac-068841a2.lock"
+value = {schema = 2, stage = "review:pac", status = "in-progress", kind = "stage", owner = "fixture-owner-a1b2c3", host = "fixture-host", pid = 4242, acquired_at = "2026-01-02T03:04:05Z", heartbeat_at = "2026-01-02T03:04:35Z", resources = ["stage:review:pac"]}
+
+[[invalid]]
+name = "09-narrowed-ready-scope"
+base = "valid"
+summary = """
+Defect: the `09-narrowed-ready-scope` case. The validator must emit exactly 1 diagnostic(s):
+NARROWED_READY_SCOPE
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/01-sources.toml"
+field = "coverage.incomplete"
+code = "NARROWED_READY_SCOPE"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata"]
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "coverage.incomplete"
+value = ["peripheral:schema-demo"]
+
+[[invalid]]
+name = "10-path-escape"
+base = "valid"
+summary = """
+Defect: the `10-path-escape` case. The validator must emit exactly 1 diagnostic(s):
+PATH_ESCAPE
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/06-driver-schema-demo.toml"
+field = "driver.owned_files"
+code = "PATH_ESCAPE"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "driver.owned_files"
+value = [{path = "halucinator/candidates/../../escape.rs", sha256 = "4c29a2cc7e37938a734715c6fc071acb048a762465ad5085c54fe8972dab62ef"}]
+
+[[invalid]]
+name = "11-noncanonical-digest"
+base = "valid"
+summary = """
+Defect: the `11-noncanonical-digest` case. The validator must emit exactly 1 diagnostic(s):
+NONCANONICAL_DIGEST
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "handoff.inputs"
+code = "NONCANONICAL_DIGEST"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "handoff.inputs"
+value = [{path = "halucinator/handoff/01-sources.toml", sha256 = "91AB78D4C762CF5009B01E87D9334EA662C2FA1B594CBBFFC1AE9041A7E34CF7"}]
+
+[[invalid]]
+name = "12-malformed-lock"
+base = "valid"
+summary = """
+Defect: the `12-malformed-lock` case. The validator must emit exactly 1 diagnostic(s):
+MALFORMED_LOCK
+"""
+[[invalid.expect]]
+file = "halucinator/.run/write-driver-schema-demo-c100ce44.lock"
+field = "-"
+code = "MALFORMED_LOCK"
+[[invalid.ops]]
+op = "set-payload"
+path = "root/halucinator/.run/write-driver-schema-demo-c100ce44.lock"
+value = "schema = 1\nstage = \"write-driver:schema-demo\nstatus = in-progress\nkind =\n"
+
+[[invalid]]
+name = "13-review-nonaccepting"
+base = "valid"
+summary = """
+Defect: the `13-review-nonaccepting` case. The validator must emit exactly 1 diagnostic(s):
+REVIEW_NONACCEPTING
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/04-pac.toml"
+field = "checks.independent-review"
+code = "REVIEW_NONACCEPTING"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "review.verdict"
+value = "ready-with-fixes"
+
+[[invalid]]
+name = "14-driver-api-private-leak-key"
+base = "valid"
+summary = """
+Defect: the `14-driver-api-private-leak-key` case. The validator must emit exactly 1 diagnostic(s):
+DRIVER_API_LEAK
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/06-driver-schema-demo.toml"
+field = "driver.public_api"
+code = "DRIVER_API_LEAK"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "driver.public_api"
+value = ["pub struct SchemaDemo<'d>", "pub fn SchemaDemo::new(peripheral: Peripheral) -> SchemaDemo<'_>", "impl embedded_hal::digital::ErrorType for SchemaDemo<'_>", "unsafe { pac::SCHEMA_DEMO.ctrl().write(|w| w.set_enable(true)) }"]
+
+[[invalid]]
+name = "15-omitted-mandatory-check"
+base = "valid"
+summary = """
+Defect: the `15-omitted-mandatory-check` case. The validator must emit exactly 1 diagnostic(s):
+CHECK_MISSING
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/04-pac.toml"
+field = "checks"
+code = "CHECK_MISSING"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "checks"
+value = [{id = "input-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "expected-inventory", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "representation-limits", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "target-build-api", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "host-metadata-api", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "negative-chip-selection", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "The fictional generator declares no authored pure logic."}, {id = "generation-replay", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "final-path-build", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "16-not-applicable-without-reason"
+base = "valid"
+summary = """
+Defect: the `16-not-applicable-without-reason` case. The validator must emit exactly 1 diagnostic(s):
+NOT_APPLICABLE_NO_REASON
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/03-svd.toml"
+field = "checks.correction-effects"
+code = "NOT_APPLICABLE_NO_REASON"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "checks"
+value = [{id = "input-identity", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "xml-well-formed", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "schema-validation", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "source-fact-comparison", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "correction-effects", status = "not-applicable"}, {id = "structural-inventory", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "information-limits", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}, {id = "preparation-replay", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "17-incomplete-status-partition"
+base = "valid"
+summary = """
+Defect: the `17-incomplete-status-partition` case. The validator must emit exactly 1 diagnostic(s):
+COVERAGE_PARTITION
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/05-platform.toml"
+field = "coverage.complete"
+code = "COVERAGE_PARTITION"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "coverage.complete"
+value = ["foundation:init-api", "foundation:interrupt-metadata"]
+
+[[invalid]]
+name = "18-stale-non-review-evidence"
+base = "valid"
+summary = """
+Defect: the `18-stale-non-review-evidence` case. The validator must emit exactly 1 diagnostic(s):
+STALE_EVIDENCE
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "handoff.notes"
+code = "STALE_EVIDENCE"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "handoff.notes"
+value = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
+
+[[invalid]]
+name = "19-route-incompatibility"
+base = "valid"
+summary = """
+Defect: the `19-route-incompatibility` case. The validator must emit exactly 1 diagnostic(s):
+ROUTE_INCOMPATIBILITY
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/03-svd.toml"
+field = "svd.route"
+code = "ROUTE_INCOMPATIBILITY"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "svd.route"
+value = "author-from-docs"
+
+[[invalid]]
+name = "20-missing-dependency-identity"
+base = "valid"
+summary = """
+Defect: the `20-missing-dependency-identity` case. The validator must emit exactly 1 diagnostic(s):
+DEPENDENCY_IDENTITY
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/05-platform.toml"
+field = "platform.dependencies"
+code = "DEPENDENCY_IDENTITY"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "platform.dependencies"
+value = [{crate = "unobtainium-pac", identity = "", features = ["pac", "rt"]}]
+
+[[invalid]]
+name = "21-windows-unsafe-lock-id"
+base = "valid"
+summary = """
+Defect: the `21-windows-unsafe-lock-id` case. The validator must emit exactly 1 diagnostic(s):
+LOCK_ID_UNSAFE
+"""
+[[invalid.expect]]
+file = "halucinator/.run/write-tests%3aschema-demo-ac472d03.lock"
+field = "-"
+code = "LOCK_ID_UNSAFE"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/.run/write-tests%3aschema-demo-ac472d03.lock"
+value = {schema = 2, stage = "write-tests:schema-demo", status = "in-progress", kind = "stage", owner = "fixture-owner-d4e5f6", host = "fixture-host", pid = 4343, acquired_at = "2026-01-02T03:04:05Z", heartbeat_at = "2026-01-02T03:04:35Z", resources = ["stage:write-tests:schema-demo"]}
+
+[[invalid]]
+name = "22-unknown-schema-version"
+base = "valid"
+summary = """
+Defect: the `22-unknown-schema-version` case. The validator must emit exactly 1 diagnostic(s):
+SCHEMA_VERSION
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/01-sources.toml"
+field = "handoff.schema"
+code = "SCHEMA_VERSION"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "handoff.schema"
+value = 3
+
+[[invalid]]
+name = "23-first-peripheral-without-modes"
+base = "valid"
+summary = """
+Defect: the `23-first-peripheral-without-modes` case. The validator must emit exactly 1 diagnostic(s):
+FIRST_PERIPHERAL_MODES
+"""
+[[invalid.expect]]
+file = "halucinator/state.toml"
+field = "decisions.first_peripheral_modes"
+code = "FIRST_PERIPHERAL_MODES"
+[[invalid.ops]]
+op = "unset"
+doc = "root/halucinator/state.toml"
+path = "decisions.first_peripheral_modes"
+
+[[invalid]]
+name = "24-foundation-partition-missing"
+base = "valid"
+summary = """
+Defect: the `24-foundation-partition-missing` case. The validator must emit exactly 1 diagnostic(s):
+FOUNDATION_PARTITION
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/04-pac.toml"
+field = "pac.foundation"
+code = "FOUNDATION_PARTITION"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "pac.foundation"
+value = [{id = "foundation:init-api", kind = "api", location = "embassy_unobtainium::init", status = "covered", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "25-scope-deleted-predecessor"
+base = "valid"
+summary = """
+Defect: the `25-scope-deleted-predecessor` case. The validator must emit exactly 2 diagnostic(s):
+PATH_INSPECTION, SCOPE_DELETED_PREDECESSOR
+"""
+[[invalid.expect]]
+file = "halucinator/scope/scope-1111bbbb.toml"
+field = "previous"
+code = "SCOPE_DELETED_PREDECESSOR"
+[[invalid.expect]]
+file = "halucinator/scope/scope-1111bbbb.toml"
+field = "previous.decision"
+code = "PATH_INSPECTION"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-1111bbbb.toml"
+value = {schema = 2, revision = "scope-1111bbbb", previous = {kind = "revision", revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Fixture revision"}
+
+[[invalid.ops]]
+op = "drop-doc"
+doc = "root/halucinator/scope/scope-0123abcd.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid]]
+name = "26-scope-second-initial"
+base = "valid"
+summary = """
+Defect: the `26-scope-second-initial` case. The validator must emit exactly 1 diagnostic(s):
+SCOPE_SECOND_INITIAL
+"""
+[[invalid.expect]]
+file = "halucinator/scope/scope-5555ffff.toml"
+field = "previous"
+code = "SCOPE_SECOND_INITIAL"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-1111bbbb.toml"
+value = {schema = 2, revision = "scope-1111bbbb", previous = {kind = "revision", revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Fixture revision"}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-5555ffff.toml"
+value = {schema = 2, revision = "scope-5555ffff", previous = {kind = "initial"}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Second initial decision"}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid]]
+name = "27-scope-fork"
+base = "valid"
+summary = """
+Defect: the `27-scope-fork` case. The validator must emit exactly 1 diagnostic(s):
+SCOPE_FORK
+"""
+[[invalid.expect]]
+file = "halucinator/scope/scope-2222cccc.toml"
+field = "previous"
+code = "SCOPE_FORK"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-1111bbbb.toml"
+value = {schema = 2, revision = "scope-1111bbbb", previous = {kind = "revision", revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Fixture revision"}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-2222cccc.toml"
+value = {schema = 2, revision = "scope-2222cccc", previous = {kind = "revision", revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Forked revision"}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid]]
+name = "28-scope-orphan"
+base = "valid"
+summary = """
+Defect: the `28-scope-orphan` case. The validator must emit exactly 2 diagnostic(s):
+PATH_INSPECTION, SCOPE_ORPHAN
+"""
+[[invalid.expect]]
+file = "halucinator/scope/scope-3333dddd.toml"
+field = "previous"
+code = "SCOPE_ORPHAN"
+[[invalid.expect]]
+file = "halucinator/scope/scope-3333dddd.toml"
+field = "previous.decision"
+code = "PATH_INSPECTION"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-1111bbbb.toml"
+value = {schema = 2, revision = "scope-1111bbbb", previous = {kind = "revision", revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Fixture revision"}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-3333dddd.toml"
+value = {schema = 2, revision = "scope-3333dddd", previous = {kind = "revision", revision = "scope-4444eeee", decision = {path = "halucinator/scope/scope-4444eeee.toml", sha256 = "75b4ff766ad757440bbce23f91c9e4cc0ac47f7aff0222b71c143f7e78cc459b"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Orphan node"}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_revision"
+value = "scope-1111bbbb"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_decision.path"
+value = "halucinator/scope/scope-1111bbbb.toml"
+
+[[invalid]]
+name = "29-scope-cycle"
+base = "valid"
+summary = """
+Defect: the `29-scope-cycle` case. The validator must emit exactly 2 diagnostic(s):
+SCOPE_CYCLE, STALE_EVIDENCE
+"""
+[[invalid.expect]]
+file = "halucinator/scope/scope-1111bbbb.toml"
+field = "previous"
+code = "SCOPE_CYCLE"
+[[invalid.expect]]
+file = "halucinator/scope/scope-1111bbbb.toml"
+field = "previous.decision"
+code = "STALE_EVIDENCE"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-1111bbbb.toml"
+value = {schema = 2, revision = "scope-1111bbbb", previous = {kind = "revision", revision = "scope-2222cccc", decision = {path = "halucinator/scope/scope-2222cccc.toml", sha256 = "717a1ecfa28f9c6086cdb32095a2ef24a746df2622fb6b6381979c295ba929c0"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Cycle node one"}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-2222cccc.toml"
+value = {schema = 2, revision = "scope-2222cccc", previous = {kind = "revision", revision = "scope-1111bbbb", decision = {path = "halucinator/scope/scope-1111bbbb.toml", sha256 = "@auto"}}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Cycle node two"}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/scope/scope-5555ffff.toml"
+value = {schema = 2, revision = "scope-5555ffff", previous = {kind = "initial"}, included = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:schema-demo"], excluded = ["peripheral:adc"], reason = "Initial fictional schema fixture"}
+
+[[invalid.ops]]
+op = "drop-doc"
+doc = "root/halucinator/scope/scope-0123abcd.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/01-sources.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/03-svd.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/04-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/05-platform.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/08-review-pac.toml"
+path = "scope.decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_revision"
+value = "scope-5555ffff"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "scope.current_decision.path"
+value = "halucinator/scope/scope-5555ffff.toml"
+
+[[invalid]]
+name = "30-tests-bound-to-blocked-driver"
+base = "valid-multi-driver"
+summary = """
+Defect: the `30-tests-bound-to-blocked-driver` case. The validator must emit exactly 1 diagnostic(s):
+DEPENDENCY_NOT_READY
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/07-tests-beta-loopback.toml"
+field = "tests.api_handoff"
+code = "DEPENDENCY_NOT_READY"
+[[invalid.ops]]
+op = "drop-doc"
+doc = "root/halucinator/handoff/08-review-driver-beta.toml"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+path = "handoff.status"
+value = "partial"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+path = "handoff.can_progress"
+value = true
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+path = "coverage.complete"
+value = []
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+path = "coverage.incomplete"
+value = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"]
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/06-driver-beta.toml"
+path = "checks"
+value = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "format-lint-build", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure driver logic is declared."}, {id = "trait-conformance", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "target-link-ci", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}, {id = "independent-review", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/DRIVER.md", sha256 = "@auto"}}]
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "stages"
+value = [{id = "gather-documentation", status = "ready", handoff = {path = "halucinator/handoff/01-sources.toml", sha256 = "@auto"}}, {id = "extract-facts", status = "ready", handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}}, {id = "generate-svd", status = "ready", handoff = {path = "halucinator/handoff/03-svd.toml", sha256 = "@auto"}}, {id = "generate-pac", status = "ready", handoff = {path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}}, {id = "scaffold-hal", status = "ready", handoff = {path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}}, {id = "write-driver:alpha", status = "ready", handoff = {path = "halucinator/handoff/06-driver-alpha.toml", sha256 = "@auto"}}, {id = "write-driver:beta", status = "partial", handoff = {path = "halucinator/handoff/06-driver-beta.toml", sha256 = "@auto"}}, {id = "write-tests:beta-loopback", status = "ready", handoff = {path = "halucinator/handoff/07-tests-beta-loopback.toml", sha256 = "@auto"}}, {id = "review:pac", status = "ready", handoff = {path = "halucinator/handoff/08-review-pac.toml", sha256 = "@auto"}}, {id = "review:platform", status = "ready", handoff = {path = "halucinator/handoff/08-review-platform.toml", sha256 = "@auto"}}, {id = "review:driver-alpha", status = "ready", handoff = {path = "halucinator/handoff/08-review-driver-alpha.toml", sha256 = "@auto"}}, {id = "review:tests-beta-loopback", status = "ready", handoff = {path = "halucinator/handoff/08-review-tests-beta-loopback.toml", sha256 = "@auto"}}]
+
+[[invalid]]
+name = "31-tests-api-handoff-wrong-kind"
+base = "valid-multi-driver"
+summary = """
+Defect: the `31-tests-api-handoff-wrong-kind` case. The validator must emit exactly 1 diagnostic(s):
+ILLEGAL_ENUM
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/07-tests-beta-loopback.toml"
+field = "tests.api_handoff"
+code = "ILLEGAL_ENUM"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-beta-loopback.toml"
+path = "handoff.inputs"
+value = [{path = "halucinator/handoff/05-platform.toml", sha256 = "@auto"}]
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-beta-loopback.toml"
+path = "tests.api_handoff.path"
+value = "halucinator/handoff/05-platform.toml"
+
+[[invalid]]
+name = "32-noncanonical-singleton-filename"
+base = "valid-multi-driver"
+summary = """
+Defect: the `32-noncanonical-singleton-filename` case. The validator must emit exactly 1 diagnostic(s):
+UNKNOWN_FIELD
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/05-platform-extra.toml"
+field = "-"
+code = "UNKNOWN_FIELD"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/handoff/05-platform-extra.toml"
+value = {handoff = {schema = 2, stage = "scaffold-hal", status = "ready", inputs = [{path = "halucinator/handoff/04-pac.toml", sha256 = "@auto"}], notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}], blockers = []}, scope = {revision = "scope-0123abcd", decision = {path = "halucinator/scope/scope-0123abcd.toml", sha256 = "@auto"}}, coverage = {complete = ["foundation:init-api", "foundation:interrupt-metadata", "peripheral:alpha", "peripheral:beta"], incomplete = []}, checks = [{id = "live-reference-read", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "foundation-coverage", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "format-lint", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "advertised-builds", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "negative-chip-selection", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "pure-host-tests", status = "not-applicable", reason = "No pure platform logic is declared."}, {id = "generated-mappings", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "target-link", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "build-only-ci", status = "passed", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SCAFFOLD.md", sha256 = "@auto"}}, {id = "independent-review", status = "passed", evidence = {path = "halucinator/handoff/08-review-platform.toml", sha256 = "@auto"}}], platform = {crate_manifest = {path = "embassy-unobtainium/Cargo.toml", sha256 = "@auto"}, roadmap = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/ROADMAP.md", sha256 = "@auto"}, startup_clock_contract = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/STARTUP.md", sha256 = "@auto"}, supporting_subsystems = ["foundation:init-api", "foundation:interrupt-metadata"], foundation_api = ["pub fn init(config: Config) -> Peripherals"], pac_manifest = {root = "generation:fictional-pac", path = "unobtainium-pac/INVENTORY.md", sha256 = "@auto"}, source_ids = ["doc-001"], cited_notes = [{path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md", sha256 = "@auto"}], dependencies = [{crate = "unobtainium-pac", identity = "fixture-rev-1", features = ["pac", "rt"]}], first_driver = "alpha", first_driver_modes = ["blocking"]}}
+
+[[invalid]]
+name = "33-citation-excerpt-absent"
+base = "valid"
+summary = """
+Defect: `facts.citations[0].excerpt` quotes a sentence that does not occur
+at the cited lines of the pinned fictional manual. Every hash in the tree
+stays current, so nothing masks the citation failure. This is the case the
+gate exists for: the excerpt is plausible prose the verifier cannot derive.
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "facts.citations.0.excerpt"
+code = "CITATION_UNVERIFIED"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "facts.citations.0.excerpt"
+value = "The invented SCHEMA_DEMO block latches an invented sentinel value that appears nowhere in the fixture manual."
+
+[[invalid]]
+name = "34-citation-source-unbound"
+base = "valid"
+summary = """
+Defect: `facts.citations[0].source_id` names `doc-404`, which selects no
+`sources.documents[]` entry. A citation whose source ID binds to no bytes
+cannot be derived from anything, so the gate fails closed rather than
+treating the unbound ID as an unverifiable-but-acceptable claim.
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/02-facts.toml"
+field = "facts.citations.0.source_id"
+code = "CITATION_UNVERIFIED"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/02-facts.toml"
+path = "facts.citations.0.source_id"
+value = "doc-404"
+
+[[invalid]]
+name = "35-destination-crate-nonroot"
+base = "valid"
+summary = """
+Defect: `state.decisions.destination_crate` is nested at
+`crates/embassy-unobtainium` instead of the repository-root single segment
+`embassy-unobtainium`. A nested destination is not covered by the tester's
+`embassy-*/**` denial, which is the configured-path half of A18.
+"""
+[[invalid.expect]]
+file = "halucinator/state.toml"
+field = "decisions.destination_crate"
+code = "ILLEGAL_ENUM"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/state.toml"
+path = "decisions.destination_crate"
+value = {path = "crates/embassy-unobtainium"}
+
+[[invalid]]
+name = "36-board-interlock-conflict"
+base = "valid"
+summary = """
+Defect: two structurally valid `board-test` locks hold intersecting
+`board:` resources. Whichever claimant is second always backs off; no
+creation-order inference is permitted, and neither lock is ever stolen.
+"""
+[[invalid.expect]]
+file = "halucinator/.run/write-tests-schema-demo-recheck-b8740e4e.lock"
+field = "resources"
+code = "BOARD_INTERLOCK_CONFLICT"
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/.run/write-tests-schema-demo-ac472d03.lock"
+value = {schema = 2, stage = "write-tests:schema-demo", status = "in-progress", kind = "board-test", owner = "fixture-operator", host = "fixture-host", pid = 4242, acquired_at = "2024-01-01T00:00:00Z", heartbeat_at = "2024-01-01T00:00:10Z", resources = ["board:fictional-fixture-board-1", "stage:write-tests:schema-demo"], board_id = "fictional-fixture-board-1", board_state = "safe", lease_epoch = "0f1e2d3c4b5a69788796a5b4c3d2e1f0", check_token = "0f1e2d3c4b5a69788796a5b4c3d2e1f011223344556677889900112233445566", owner_process_identity = {scheme = "windows-filetime", value = "133000000000000000"}, operation_phase = "recovery-verified", operation_attempt = 1, last_operation = "load-ram", recovery_attempts = []}
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/.run/write-tests-schema-demo-recheck-b8740e4e.lock"
+value = {schema = 2, stage = "write-tests:schema-demo-recheck", status = "in-progress", kind = "board-test", owner = "fixture-operator", host = "fixture-host", pid = 4242, acquired_at = "2024-01-01T00:00:00Z", heartbeat_at = "2024-01-01T00:00:10Z", resources = ["board:fictional-fixture-board-1", "stage:write-tests:schema-demo-recheck"], board_id = "fictional-fixture-board-1", board_state = "unknown", lease_epoch = "0f1e2d3c4b5a69788796a5b4c3d2e1f0", check_token = "0f1e2d3c4b5a69788796a5b4c3d2e1f011223344556677889900112233445566", owner_process_identity = {scheme = "windows-filetime", value = "133000000000000000"}, operation_phase = "recovery-pending", operation_attempt = 1, last_operation = "load-ram", recovery_attempts = []}
+
+[[invalid]]
+name = "37-board-recovery-required"
+base = "valid"
+summary = """
+Defect: a hardware-validation `07-tests` handoff is published while the
+interlock for its board is still `active` with the board state `unknown`.
+The lock never reached `recovery-verified`, so the board was never shown
+safe; holder death is not operation death, and a surviving probe child may
+still be driving pins.
+"""
+[[invalid.expect]]
+file = "halucinator/handoff/07-tests-schema-demo.toml"
+field = "tests.board_interlock.lease_epoch"
+code = "BOARD_RECOVERY_REQUIRED"
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "checks.5"
+value = {id = "hardware-admission", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "checks.6"
+value = {id = "hardware-execution", status = "unrun", evidence = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "tests.execution_scope"
+value = "hardware-validation"
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "tests.board_interlock"
+value = {board_id = "fictional-fixture-board-1", lease_epoch = "0f1e2d3c4b5a69788796a5b4c3d2e1f0", check_token = "0f1e2d3c4b5a69788796a5b4c3d2e1f011223344556677889900112233445566", authorization = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/EXTERNAL-ROOT.md", sha256 = "@auto"}}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "tests.safe_state_procedure"
+value = {board_id = "fictional-fixture-board-1", facts_handoff = {path = "halucinator/handoff/02-facts.toml", sha256 = "@auto"}, assertion_ids = ["fact.schema-demo.reset-state"], procedure = {path = "halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/schema-demo/TESTS.md", sha256 = "@auto"}}
+
+[[invalid.ops]]
+op = "set"
+doc = "root/halucinator/handoff/07-tests-schema-demo.toml"
+path = "tests.recovery_attempts"
+value = []
+
+[[invalid.ops]]
+op = "add-doc"
+doc = "root/halucinator/.run/write-tests-schema-demo-ac472d03.lock"
+value = {schema = 2, stage = "write-tests:schema-demo", status = "in-progress", kind = "board-test", owner = "fixture-operator", host = "fixture-host", pid = 4242, acquired_at = "2024-01-01T00:00:00Z", heartbeat_at = "2024-01-01T00:00:10Z", resources = ["board:fictional-fixture-board-1", "stage:write-tests:schema-demo"], board_id = "fictional-fixture-board-1", board_state = "unknown", lease_epoch = "0f1e2d3c4b5a69788796a5b4c3d2e1f0", check_token = "0f1e2d3c4b5a69788796a5b4c3d2e1f011223344556677889900112233445566", owner_process_identity = {scheme = "windows-filetime", value = "133000000000000000"}, operation_phase = "active", operation_attempt = 1, last_operation = "load-ram", recovery_attempts = []}
+
+
+[[extra]]
+name = "valid-locks"
+# Structural and filename-positive lock samples. There is no `root/`
+# directory here, so the validator is never pointed at this tree: committed
+# locks cannot exercise liveness, because their heartbeat inevitably ages.
+[extra.payloads]
+"write-driver-schema-demo-c100ce44.lock" = """
+schema = 2
+stage = "write-driver:schema-demo"
+status = "in-progress"
+kind = "stage"
+owner = "fixture-owner-9f8e7d"
+host = "fixture-host"
+pid = 5101
+acquired_at = "2026-01-02T03:04:05Z"
+heartbeat_at = "2026-01-02T03:04:35Z"
+resources = ["stage:write-driver:schema-demo"]
+"""
+"write-tests-schema-demo-ac472d03.lock" = """
+schema = 2
+stage = "write-tests:schema-demo"
+status = "in-progress"
+kind = "stage"
+owner = "fixture-owner-1a2b3c"
+host = "fixture-host"
+pid = 5102
+acquired_at = "2026-01-02T03:04:05Z"
+heartbeat_at = "2026-01-02T03:04:35Z"
+resources = ["stage:write-tests:schema-demo"]
+"""

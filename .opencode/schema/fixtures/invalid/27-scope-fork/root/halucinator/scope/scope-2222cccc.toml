@@ -1,0 +1,9 @@
+schema=2
+revision="scope-2222cccc"
+included=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+excluded=["peripheral:adc"]
+reason="Forked revision"
+[previous]
+kind="revision"
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}

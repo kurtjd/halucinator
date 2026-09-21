@@ -1,0 +1,24 @@
+checks=[{id="workflow-references-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}},{id="live-conventions-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}},{id="format-lint",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}},{id="target-build-link",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}},{id="build-only-ci",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}},{id="hardware-admission",status="not-applicable",reason="Execution scope is build-only."},{id="hardware-execution",status="not-applicable",reason="Execution scope is build-only."},{id="independent-review",status="passed",evidence={path="halucinator/handoff/08-review-tests-beta-loopback.toml",sha256="f8f965ecac863fb56223e9c3a270003d2fc67a3c91c86df7a041d8d0d144d9fe"}}]
+[handoff]
+schema=2
+stage="write-tests"
+status="ready"
+inputs=[{path="halucinator/handoff/06-driver-beta.toml",sha256="1d26f1ba37dad8cc0e97f6cc99787224c26c8c68909d261ce82e8a04b8a49b60"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="38ae34ce228b271f728947b3419b4a5f08f49ac07cb49176866cfe2a46d798fa"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:alpha","peripheral:beta"]
+incomplete=[]
+[tests]
+name="beta-loopback"
+output_kind="validation"
+execution_scope="build-only"
+api_handoff={path="halucinator/handoff/06-driver-beta.toml",sha256="1d26f1ba37dad8cc0e97f6cc99787224c26c8c68909d261ce82e8a04b8a49b60"}
+owned_files=[{path="examples/unobtainium/src/bin/beta_loopback.rs",sha256="b7a40d84226dff7d94d2ae573c7237bdc256b0686e315f9a39576deaf37665a0"}]
+dependencies=[{crate="embedded-hal",identity="1.0.0",features=[]}]
+review_input_manifest={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md",sha256="80236e8ccecf2a6a3f25cba8b26fa109381e551efa3e62fb7181750c0d0aecc9"}
+coverage=[{id="BETA-01",status="passed",test_case="beta-loopback-build",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}}]
+hardware_runs=[{test_case="beta-loopback-build",status="not-run",teardown="not-applicable"}]

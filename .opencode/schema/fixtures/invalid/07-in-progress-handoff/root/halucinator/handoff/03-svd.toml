@@ -1,0 +1,23 @@
+checks=[{id="input-identity",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="xml-well-formed",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="schema-validation",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="source-fact-comparison",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="correction-effects",status="not-applicable",reason="No transforms are present."},{id="structural-inventory",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="information-limits",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}},{id="preparation-replay",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}}]
+[handoff]
+schema=2
+stage="generate-svd"
+status="ready"
+inputs=[{path="halucinator/handoff/01-sources.toml",sha256="f49db3ef61152618812ee042f211df0a21f1164f8b92f645675b4101adcc51c0"},{path="halucinator/handoff/02-facts.toml",sha256="9149d720327a818c47d0e8e355258fc3276c960f3f4b13a71f0c27682e5508fb"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/SVD.md",sha256="516b450e4d7bba100f8fae624ec7c0aa8dd8e69246e54cc5590df4b5443b1671"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+incomplete=[]
+[svd]
+route="review-supplied"
+transforms=[]
+includes=[]
+extraction_mode="peripheral"
+namespace_mode="none"
+representation_limits=[]
+unresolved_facts=[]
+source={root="generation:fictional-pac",path="data/svd/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/fixture.svd",sha256="edd6f95b76f538dc12ce932b8c5390dcfc8fdac7c28298e10840d628591ad2f1"}

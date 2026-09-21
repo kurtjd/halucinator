@@ -1,0 +1,19 @@
+checks=[{id="citations-complete",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="citations-verified",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="summary-field-cross-check",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="field-encodings-exhaustive",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/fact-checks.md",sha256="9b38a166deb4bc5d6f0c16de9806e9245bc164ab305e7ed3741c8fdc7d2a5dec"}},{id="pdf-layout-extraction",status="not-applicable",reason="The fictional fixture source is text, not PDF."}]
+[handoff]
+schema=2
+stage="extract-facts"
+status="ready"
+inputs=[{path="halucinator/handoff/01-sources.toml",sha256="2db92d36f60519d04af064c4a76e7f9d8b533e5179a59d7224b03478947e7910"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="aac600f1cabeaecbb41f133f29983ee594fbb8a84233d63c0723646b0876b2e6"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+incomplete=[]
+[facts]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
+citations=[{assertion_id="fact.schema-demo.reset-state",scope_item="peripheral:schema-demo",claim="The fictional SCHEMA_DEMO block reports zero in every invented field after a fixture reset.",source_id="doc-001",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="894dd80782d29d54fd2c85f49eda6f0905f44ab3cbfdedd7b76429f9c4a3da3e"},location={kind="text-lines",line_start=7,line_end=10},locator={kind="section",value="Section 2.1"},excerpt="After a fixture reset the block reports the invented value zero in every invented field.",note={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}}]
+categories=["field-encodings","register-layout"]
+contradictions=[]

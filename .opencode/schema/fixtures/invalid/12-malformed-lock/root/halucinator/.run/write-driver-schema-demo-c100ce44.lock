@@ -1,0 +1,4 @@
+schema = 1
+stage = "write-driver:schema-demo
+status = in-progress
+kind =

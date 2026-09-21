@@ -1,0 +1,23 @@
+checks=[{id="applicable-references-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}},{id="artifact-identity",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}},{id="hardware-claims-cited",status="not-applicable",reason="The reviewed scope contains no hardware fact ID."},{id="upstream-contracts-reviewed",status="not-applicable",reason="The PAC artifact declares no upstream trait obligation."}]
+[handoff]
+schema=2
+stage="review"
+status="ready"
+inputs=[{root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="6ba1ab15513fe8cc00e756e656bf6516e3d9a33ea464d206bea92975227491d4"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-PAC.md",sha256="31459cb8f9edfc108f293ea62c3d697b42ddc1e136002d6eeca8ef9dc141e809"}]
+blockers=[]
+[scope]
+revision="scope-1111bbbb"
+decision={path="halucinator/scope/scope-1111bbbb.toml",sha256="5539be7e0b43ba3f24e532c39203f9daaf639f9d2ae3e21995a38f42f70d903a"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+incomplete=[]
+[review]
+artifact_id="pac"
+scope=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+unreviewed=[]
+dependencies=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}]
+findings=[]
+verdict="ready"
+artifact={root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="6ba1ab15513fe8cc00e756e656bf6516e3d9a33ea464d206bea92975227491d4"}
+lineage={kind="initial"}

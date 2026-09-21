@@ -32,7 +32,7 @@ generated files come from the recorded generator, not manual shell rewrites.
 
 The reference is `nxp-pac` revision
 `0c2b68a1c1badce2cf09ba8bb3aae25e72776b2b`, used by the inspected
-[MCXA manifest](https://raw.githubusercontent.com/embassy-rs/embassy/main/embassy-mcxa/Cargo.toml).
+[MCXA manifest](https://raw.githubusercontent.com/embassy-rs/embassy/f8506dc5f0022ccb62c75bd2707da913c6979375/embassy-mcxa/Cargo.toml).
 Its normal PAC dependency enables runtime support; its build dependency disables
 defaults and enables metadata. MCXA256 and MCXA577 take the metapac route.
 Inspect the live consumer and selected project for the actual run; these are
@@ -95,26 +95,34 @@ for metapac assembly merely because it produces compilable Rust.
 
 ## Establish reproducible inputs
 
-Require the architect's checked preparation handoff, approved scope and
-consumer requirements. A previous crate, HAL scaffold or `SCAFFOLD.md` is not
-a prerequisite. Missing required preparation evidence is a blocker, not a
-reason to infer registers from emitted Rust.
+Require the validated, `ready` `03-svd` handoff, the coordinator-approved scope
+decision and the coordinator-owned consumer requirements. A previous crate, HAL
+scaffold or `SCAFFOLD.md` is not a prerequisite. Missing required preparation
+evidence is a blocker, not a reason to infer registers from emitted Rust.
 
-Verify each admission item against the preparation note and its linked evidence:
+Admission uses the producer's field names. Every row below names a field that
+`generate-svd` actually publishes, so an omission is detectable rather than a
+heading the consumer invented:
 
-| Admission item | Required evidence before generation |
-|---|---|
-| Scope | Exact target/core, included dependencies and exclusions match the architect's accepted scope; no silently dropped required item |
-| Sources | Accessible source list, cited notes and original/authored SVD, with recorded byte identities and applicable revisions |
-| Preparation recipe | Ordered transforms/includes or explicit absence of corrections, modes/options, tool identity and reproducible input paths |
-| Preparation results | All required schema, source-fact, effect, structural/inventory and preparation-replay checks passed for these inputs; no unresolved required finding |
-| Representation limits | Source-only facts and consumer impact are recorded; no required guarantee is silently treated as represented |
-| Consumers | Agreed chip/target/runtime and metadata requirements; missing board facts block only dependent requirements |
+| Admission concern | Consumed field | Required evidence before generation |
+|---|---|---|
+| Route | `svd.route` | Equals the upstream `sources.route`; the route-applicability review was obtained |
+| Source | `svd.source` | The exact original or authored SVD FileRef, with a matching recorded byte identity and an applicable revision |
+| Recipe | `svd.transforms`, `svd.includes`, `svd.extraction_mode`, `svd.namespace_mode` | Ordered corrections and includes, or an empty ordered array when there are no corrections, plus the exact modes used in baseline, prepared and replay |
+| Prepared output | `svd.prepared_manifest` | Present with a matching recorded identity when prepared YAML is reused; otherwise reproduced from the checked inputs |
+| Representation limits | `svd.representation_limits` | Every source-only fact and its consumer impact is recorded; no required guarantee is silently treated as represented |
+| Unresolved facts | `svd.unresolved_facts` | Empty, because a `ready` preparation has none |
+| Evidence | `checks.*` | Every canonical `03-svd` check is `passed`, or `not-applicable` with a reason, for these exact inputs |
+| Lineage | `handoff.inputs`, `scope.revision`, `scope.decision`, `coverage.complete`, `coverage.incomplete` | The declared scope matches the current coordinator-owned decision, with no silently dropped required item |
 
-Prepared YAML is optional when it can be reproduced from the checked inputs;
-reuse existing YAML only with matching recorded identity. Missing or stale
-admission evidence returns through the architect before emission. A new
-generator or crate path can still be selected by the normal default rules.
+Scope, chip, target, runtime and metadata requirements are **not** in `03-svd`.
+Read them separately from coordinator-owned state, together with the PAC project
+and SVD input roots. Missing board facts block only the requirements that depend
+on them.
+
+Missing or stale admission evidence returns through `hal-coordinator` before
+emission. A new generator or crate path can still be selected by the normal
+default rules.
 
 Inventory and identify all effective inputs: original/authored SVDs, transforms
 and included files in order, preparation modes, shared-block sources or their
@@ -128,8 +136,8 @@ For a new project, author the minimal generator/setup layer for the approved
 scope using chiptool's backend. Read the live schema and consumer APIs before
 choosing metadata fields or Cargo features. Prefer metapac structure without
 registering hypothetical chips or copying an NXP hardware/runtime assumption.
-Missing backend/runtime support is a named dependency to resolve through the
-architect, not a reason to guess architecture-specific code.
+Missing backend/runtime support is a named dependency to resolve through
+hal-coordinator, not a reason to guess architecture-specific code.
 
 Use structured XML/YAML/JSON/TOML tooling for their respective inputs. Preserve
 the checked preparation pipeline: no skipped transforms, duplicate correction
@@ -155,7 +163,7 @@ Write the expected inventory before generation using cited findings and checked
 preparation, independently of the generator's own success list. Distinguish
 the selected target's coverage from unrelated support in an existing project.
 Required metadata may include supporting dependencies, but it is not permission
-to advertise extra peripherals or expand the architect's milestone.
+to advertise extra peripherals or expand the coordinator's milestone.
 
 | Concern | Required comparison for the declared scope |
 |---|---|
@@ -172,7 +180,7 @@ A metadata entry without an address or valid block link is not an implemented
 peripheral. Unresolved required facts block assembly; unsupported optional
 fields remain omitted and recorded, not populated with zeros or guessed
 values. Runtime requirements outside the supplied evidence/scope return to the
-architect for a decision. Do not truncate a required vector table to hide a gap.
+coordinator for a decision. Do not truncate a required vector table to hide a gap.
 
 Inventory an explicit nonempty file set before structural or compile checks.
 Compare source/prepared inventories with emitted Rust and chip metadata using
@@ -217,7 +225,7 @@ not a menu from which to select only the checks that pass:
 Record each check as passed, failed, unrun, or not applicable with a concrete
 reason. Missing tools or permissions do not make a check inapplicable. No
 required failed or unrun check may be waived to claim readiness; resolve it
-and rerun, or return partial/blocked. Only the architect can approve a scope
+and rerun, or return partial/blocked. Only hal-coordinator can approve a scope
 change, and the revised scope needs its own complete evidence.
 
 ## Builds and pure checks
@@ -304,7 +312,7 @@ Before replacing anything, compare the live destination with its recorded
 pre-run state, including dirty/untracked files and edits made during candidate
 verification. Do not discard a user edit because it is in generated output.
 Reproduce an understood intended change in authoritative inputs and rerun the
-checks, or return the conflicting paths and diff to the architect for an
+checks, or return the conflicting paths and diff to hal-coordinator for an
 ownership/intent decision. Never merge such edits by hand into emitted code.
 Remove obsolete generated files only when ownership and replacement
 are established; never perform broad cleanup of the shared project's `data/`,
@@ -321,25 +329,49 @@ part of integration.
 
 ## Generation record and handoff
 
-Keep the record under the selected documentation `notes/` directory. Reuse the
-same-scope note, or default to `notes/PAC.md` when unused; disambiguate conflicting
-records instead of replacing them. Register stable artifact locations and the
-note link in `SOURCES.md`. Exact run paths and check evidence belong in this
-record and handoff, not parallel run fields in the source catalog. Preserve
-prior evidence and record what supersedes it; do not create another source list
-or a mandatory machine-readable report schema. Include:
+The generation record is not a soft convention. Its path is the exact
+deterministic `<documentation>/notes/PAC.md`, resolved against the documentation
+root recorded in state, and it is the **first** entry of `handoff.notes` in
+`halucinator/handoff/04-pac.toml`. The schema fixes it at
+[`04-pac.md`](../../../schema/04-pac.md); the ownership class is
+`svd-pac-notes`, owned by `hal-svd`. Reuse the same-scope record on a rerun and
+disambiguate conflicting records instead of replacing them.
+
+Register the stable artifact locations and the record link in `SOURCES.md`
+through the catalog delta that `hal-coordinator` has `hal-integrator`
+materialize. Exact run paths and check evidence belong in the record and the
+typed handoff, not in parallel fields in the source catalog. Preserve prior
+evidence and record what supersedes it; create no second source list.
+
+The record carries the human-readable detail; the typed handoff carries the
+machine-readable contract. Keep the two consistent:
+
+| Handoff field | What the record must support |
+|---|---|
+| `pac.crate_manifest` | the canonical crate manifest actually built and reviewed |
+| `pac.package`, `pac.revision` | crate identity, with the tagged `revision` value or `workspace` |
+| `pac.cargo_chip_feature` | the implemented chip feature required by the consumer |
+| `pac.runtime_features`, `pac.metadata_features` | the advertised in-scope feature sets that were built |
+| `pac.rust_compilation_target` | the exact target triple the consumer compiles for |
+| `pac.source_ids`, `pac.cited_notes` | the checked source IDs and the cited preparation notes |
+| `pac.temporary_fork` | false in a ready PAC; a fork pin is a bring-up aid, never an acceptance claim |
+| `pac.foundation` | one entry per coordinator-owned foundation requirement, exactly partitioning them, each `covered` with evidence or `missing` |
+| `checks.*` | one entry per canonical check, with its evidence FileRef or its `not-applicable` reason |
+| `coverage.*`, `scope.*`, `handoff.inputs` | the declared scope and the exact `03-svd` bytes consumed |
+
+Include in the record:
 
 1. **Scope and consumers:** exact target/core/revision, approved functionality,
    required foundation dependencies, exclusions, roadmap link, chip features,
-   compilation targets, runtime and metadata contracts. Record unknown facts
-   and the requirements they prevent rather than guessing them.
+   compilation targets, runtime and metadata contracts. Record an unestablished
+   fact and the requirement it prevents rather than guessing it.
 2. **Roots and ownership:** named working/authorized repositories, documentation
    and source-list paths, PAC project, SVD inputs/transforms, metadata, generator,
    canonical crate and candidate/replay paths. Record explicit/reused/default
    selection and generated-versus-authored ownership. Source-list links are
    relative to `SOURCES.md`; downstream handoffs use repository-relative paths
    or paths relative to an explicitly named authorized root.
-3. **Provenance:** preparation-note path and readiness, original/authored input
+3. **Provenance:** preparation-record path and readiness, original/authored input
    identities, ordered transforms/includes, promoted block recipe, cited facts,
    generator/templates, dependency and tool/formatter revisions, actual hashes
    and applicable license/sharing limitations. Hardware citations keep document
@@ -352,11 +384,13 @@ or a mandatory machine-readable report schema. Include:
    target/features/options, outcomes, artifacts, replay comparisons, final-path
    builds and unrun checks. Never fabricate timestamps, hashes or successful
    checks. Invalidate only dependent evidence when inputs change.
-6. **Result and gate:** ready for the declared scope, partial or blocked;
+6. **Result and gate:** the stage status `ready`, `partial` or `blocked`;
    blockers with owners/actions, review request/findings/recheck disposition,
-   and outstanding bench evidence. Generation readiness does not bypass the
-   architect's independent review gate; unresolved required findings prevent
-   closure even when the software checks pass.
+   and outstanding bench evidence. Software readiness does not bypass the
+   coordinator-dispatched independent review over `pac.crate_manifest`:
+   Only review.verdict=ready accepts; ready-with-fixes and not-ready do not.
+   Unresolved required findings prevent closure even when every software check
+   passes.
 7. **Scaffold handoff:** actual dependency crate path and identity, chip and
    runtime/metadata features, target, required API/metadata locations, complete
    checked foundation coverage, source IDs, cited notes and remaining gaps.
@@ -385,20 +419,20 @@ test result. No fixture may invent hardware facts to pass a stage gate.
 | Additional chip in an applicable PAC project | Reuse shared tooling and verified IP; preserve unrelated existing support and scope limits |
 | Legacy/custom/authorized external locations | Reuse named roots and actual paths; no silent migration or assumed sibling checkout |
 | Explicit override with earlier artifacts | Select new work without moving, deleting or overwriting the earlier artifacts |
-| Missing target, source list, scope or preparation handoff | Return precise missing fields through hal-architect; no guessed previous target |
+| Missing target, source list, scope or preparation handoff | Return precise missing fields through hal-coordinator; no guessed previous target |
 | Source/tool/metadata bytes change on resume | Preserve records, invalidate dependent preparation/checks/review and rerun |
 | No block mapping, missing YAML or missing base address | Failed independent inventory even when generator warns and exits successfully |
 | Empty output, dropped inherited/array entry or missing accessor | Failed completeness check even when emitted Rust compiles |
 | One chip selected but extra shared outputs emitted | Check actual file/API/metadata scope; restrict new output reproducibly without deleting unrelated prior support |
 | Required metadata and Rust instances disagree | Failed consumer contract; repair authoritative metadata or generator, not emitted Rust |
 | Reset/access fact omitted by the IR | Preserve cited source meaning and assess consumer impact; do not claim absent enforcement or invent reset zero |
-| Required fact/guarantee cannot be represented | Block that requirement through hal-architect; no raw-register or wrong-architecture workaround |
+| Required fact/guarantee cannot be represented | Block that requirement through hal-coordinator; no raw-register or wrong-architecture workaround |
 | Missing tool, formatter, target or permission | Named unrun check/blocker; no silent install, upgrade or fabricated success |
-| Target PAC builds but host metadata fails | Not ready when both consumers are required; repair generator/setup inputs and rerun |
+| Target PAC builds but host metadata fails | The stage cannot be `ready` when both consumers are required; repair generator/setup inputs and rerun |
 | Missing/incompatible chip selection | Expected feature-policy diagnostic; unrelated failure is not a passing negative test |
 | Destructive generator, unsafe path or overlapping roots | Stop before unsafe writes; use authorized isolated output, not cleanup of live inputs |
 | Dirty generated files or unrelated files in output | Preserve and reconcile ownership before integration; no commit/stash demand or blind overwrite |
 | Replay differs in inventory or bytes | Failed reproducibility; retain evidence and repair deterministic generation inputs/tooling |
-| Candidate passes but final-path build fails | Not ready; resolve location/workspace setup through its source, then recheck final state |
+| Candidate passes but final-path build fails | The stage cannot be `ready`; resolve location/workspace setup through its source, then recheck final state |
 | Missing foundation item versus unrelated excluded peripheral | First blocks scaffold implementation; second does not expand scope or block the declared scope |
-| Software checks pass but required review remains | Return for hal-architect's independent review; no automatic stage closure or scaffold invocation |
+| Software checks pass but required review remains | Return for hal-coordinator's dispatched independent review; no automatic stage closure or scaffold invocation |

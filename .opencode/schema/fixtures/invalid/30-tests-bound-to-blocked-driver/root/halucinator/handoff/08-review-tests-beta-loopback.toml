@@ -1,0 +1,23 @@
+checks=[{id="applicable-references-read",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md",sha256="2a5b0a6a7f63d0de113a0aadfb52878f66453ca13c2544c5039285a78e8b80b3"}},{id="artifact-identity",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md",sha256="2a5b0a6a7f63d0de113a0aadfb52878f66453ca13c2544c5039285a78e8b80b3"}},{id="hardware-claims-cited",status="not-applicable",reason="The reviewed scope contains no hardware fact ID."},{id="upstream-contracts-reviewed",status="not-applicable",reason="The tests artifact declares no upstream trait obligation."}]
+[handoff]
+schema=2
+stage="review"
+status="ready"
+inputs=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md",sha256="80236e8ccecf2a6a3f25cba8b26fa109381e551efa3e62fb7181750c0d0aecc9"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/REVIEW-TESTS.md",sha256="2a5b0a6a7f63d0de113a0aadfb52878f66453ca13c2544c5039285a78e8b80b3"}]
+blockers=[]
+[scope]
+revision="scope-0123abcd"
+decision={path="halucinator/scope/scope-0123abcd.toml",sha256="38ae34ce228b271f728947b3419b4a5f08f49ac07cb49176866cfe2a46d798fa"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:alpha","peripheral:beta"]
+incomplete=[]
+[review]
+artifact_id="tests-beta-loopback"
+artifact={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/INVENTORY.md",sha256="80236e8ccecf2a6a3f25cba8b26fa109381e551efa3e62fb7181750c0d0aecc9"}
+scope=["foundation:init-api","foundation:interrupt-metadata","peripheral:alpha","peripheral:beta"]
+unreviewed=[]
+dependencies=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/tests/beta-loopback/TESTS.md",sha256="0d9714c8d8495153d76895f30a9c1a0d47c5c6468bbe79ec8528c8ad68099d69"}]
+findings=[]
+verdict="ready"
+lineage={kind="initial"}

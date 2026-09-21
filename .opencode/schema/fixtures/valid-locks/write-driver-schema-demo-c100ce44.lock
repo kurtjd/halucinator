@@ -1,0 +1,10 @@
+schema = 2
+stage = "write-driver:schema-demo"
+status = "in-progress"
+kind = "stage"
+owner = "fixture-owner-9f8e7d"
+host = "fixture-host"
+pid = 5101
+acquired_at = "2026-01-02T03:04:05Z"
+heartbeat_at = "2026-01-02T03:04:35Z"
+resources = ["stage:write-driver:schema-demo"]

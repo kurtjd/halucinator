@@ -1,0 +1,19 @@
+checks=[{id="requested-inputs-accounted",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="available-content-resolves",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="local-source-hashes",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/intake-checks.md",sha256="5536373a9acfe48f9b85242b4363d714363dd21b3da41a101ea95b5b37e6d801"}},{id="svd-search-complete",status="not-applicable",reason="An accessible fictional SVD was supplied."}]
+[handoff]
+schema=2
+stage="gather-documentation"
+status="ready"
+inputs=[]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md",sha256="e908389aaa93cf7b84f221f1d7e25458e98fdb5666546cfb92c1c21b0e9f8993"}]
+blockers=[]
+[scope]
+revision="scope-1111bbbb"
+decision={path="halucinator/scope/scope-1111bbbb.toml",sha256="5539be7e0b43ba3f24e532c39203f9daaf639f9d2ae3e21995a38f42f70d903a"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+incomplete=[]
+[sources]
+route="review-supplied"
+documents=[{source_id="doc-001",document="FICTIONAL FIXTURE REFERENCE MANUAL",revision="fixture-1",format="utf8-text",source={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/sources/FICTIONAL-MANUAL.txt",sha256="894dd80782d29d54fd2c85f49eda6f0905f44ab3cbfdedd7b76429f9c4a3da3e"}}]
+cited_notes=[]
+catalog={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/SOURCES.md",sha256="e908389aaa93cf7b84f221f1d7e25458e98fdb5666546cfb92c1c21b0e9f8993"}

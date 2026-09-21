@@ -2,7 +2,21 @@
 
 Keep documentation in the working repository, not a temporary folder. The
 Markdown source list and later research notes may not be reconstructable.
-There is no JSON schema or separate generated index to maintain.
+
+`SOURCES.md` is the durable human record; it is **not** the machine-readable
+contract. That contract is the typed `01-sources` handoff at
+`halucinator/handoff/01-sources.toml`, defined by
+[`01-sources.md`](../../../schema/01-sources.md) and
+[the common handoff contract](../../../schema/handoff-common.md), and it is what
+every downstream stage admits against. The catalog carries prose, provenance and
+the search log; the handoff carries `sources.catalog`, `sources.route`,
+`sources.documents` - one entry per source binding its `source_id` to a
+`document` title, a `revision`, a `format` and a hash-pinned `source` FileRef -
+`sources.cited_notes` and the four canonical checks. Keep the two consistent and do not invent a third index.
+
+`SOURCES.md` is ownership class `sources-catalog` and is materialized by
+**hal-integrator**. `gather-documentation` authors its delta and routes
+materialization through **hal-coordinator**.
 
 ## Location
 
@@ -63,7 +77,13 @@ record stable locations and link their preparation/generation notes here.
 - Paths to stored material are relative to `SOURCES.md`. A reference-only
   original may have an absolute local path, explicitly marked as such. Do not
   mistake that machine-specific path for portable provenance.
-- Record unknown fields as `unknown`, not plausible defaults. Distinguish
+- Omit a field nobody supplied rather than filling it with a plausible default
+  or a sentinel word. Optional means key absence; known-empty means an empty
+  collection; there are no sentinel strings such as `unknown`, `not provided`,
+  `none`, `not checked`, `none recorded`, `not selected`, `none yet`,
+  `unverified` or `in progress`. A gap that matters is a Source Coverage row and
+  a Search Log entry, both of which say what was attempted; a field whose value
+  is the word for missing reads as data and is not data. Distinguish
   user-reported metadata from metadata checked against the source. Each source
   has its own availability and applicability, as defined in the skill.
 - Later hardware notes cite a source ID, title/document number, revision, and
@@ -80,10 +100,17 @@ record stable locations and link their preparation/generation notes here.
 
 ## Source List Template
 
-Replace placeholders with collected information. Repeat the source record for
-each document, revision, or SVD. Maintain the coverage table even for inputs
-that could not be obtained. For an absent board, record that context instead
+Replace placeholders with collected information, and **delete any line whose
+value was never established** rather than filling it with a sentinel. Repeat the
+source record for each document, revision, or SVD. Maintain the coverage table
+even for inputs that could not be obtained: a coverage row records an attempt,
+which a missing field cannot. For an absent board, record that context instead
 of inventing a board or declaring its schematic nonexistent.
+
+Availability uses exactly one of `not-searched`, `located`, `available`,
+`inaccessible`, `not-found` or `confirmed-unavailable`, each of which is a
+classification of the search, not a null. Source IDs and note paths are lists:
+an empty list is written `[]`.
 
 ```markdown
 # Documentation Sources
@@ -93,53 +120,54 @@ of inventing a board or declaring its schematic nonexistent.
 - Documentation directory: <repository-relative path>
 - Vendor: <exact name>
 - MCU part: <exact part number>
-- Package: unknown
-- Silicon revision: unknown
-- Board name/type: unknown
-- Board revision: unknown
 - Last updated: <date>
+
+Record `Package`, `Silicon revision`, `Board name/type` and `Board revision`
+only once each is established, and delete the line until then.
 
 ## Hardware Setup Context
 
-- Probe/programmer and debug interface: unknown
-- Current loader/tool and version: unknown
-- Host OS and local/remote board access: unknown
-- Current firmware-loading procedure: unknown
-- Debug/boot/RAM-loading documentation: unknown
+Record only the answers the user actually gave, one line each, from: probe or
+programmer and debug interface; current loader/tool and version; host OS and
+local or remote board access; current firmware-loading procedure; debug, boot
+or RAM-loading documentation.
+
 - Evidence: user-reported; no tool compatibility or hardware operation verified
 
 ## Source Coverage
 
 | Input | Availability | Source IDs | Applicability or gap |
 |---|---|---|---|
-| Reference manual | not provided | none | unknown |
-| Errata | not provided | none | unknown |
-| Datasheet | not provided | none | unknown |
-| Board schematic | not provided | none | unknown |
-| Board guide/connectors/jumpers | not provided | none | unknown |
-| Supporting documents | not provided | none | unknown |
-| Vendor SVD | not provided | none | unknown |
-| Loader/debug/RAM-loading instructions | not provided | none | unknown |
+| Reference manual | available | doc-001 | Covers the exact part at revision 3 |
+| Errata | not-searched | [] | Search this before any revision-specific claim |
+| Datasheet | available | doc-002 | Covers the selected package |
+| Board schematic | not-found | [] | Searched the vendor board page on <date> |
+| Board guide/connectors/jumpers | not-searched | [] | Blocked on the board revision |
+| Supporting documents | not-searched | [] | Not yet requested |
+| Vendor SVD | confirmed-unavailable | [] | Vendor support page states no SVD is published |
+| Loader/debug/RAM-loading instructions | not-searched | [] | User-reported setup only |
 
 ## Source Records
 
 ### doc-001
 
 - Kind: <reference manual, schematic, SVD, etc.>
-- Title and document number: unknown
-- Revision and publication date: unknown
-- Availability: not provided
-- Covered parts/packages/boards/revisions: unknown
-- Applicability to this target and evidence: unverified
+- Title and document number: <exact title and number>
+- Revision and publication date: <as printed>
+- Availability: available
+- Covered parts/packages/boards/revisions: <as listed on the cover or portal>
+- Applicability to this target and evidence: <what was checked, and how>
 - Origin: <user supplied, official vendor, or community candidate>
-- Source page and download/repository URL: unknown
-- Pack/SDK version, repository revision, and member path, if applicable: unknown
 - Local path: <path relative to SOURCES.md, or explicit reference-only path>
-- SHA-256 of local bytes: not checked
-- Retrieved/accessed: unknown
-- Metadata checked against: unknown
-- Known access/sharing restrictions: unknown
-- Caveats or superseded source IDs: none recorded
+- SHA-256 of local bytes: <64 lowercase hexadecimal characters>
+- Retrieved/accessed: <date>
+
+Add `Source page and download/repository URL`, `Pack/SDK version, repository
+revision, and member path`, `Metadata checked against`, `Known access/sharing
+restrictions` and `Caveats or superseded source IDs` only where each is
+established. Delete a line rather than asserting that its value is missing, and
+never invent a digest: an uncomputed hash means the `local-source-hashes` check
+is `unrun`, which the handoff records.
 
 ## Search Log
 
@@ -148,17 +176,14 @@ of inventing a board or declaring its schematic nonexistent.
 
 ## Gaps and Handoff
 
-- Intake status: in progress
-- SVD starting point: unresolved
-- PAC project root: not selected
-- SVD artifact directory: not selected
-- SVD preparation note: none yet
-- PAC generator directory: not selected
-- Generated PAC crate directory: not selected
-- PAC generation note: none yet
-- Next SVD action and source IDs: unknown
-- Hardware-analysis prerequisites: unknown
-- Hardware-setup questions for hal-architect: unknown
+- SVD starting point: review-supplied | author-from-docs | unresolved
 - Missing/uncertain inputs, affected work, and next actions: <list>
-- Existing cited findings: <relative notes paths, or none yet>
+- Existing cited findings: <relative notes paths, or an empty list>
+
+The stage-owned location lines — PAC project root, SVD artifact directory, SVD
+preparation note, PAC generator directory, generated PAC crate directory and PAC
+generation note — are added by the owning stage when that stage runs. Intake
+leaves them out entirely. The intake status itself is not recorded here: it is
+`handoff.status` in `01-sources.toml`, which is exactly one of `ready`,
+`partial` or `blocked`.
 ```

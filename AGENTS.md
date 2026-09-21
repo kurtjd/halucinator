@@ -5,18 +5,63 @@
 This file governs work on a **new `embassy-<vendor>` HAL crate** destined
 for upstream `embassy-rs/embassy`.
 
-If you are reading this inside the **halucinator** repository itself, you
-are working on the toolkit — the agents and skills that produce HALs, not
-a HAL. See `README.md`. The rules below still describe the domain those
-agents operate in, so they remain useful context.
+## Start here
 
-## Prerequisite
+HAL-workflow agents must apply the [checkout context guard](#checkout-context-guard)
+before following the rest of this file. Then use this map to go directly to
+the material needed for the task:
 
-Work happens inside a clone of `embassy-rs/embassy`. The new crate lives
-at `embassy-<vendor>/`, a sibling of `embassy-mcxa/`, `embassy-stm32/`,
-and the rest. Paths in this file are relative to the repository root and
-are expected to resolve. If they do not, stop and say so rather than
-guessing at the contents.
+| Need | Go to |
+|---|---|
+| Find the next workflow stage and its owner | [The pipeline](#the-pipeline) |
+| Store or hand off documentation and PAC artifacts | [Artifact storage and handoff](#artifact-storage-and-handoff) |
+| Check a non-negotiable constraint | [Hard rules](#hard-rules) |
+| Choose the relevant north-star implementation | [`embassy-mcxa` concern map](#1-embassy-mcxa--the-north-star) |
+| Apply the project's type-design discipline | [Making Smaller Things](#2-making-smaller-things--the-design-discipline) |
+
+## Checkout context guard
+
+This guard binds the eight `hal-*` HAL-workflow agents: each of them must
+classify the checkout **read-only** before anything else, and must not write,
+lock or dispatch while classifying.
+
+A non-HAL agent — a maintenance agent working outside the HAL workflow, dispatched
+to the halucinator toolkit itself — is not bound by this guard and proceeds
+normally.
+
+That exclusion is settled by agent identity alone and never by an agent's own
+judgement of its task. A `hal-*` agent is bound here whatever it believes its
+current work to be; it may not relabel itself a maintenance agent to escape the
+refusal, and the refusal it owes stays terminal.
+
+- **TOOLKIT** when `README.md`, `docs/opencode.json`, `.opencode/ownership.toml`
+  and `tools/selfcheck.py` all exist and `README.md` contains the sentence
+  `No HAL source lives here`. TOOLKIT wins even if Embassy markers also appear:
+  it takes precedence over EMBASSY, because a toolkit checkout can legitimately
+  vendor Embassy-looking files while containing no HAL to work on.
+- **EMBASSY** only when the classification is not TOOLKIT and a root
+  `Cargo.toml`, the `embassy-mcxa` crate's `DEVGUIDE.md` and the ownership file
+  all exist.
+- **AMBIGUOUS** otherwise.
+
+On TOOLKIT or AMBIGUOUS, respond exactly:
+
+HAL workflow not started: run toolkit maintenance with a non-HAL agent, or
+install halucinator into an Embassy checkout.
+
+Then return immediately and list the observed markers. No retry, no lock, no
+state publication, no write, no subdispatch. A clear refusal is better than a
+loop against paths that do not exist. This classification is conservative
+evidence about the checkout, not proof of identity, and nothing mechanical
+proves an agent performed it.
+
+Minimum context: the HAL workflow needs an `embassy-rs/embassy` clone. The
+new crate lives at `embassy-<vendor>/`, a sibling of `embassy-mcxa/`,
+`embassy-stm32/`, and the rest. Paths in this file are relative to the
+repository root and are expected to resolve. In a toolkit checkout they do
+not, and that is the point of the guard above: `README.md`,
+`docs/opencode.json`, `.opencode/ownership.toml` and `tools/selfcheck.py`
+are the halucinator toolkit, and `README.md` says `No HAL source lives here`.
 
 ---
 
@@ -27,12 +72,14 @@ Every agent relies on these two sources. Neither is optional.
 ### 1. `embassy-mcxa/` — the north star
 
 `embassy-mcxa` is the most recently designed HAL in the tree and the
-pattern this project replicates. **`embassy-mcxa/DEVGUIDE.md` is the
-single most important file to read before writing any HAL code.** It is
-the closest thing embassy has to a "how to write a HAL" guide, and it was
-written specifically to be generalised to other HALs.
+whole crate is the north-star pattern this project replicates. Use the concern
+map below as the entry point: read `embassy-mcxa/DEVGUIDE.md` first, then follow
+the row for the work at hand. **`embassy-mcxa/DEVGUIDE.md` is the single most
+important file to read before writing any HAL code.** It is the closest thing
+embassy has to a "how to write a HAL" guide, and it was written specifically
+to be generalised to other HALs.
 
-Read it first. Cite it by section when you make a design decision.
+Cite it by section when you make a design decision.
 
 Map of what to read for each concern:
 
@@ -109,6 +156,10 @@ references agree, the rule is not negotiable.
 ## The pipeline
 
 New-HAL work runs in this order. Each stage has an owning agent.
+`hal-coordinator` is the hub: it establishes the target and scope, dispatches
+every stage below, and applies the admission and acceptance gates. Specialists
+never dispatch peers; work that belongs to another agent returns to
+`hal-coordinator`.
 
 ```
 gather-documentation  →  hal-datasheet
@@ -117,22 +168,35 @@ generate-svd          →  hal-svd
         ↓
 generate-pac          →  hal-svd
         ↓
-scaffold-hal          →  hal-architect
+scaffold-hal          →  hal-architect  (design specification)
+                         hal-driver     (clocks and startup semantics)
+                         hal-integrator (shared files, manifests, wiring)
         ↓
 peripheral drivers    →  hal-driver   (one per peripheral, repeated)
         ↓
-examples & HIL tests  →  hal-tester   (black-box, per peripheral)
+examples & HIL tests  →  hal-tester   (black-box logic and evidence)
+        ↓                 hal-integrator (placement, manifests, CI)
         ↓                 write-examples
         ↓
-review                →  hal-reviewer (gates every stage above)
+review                →  hal-reviewer (typed verdict on a frozen candidate)
 ```
+
+`hal-integrator` is the sole writer of shared and crate-level files —
+manifests, `build.rs`, `_generated.rs`, `src/lib.rs`, `src/chips/**`, linker
+scripts, `examples/`, `tests/`, `ci.sh` and the durable records — and the sole
+committer. Clocks are not a shared file in that sense: `embassy-*/src/clocks/**`
+stays with `hal-driver`, which implements it against the contract
+`hal-architect` specified.
 
 `hal-tester` is deliberately blinded: it is given a peripheral's public
 API in its prompt and is denied read access to `embassy-*/src/**`. A
 tester that has read the driver writes tests that agree with the
-driver, including where the driver is wrong. Whoever dispatches it must
-therefore supply the API surface in the prompt — it has no other way to
-obtain it, and that is the point.
+driver, including where the driver is wrong. `hal-coordinator` must
+therefore supply the API surface in the prompt — the tester has no other way
+to obtain it, and that is the point. Perfect blindness is impossible:
+`bash` is gated at `ask`, `grep` is matched against the query rather than the
+path, and compiler, macro and build-script diagnostics quote source. This is a
+strong default and a statement of intent, not a sandbox.
 
 Testing splits by where the test runs:
 
@@ -142,11 +206,15 @@ Testing splits by where the test runs:
   than sampled.
 - **Anything that runs on target** — `examples/<chip>/`,
   `tests/<chip>/` teleprobe binaries, and their `ci.sh` wiring —
-  belongs to `hal-tester`.
+  runs for `hal-tester`. The tester owns the *test logic and the
+  evidence*; `hal-integrator` owns *where the files land*, their manifests,
+  and the CI wiring. The tester writes its revision under
+  `halucinator/test-candidates/<name>/` and never a canonical path.
 
-`hal-architect` owns the roadmap and decides when a stage is complete
-enough to move on. Stages are not strictly serial — a driver may send you
-back to `gather-documentation` for a register the manual described badly —
+`hal-coordinator` owns the roadmap at
+`halucinator/docs/<target-id>/notes/ROADMAP.md` and decides when a stage is
+complete enough to move on. Stages are not strictly serial — a driver may send
+you back to `gather-documentation` for a register the manual described badly —
 but the dependency direction never reverses. You cannot write a driver for
 a register the PAC does not expose.
 
@@ -156,16 +224,17 @@ the applicable peripheral's public validation guidance for specific cases.
 ### Hardware testing
 
 **hal-tester** owns documented physical setup guidance and hardware execution
-for the scope dispatched by **hal-architect**. The user performs physical setup;
-the agent runs tests. Target-affecting operations require confirmed readiness
-and authorization for the named device and operations. The architect relays
-setup-required handoffs when needed; dispatch alone is not authorization.
+for the scope dispatched by **hal-coordinator**. The user performs physical
+setup; the agent runs tests. Target-affecting operations require confirmed
+readiness and authorization for the named device and operations. The
+coordinator relays setup-required handoffs when needed; dispatch alone is not
+authorization.
 
 The tester must follow `write-examples`' hardware-execution and public-record
 references for loading, running, retries, teardown, and evidence. Source
 blindness and tool approvals remain mandatory, including during debugging.
 Other agents keep their existing ownership; driver and shared-startup fixes
-return through the architect to their owners. Documentation, generation, and
+return through the coordinator to their owners. Documentation, generation, and
 build-only scaffold checks do not authorize hardware operations. Required
 runtime evidence cannot be replaced by a successful build or unavailable setup.
 
@@ -233,7 +302,7 @@ explicit authorization and a named root, never an assumed sibling checkout.
 Ask only about conflicting records, unsafe/inaccessible paths, or missing
 target/evidence handoff details, not whether a usable default is acceptable.
 
-`hal-architect` passes the actual selected documentation directory,
+`hal-coordinator` passes the actual selected documentation directory,
 `SOURCES.md` path, exact target, relevant source IDs, and cited-note paths
 to every downstream agent that needs them. For SVD/PAC work, also pass the
 selected PAC project root, SVD input/transform root, and actual derived run
@@ -286,65 +355,79 @@ That repository is the model for `generate-svd` and `generate-pac`:
 
 ## Hard rules
 
-These are failure conditions, not preferences.
+These are failure conditions, not preferences. The `HAL-RULE-01` through `HAL-RULE-12` identifiers are stable and may be cited by skills, handoffs, and review findings.
 
-1. **No invented hardware facts.** Register offsets, bit positions, reset
+1. **[HAL-RULE-01] No invented hardware facts.** Register offsets, bit positions, reset
    values, clock topology, and errata come from the reference manual or
    the PAC. If you do not have the citation, say "I need the manual
    section for X" and stop. A plausible-looking offset is worse than no
    offset, because it compiles.
 
-2. **Cite the source for hardware claims.** Manual section number, table
+2. **[HAL-RULE-02] Cite the source for hardware claims.** Manual section number, table
    number, or the PAC path. "The datasheet says" without a number is not
    a citation.
 
-3. **No `u8`/`u32` in a public signature where an enum fits.** If the
+3. **[HAL-RULE-03] No `u8`/`u32` in a public signature where an enum fits.** If the
    field has four legal values, the type has four inhabitants. See the
    design discipline above.
 
-4. **Never hand-roll clock gating or reset in a driver.** That policy
-   lives in the `clocks` subsystem and is reached through the `Gate` trait
-   and `enable_and_reset`. A driver poking `MRCC`/`SPC`/`SCG` directly
-   means the policy is now configured in two places that can disagree.
+4. **[HAL-RULE-04] Never duplicate clock, reset, or power policy in a peripheral
+   driver.** One architected owning layer records, per resource, policy
+   owners, acquisition/initialization, reset arbitration, lifetime accounting
+   or its explicit absence, teardown/quiescence, frequency source or
+   irrelevance, and cancellation behavior. Peripheral modules use that
+   contract. A driver that configures the same resource itself means the
+   policy is now configured in two places that can disagree. `Gate` and
+   `enable_and_reset` are MCXA examples, not required names or shapes: a
+   target may have shared reset domains, reference-counted gates, immutable
+   always-on clocks, split clock and reset controllers, or no lifetime power
+   vote at all, and must state its actual form.
    DEVGUIDE §"Bringing Up Clocks and Resets".
 
-5. **Never vendor a forked PAC.** A `Cargo.toml` pointing a dependency at
+5. **[HAL-RULE-05] Never vendor a forked PAC.** A `Cargo.toml` pointing a dependency at
    a personal fork must not merge. Fix the PAC upstream and pin the
    released revision. A fork pin is acceptable only as a local, temporary
    aid while the upstream PAC PR is in review.
 
-6. **Never hand-edit generated code.** `_generated.rs` and the PAC crate
+6. **[HAL-RULE-06] Never hand-edit generated code.** `_generated.rs` and the PAC crate
    are outputs. Fix the generator or the metadata.
 
-7. **Clear all error flags before returning.** An early return on the
-   first error leaves the others latched and the peripheral wedged.
+7. **[HAL-RULE-07] Observe and account for every relevant error condition according to cited
+   read and clear semantics before returning.** Preserve unrelated and control
+   bits and leave no recoverable condition latched. Read-to-clear state need
+   not and sometimes cannot be snapshotted first: a W1C flag is cleared by
+   writing one to it, a W0C flag by writing zero, and a read-to-clear flag by
+   the read itself.
+   An early return on the first error leaves the others latched and the
+   peripheral wedged.
    DEVGUIDE §"Checking Errors".
 
-8. **Register the waker before checking the condition.** Check-then-
+8. **[HAL-RULE-08] Register the waker before checking the condition.** Check-then-
    register loses any completion that lands in the window, and the future
    sleeps forever. DEVGUIDE §"Asynchronous (Interrupt-Driven) Drivers".
 
-9. **A dropped future must not leave hardware running.** Guard any armed
+9. **[HAL-RULE-09] A dropped future must not leave hardware running.** Guard any armed
    region with `OnDrop` and `defuse` on the success path.
 
-10. **No busy-wait on an async path.** On a single-threaded executor it
+10. **[HAL-RULE-10] No busy-wait on an async path.** On a single-threaded executor it
     stalls every task, watchdog included, and a bit that never changes
     hangs the system.
 
-11. **Do not claim behaviour you have not observed.** "This should work on
+11. **[HAL-RULE-11] Do not claim behaviour you have not observed.** "This should work on
     hardware" is not a result. Name what you ran, what you did not run,
     and what needs a bench.
 
-12. **No wildcard imports.** They cause surprising semver breakage and
+12. **[HAL-RULE-12] No wildcard imports.** They cause surprising semver breakage and
     make provenance unreadable.
 
 ---
 
 ## Working style
 
-- Read before writing. `embassy-mcxa` has already solved most of what you
-  are about to solve; the cost of reading `src/i2c/` is far lower than the
-  cost of a review cycle that says "look at how i2c does it".
+- Read before writing. Start with the `embassy-mcxa` concern map above and read
+  the part of the north-star crate that matches the work; `src/i2c/` is the
+  reference implementation for peripheral driver anatomy, not the fallback
+  for every concern.
 - Prefer patching the PAC over working around it in a driver. A driver
   describes behaviour; it does not re-encode the memory map.
 - Keep `cargo fmt` and `clippy` clean. They are CI failures in this

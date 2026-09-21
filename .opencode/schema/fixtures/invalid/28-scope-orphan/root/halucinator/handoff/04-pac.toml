@@ -1,0 +1,26 @@
+checks=[{id="input-identity",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="expected-inventory",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="representation-limits",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="target-build-api",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="host-metadata-api",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="negative-chip-selection",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="pure-host-tests",status="not-applicable",reason="The fictional generator declares no authored pure logic."},{id="format-lint",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="generation-replay",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="final-path-build",status="passed",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="independent-review",status="passed",evidence={path="halucinator/handoff/08-review-pac.toml",sha256="3892b4b5f7d97e20b17e832ef3edf5a3dbef14c7a020707502c58d008a68698e"}}]
+[handoff]
+schema=2
+stage="generate-pac"
+status="ready"
+inputs=[{path="halucinator/handoff/03-svd.toml",sha256="ba067f465ed5464a5362922e169d2075f1bf5d799708c267f0a6cb4166e4d312"}]
+notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}]
+blockers=[]
+[scope]
+revision="scope-1111bbbb"
+decision={path="halucinator/scope/scope-1111bbbb.toml",sha256="b093ec0b84ce38e706a2b5f7597d955de6807be09a543640b1e74e57d2aa1eb5"}
+[coverage]
+complete=["foundation:init-api","foundation:interrupt-metadata","peripheral:schema-demo"]
+incomplete=[]
+[pac]
+package="unobtainium-pac"
+cargo_chip_feature="uc-not-a-real-mcu-0001"
+runtime_features=["pac","rt"]
+metadata_features=["metadata"]
+rust_compilation_target="thumbv7em-none-eabi"
+source_ids=["doc-001"]
+cited_notes=[{path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/FACTS.md",sha256="449a28c90a51fe5147062e9aba9adc5d2db6e4b74de2ac90ef21fbb3b04e582e"}]
+temporary_fork=false
+foundation=[{id="foundation:init-api",kind="api",location="embassy_unobtainium::init",status="covered",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}},{id="foundation:interrupt-metadata",kind="metadata",location="metadata.interrupts",status="covered",evidence={path="halucinator/docs/unobtainium-circuits-uc-not-a-real-mcu-0001/notes/PAC.md",sha256="210d891371541022acaae88b056885d31ce1f8a3d2c1e9a5c2f754bbdffa0ed6"}}]
+crate_manifest={root="generation:fictional-pac",path="unobtainium-pac/INVENTORY.md",sha256="6ba1ab15513fe8cc00e756e656bf6516e3d9a33ea464d206bea92975227491d4"}
+revision={kind="workspace"}

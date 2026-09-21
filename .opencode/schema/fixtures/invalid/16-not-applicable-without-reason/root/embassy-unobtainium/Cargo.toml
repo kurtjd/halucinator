@@ -1,0 +1,5 @@
+# FICTIONAL SCHEMA FIXTURE - NOT HARDWARE EVIDENCE
+[package]
+name = "embassy-unobtainium"
+version = "0.0.0"
+edition = "2021"
