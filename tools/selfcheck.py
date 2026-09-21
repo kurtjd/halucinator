@@ -2843,9 +2843,58 @@ def _permits_empty(path: str, shape: str, known: frozenset[str], arrays: frozens
     return path in arrays and _is_composite_parent(path, known)
 
 
+# A `schema = N` statement in prose or inline code, used to hold the canonical
+# skill template to the derived version.
+SCHEMA_ASSIGN_RE = re.compile(r"\bschema\s*=\s*(\d+)")
+
+
+def derive_schema_version(validator: Path) -> tuple[int | None, str]:
+    """The current handoff schema version, AST-derived from validate.py.
+
+    M6 recheck / B1. This check used to REQUIRE `schema = 1` in every skill's
+    worked example. When the approved schema-2 migration landed everywhere
+    else, the corpus could not follow: correcting a skill to schema 2 made
+    this harness fail, so the wrong version was pinned by the very check meant
+    to keep examples valid. That is the fourth instance in M6 of hand-
+    maintained data standing where a derivation belongs, so the number is no
+    longer written here at all.
+
+    Derivation: the single module-level INT constant in validate.py whose name
+    contains SCHEMA_VERSION. The diagnostic code of the same name is a string
+    and is filtered out by the int requirement. Zero or several such constants
+    is reported rather than guessed - an ambiguous derivation must not silently
+    pick one.
+    """
+    try:
+        tree = ast.parse(validator.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError) as exc:
+        return None, f"cannot parse {rel(validator.parent.parent.parent, validator)}: {exc}"
+    found: dict[str, int] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        value = node.value
+        if value is None or not isinstance(value, ast.Constant) or not isinstance(value.value, int):
+            continue
+        if isinstance(value.value, bool):
+            continue
+        for t in targets:
+            if isinstance(t, ast.Name) and "SCHEMA_VERSION" in t.id:
+                found[t.id] = value.value
+    if not found:
+        return None, ("validate.py declares no module-level integer constant whose name contains "
+                      "SCHEMA_VERSION, so the version the corpus must use cannot be derived")
+    if len(found) > 1:
+        return None, (f"validate.py declares {len(found)} SCHEMA_VERSION-ish integer constants "
+                      f"({', '.join(sorted(found))}); the derivation is ambiguous and must not guess")
+    return next(iter(found.values())), ""
+
+
 def analyze_typed_example(text: str, stage: str | None, kind: str | None,
                           known: frozenset[str],
-                          arrays: frozenset[str] = frozenset()) -> list[tuple[str, str]]:
+                          arrays: frozenset[str] = frozenset(),
+                          schema_version: int = 2) -> list[tuple[str, str]]:
     """Assert the '## Application example' shows the skill's emitted handoff as TOML.
 
     M3 makes these five skills emit typed TOML handoffs, so the worked example
@@ -2886,11 +2935,21 @@ def analyze_typed_example(text: str, stage: str | None, kind: str | None,
     handoffs = []
     for doc in parsed:
         h = doc.get("handoff")
-        if isinstance(h, dict) and h.get("stage") == stage and h.get("schema") == 1:
+        if isinstance(h, dict) and h.get("stage") == stage and h.get("schema") == schema_version:
             handoffs.append(doc)
     if not handoffs:
+        stale = sorted({d["handoff"]["schema"] for d in parsed
+                        if isinstance(d.get("handoff"), dict)
+                        and d["handoff"].get("stage") == stage
+                        and d["handoff"].get("schema") != schema_version
+                        and isinstance(d["handoff"].get("schema"), int)})
+        extra = (f" A block for this stage declares schema {stale} instead; the validator's current version "
+                 f"is {schema_version}, so a reader copying this example would be rejected with "
+                 "SCHEMA_VERSION." if stale else "")
         out.append(("SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF",
-                    f"no toml example block is the emitted handoff: one must contain a [handoff] table with schema = 1 and stage = {stage!r}"))
+                    f"no toml example block is the emitted handoff: one must contain a [handoff] table with "
+                    f"schema = {schema_version} (DERIVED from validate.py, not written here) and "
+                    f"stage = {stage!r}.{extra}"))
         return out
     for doc in handoffs:
         # A path that is not itself a schema leaf is accepted ONLY in the one
@@ -2954,7 +3013,7 @@ _EXAMPLE_CASES: tuple[tuple[str, str, str], ...] = (
     ("section present but no toml fence", "# Fixture\n\n## Application example\n\nProse only, no fence.\n", "SKILL_STRUCTURE_EXAMPLE_NO_TOML"),
     ("unparseable toml", _EXAMPLE_GOOD.replace("schema = 1", "schema = = 1"), "SKILL_STRUCTURE_EXAMPLE_TOML_INVALID"),
     ("wrong stage", _EXAMPLE_GOOD.replace('stage = "generate-pac"', 'stage = "scaffold-hal"'), "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF"),
-    ("schema not 1", _EXAMPLE_GOOD.replace("schema = 1", "schema = 2"), "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF"),
+    ("schema is not the derived version", _EXAMPLE_GOOD.replace("schema = 1", "schema = 2"), "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF"),
     ("field absent from the kind's leaf set", _EXAMPLE_GOOD.replace('name = "x"', 'name = "x"\nbogus = "y"'), "SKILL_STRUCTURE_EXAMPLE_UNKNOWN_FIELD"),
     # --- known-empty composite acceptance must not open a hole ---------------
     ("misspelled composite collection, empty",
@@ -2998,17 +3057,28 @@ def structure_fixture_failures() -> list[str]:
         codes = [c for c, _ in analyze_structure(text, _FIXTURE_CHECKS)]
         if expected not in codes:
             problems.append(f"malformed near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
-    clean = analyze_typed_example(_EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)
+    # The fixture corpus is written at schema 1 and the analyzer is driven at
+    # schema 1 here ON PURPOSE: the live corpus is at a different version, so a
+    # green self-test proves the version is a PARAMETER and not a constant.
+    clean = analyze_typed_example(_EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS, 1)
     if clean:
         problems.append(f"the conforming typed example was rejected with {[c for c, _ in clean]}")
     for name, text in _EXAMPLE_CLEAN_CASES:
-        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)]
+        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS, 1)]
         if codes:
             problems.append(f"conforming typed example {name!r} was rejected with {codes}")
     for name, text, expected in _EXAMPLE_CASES:
-        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS)]
+        codes = [c for c, _ in analyze_typed_example(text, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS, 1)]
         if expected not in codes:
             problems.append(f"typed-example near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
+    # The version must be LOAD-BEARING: the conforming fixture analyzed at a
+    # different schema version must be rejected. Without this the parameter
+    # could be ignored and nobody would notice.
+    codes = [c for c, _ in analyze_typed_example(
+        _EXAMPLE_GOOD, "generate-pac", "04-pac", _EXAMPLE_KNOWN, _EXAMPLE_ARRAYS, 2)]
+    if "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF" not in codes:
+        problems.append("the conforming schema-1 fixture was ACCEPTED when analyzed at schema 2; the derived "
+                        "version is not actually being applied")
     return problems
 
 
@@ -3297,6 +3367,13 @@ def check_skill_structure(root: Path, report: Report) -> None:
         registry = skill_registry(root, report, "SKILL_STRUCTURE_NO_REGISTRY")
         if registry is None:
             return
+        version, verr = derive_schema_version(root / ".opencode" / "schema" / "validate.py")
+        if version is None:
+            report.bad(".opencode/schema/validate.py", "SCHEMA_VERSION", "SKILL_STRUCTURE_VERSION_UNDERIVABLE",
+                       f"the current handoff schema version could not be derived: {verr}. This check must not "
+                       "fall back to a literal - a pinned literal is exactly what stranded the corpus on the "
+                       "rejected version")
+            return
         skills = in_scope_skills(root)
         if not skills:
             report.bad(".opencode/skills", "0", "SKILL_STRUCTURE_NO_TARGETS", "no skills discovered; template form is asserted against nothing")
@@ -3329,10 +3406,30 @@ def check_skill_structure(root: Path, report: Report) -> None:
                 report.bad(r, "structure", code, message)
             known = frozenset(registry[kind]["paths"] | registry[kind]["common"]) if kind else frozenset()
             arrays = frozenset(registry[kind]["arrays"] | registry[kind]["common_arrays"]) if kind else frozenset()
-            for code, message in analyze_typed_example(text, stage, kind, known, arrays):
+            for code, message in analyze_typed_example(text, stage, kind, known, arrays, version):
                 report.bad(r, "Application example", code, message)
             ok += 1
-        report.ok("skill-structure", f"{ok} skills carry the ten template sections, assertable procedural form, and a typed TOML worked example matching their emitted kind (analyzer self-tested against {len(_FIXTURE_CASES) + len(_EXAMPLE_CASES)} near-misses)", mark)
+        # The canonical template is the 14th file carrying the worked handoff
+        # version. It is not a discovered skill, and it states the version in
+        # PROSE rather than in a TOML fence, so it would otherwise keep
+        # shipping the rejected version to every skill authored from it.
+        template = root / SKILL_TEMPLATE_RELPATH
+        if template.is_file():
+            ttext = read_text(template)
+            stale = sorted({int(n) for n in SCHEMA_ASSIGN_RE.findall(ttext) if int(n) != version})
+            if stale:
+                report.bad(SKILL_TEMPLATE_RELPATH, "Application example",
+                           "SKILL_STRUCTURE_EXAMPLE_NOT_HANDOFF",
+                           f"the canonical template tells authors to write schema = {stale} in the worked "
+                           f"handoff; the current version derived from validate.py is {version}. Every skill "
+                           "authored from this template inherits the rejected version")
+        report.ok("skill-structure",
+                  f"{ok} skills carry the ten template sections, assertable procedural form, and a typed TOML "
+                  f"worked example matching their emitted kind at schema version {version}, DERIVED by AST from "
+                  f"validate.py rather than written here (analyzer self-tested against "
+                  f"{len(_FIXTURE_CASES) + len(_EXAMPLE_CASES)} near-misses plus a version-is-load-bearing case). "
+                  "At the next schema transition the expected version follows the validator automatically; a "
+                  "renamed or ambiguous version constant fails loudly rather than defaulting", mark)
 
 
 # --- check 23: skill-trigger-frontmatter ------------------------------------
@@ -6680,10 +6777,22 @@ def live_lock_files(workdir: Path) -> list[Path]:
 
 
 def lock_says(workdir: Path, key: str) -> str | None:
+    """The raw value text of one lock key.
+
+    Captures the WHOLE line after `key =`. The earlier pattern stopped at the
+    first quote, which silently truncated inline tables such as
+    `child_session={kind="process-group",identity="child-one",...}` to
+    `{kind=` - so a test asking whether a child identity survived was reading
+    a value that never contained one. Surrounding quotes are stripped so plain
+    scalars compare as before.
+    """
     for p in live_lock_files(workdir):
-        m = re.search(rf"^{re.escape(key)}\s*=\s*\"?([^\"\n]*)\"?\s*$", read_text(p), re.MULTILINE)
+        m = re.search(rf"^{re.escape(key)}\s*=\s*(.+?)\s*$", read_text(p), re.MULTILINE)
         if m:
-            return m.group(1)
+            value = m.group(1)
+            if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+                return value[1:-1]
+            return value
     return None
 
 
@@ -6729,10 +6838,15 @@ def run_closure_scenario(root: Path, report: Report, degrade: str | None) -> tup
         payload, problem = acquire_fixture_board(root, workdir)
         if payload is None:
             return ("unposed", "acquire-board", problem)
+        # Derived, not written twice. The records below are schema-versioned,
+        # and B1 was caused by exactly this literal being pinned in one place
+        # while the schema moved in another. One derivation feeds all three.
+        version, verr = derive_schema_version(root / ".opencode" / "schema" / "validate.py")
+        if version is None:
+            return ("unposed", "derive-schema-version", verr)
         epoch, token = payload["lease_epoch"], payload["check_token"]
         common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
                   "--epoch", epoch, "--token", token]
-        base = workdir / "halucinator" / "test-candidates" / "demo" / "evidence"
         nested_rel = "halucinator/test-candidates/demo/evidence/recovery/prior-lock.txt"
         nested = workdir / PurePosixPath(nested_rel)
         write_lf(nested, "archived prior lock bytes for the fictional fixture board\n")
@@ -6741,6 +6855,31 @@ def run_closure_scenario(root: Path, report: Report, degrade: str | None) -> tup
         pinned = f'{{path = "{nested_rel}", sha256 = "{digest}"}}'
         if degrade == "no-digest":
             pinned = f'{{path = "{nested_rel}"}}'
+        # A REAL facts handoff. The helper now binds procedure.facts_handoff
+        # properly - it parses the reference, requires the extract-facts kind,
+        # ready status, a passed `citations-verified` check, and every
+        # assertion ID to resolve against the citations the handoff carries.
+        # The previous builder pointed this at a plain-text file, which
+        # binding necessarily refuses; accepting that back would undo the
+        # repair, so the CONTROL moves to meet the helper, not the reverse.
+        #
+        # `checks` is a bare top-level key and must be emitted BEFORE any
+        # table header: once `[facts]` opens it would land at `facts.checks`
+        # and the helper would correctly report no verified check.
+        facts_rel = "halucinator/test-candidates/demo/evidence/02-facts.toml"
+        facts = workdir / PurePosixPath(facts_rel)
+        assertion_id = "fixture.safe-state.procedure"
+        write_lf(facts,
+                 'checks = [{id = "citations-verified", status = "passed"}]\n'
+                 "[handoff]\n"
+                 f"schema = {version}\n"
+                 'stage = "extract-facts"\n'
+                 'status = "ready"\n'
+                 "[facts]\n"
+                 f'citations = [{{assertion_id = "{assertion_id}", '
+                 'claim = "The invented fixture board reports zero in every invented field '
+                 'after a fixture reset."}]\n')
+        facts_pin = f'{{path = "{facts_rel}", sha256 = "{sha(facts.read_bytes()).hexdigest()}"}}'
         safe_rel = "halucinator/test-candidates/demo/evidence/safe-state/" + f"{epoch}-0.toml"
         safe = workdir / PurePosixPath(safe_rel)
         hazards = "".join(
@@ -6752,7 +6891,7 @@ def run_closure_scenario(root: Path, report: Report, degrade: str | None) -> tup
             f'operator_confirmation = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
             for k in ("outputs", "dma", "interrupts", "external-loads", "reset-halt", "probe"))
         write_lf(safe,
-                 "schema = 2\n"
+                 f"schema = {version}\n"
                  f'board_id = "{BOARD_FIXTURE_ID}"\n'
                  f'lease_epoch = "{epoch}"\n'
                  "operation_attempt = 0\n"
@@ -6760,15 +6899,15 @@ def run_closure_scenario(root: Path, report: Report, degrade: str | None) -> tup
                  "outstanding_human_actions = []\n"
                  "[procedure]\n"
                  f'board_id = "{BOARD_FIXTURE_ID}"\n'
-                 f'facts_handoff = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
-                 'assertion_ids = ["fixture.safe-state.procedure"]\n'
+                 f"facts_handoff = {facts_pin}\n"
+                 f'assertion_ids = ["{assertion_id}"]\n'
                  f'procedure = {{path = "{nested_rel}", sha256 = "{digest}"}}\n'
                  + hazards)
         safe_pin = f'{{path = "{safe_rel}", sha256 = "{sha(safe.read_bytes()).hexdigest()}"}}'
         attempt_rel = "halucinator/test-candidates/demo/evidence/recovery/" + f"{epoch}-1.toml"
         attempt = workdir / PurePosixPath(attempt_rel)
         write_lf(attempt,
-                 "schema = 2\n"
+                 f"schema = {version}\n"
                  f'board_id = "{BOARD_FIXTURE_ID}"\n'
                  f'lease_epoch = "{epoch}"\n'
                  "attempt_number = 1\n"
@@ -7146,6 +7285,198 @@ def check_interlock_recovery_can_reconnect(root: Path, report: Report) -> None:
                   "unlock beyond the three operations named here", mark)
 
 
+# --- B2: recovery child sessions --------------------------------------------
+
+RECOVERY_OPERATION_RE = re.compile(r"\b([a-z][a-z-]*recovery-operation)\b")
+
+
+def recovery_operation_commands(root: Path, workdir: Path) -> list[str]:
+    """Commands the helper advertises for starting a RECOVERY-scoped operation.
+
+    Derived from the helper's own --help so a rename follows automatically.
+    """
+    rc, out, _ = run_runtime(root, workdir, ["--help"])
+    return [] if rc is None else sorted(set(RECOVERY_OPERATION_RE.findall(out)))
+
+
+def check_interlock_recovery_child_sessions(root: Path, report: Report) -> None:
+    """A second recovery operation must not silently orphan the first child.
+
+    B2. Reproduced: start recovery `attach` for one child, then - before it
+    completes - start recovery `reset` for another. Both returned 0 and the
+    lock retained only the second. The first probe is still running and is now
+    untracked, so its completion can never be recorded or checked. That is the
+    holder-death-is-not-operation-death hazard arriving by a different door.
+
+    The assertion is a PROPERTY: the helper may refuse the second start, or it
+    may legitimately track both children. What it must not do is accept the
+    second and lose the first.
+    """
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "RECOVERY_CHILD_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        if not helper.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "the interlock helper is absent; concurrent recovery operations cannot be exercised")
+            return
+        workdir = Path(tempfile.mkdtemp(prefix="halucinator-child-"))
+        try:
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "INTERLOCK_SETUP_FAILED", problem)
+                return
+            epoch, token = payload["lease_epoch"], payload["check_token"]
+            common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                      "--epoch", epoch, "--token", token]
+            rc, out, _ = run_runtime(root, workdir, ["begin-board-recovery", *common])
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, "begin-board-recovery", "INTERLOCK_SETUP_FAILED",
+                           f"entering recovery failed (rc={rc}); the concurrency question cannot be posed: "
+                           f"{_one_line(out, 200)}")
+                return
+            starts = recovery_operation_commands(root, workdir)
+            if not starts:
+                report.bad(RUNTIME_RELPATH, "--help", "RECOVERY_CHILD_NO_ENTRY",
+                           "the helper advertises no recovery-operation command, so a recovery-scoped operation "
+                           "cannot be started and this hazard cannot be posed")
+                return
+            start = starts[0]
+            rc, out, _ = run_runtime(root, workdir, [
+                start, *common, "--operation", "attach",
+                "--child-kind", "process-group", "--child-identity", "child-one"])
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, start, "INTERLOCK_SETUP_FAILED",
+                           f"the FIRST recovery operation was refused (rc={rc}), so there is no active child to "
+                           f"be overwritten and the question is unposed: {_one_line(out, 200)}")
+                return
+            before = lock_says(workdir, "child_session") or ""
+            rc, out, _ = run_runtime(root, workdir, [
+                start, *common, "--operation", "reset",
+                "--child-kind", "process-group", "--child-identity", "child-two"])
+            after = lock_says(workdir, "child_session") or ""
+            if rc is None:
+                report.bad(RUNTIME_RELPATH, start, "INTERLOCK_TIMEOUT", out)
+                return
+            if "child-one" not in before:
+                report.bad(RUNTIME_RELPATH, start, "RECOVERY_CHILD_UNRECORDED",
+                           "the first recovery operation reported success but the lock records no child session "
+                           f"for it: {_one_line(before, 160)}. An operation whose child is never written down "
+                           "cannot be reaped or confirmed quiescent")
+            elif "child-one" not in after:
+                verdict = ("was ACCEPTED" if rc == 0 else "was refused, yet")
+                report.bad(RUNTIME_RELPATH, start, "RECOVERY_CHILD_ORPHANED",
+                           f"a second recovery operation {verdict} the lock no longer records the first child. "
+                           "That probe may still be driving pins or transferring; its completion can now never "
+                           "be recorded or checked, and the system believes nothing is in flight. Either refuse "
+                           "the second start or track both children - never replace one silently. Lock now: "
+                           f"{_one_line(after, 160)}")
+        finally:
+            shutil.rmtree(workdir, ignore_errors=True)
+        report.ok("interlock-recovery-child-sessions",
+                  "a second recovery-scoped operation begun while the first is still active either is refused "
+                  "or leaves the first child session still recorded - it never silently replaces it. The entry "
+                  "command is read from the helper's own --help, so a rename follows automatically. This asserts "
+                  "the RECORD, not the processes: nothing here observes whether a probe child is genuinely still "
+                  "running, and a helper that tracked both children without being able to reap them would pass",
+                  mark)
+
+
+# --- B3: runtime-written locks must satisfy the static validator ------------
+
+
+def check_interlock_lock_validates(root: Path, report: Report) -> None:
+    """A lock the runtime helper writes must be accepted by validate.py.
+
+    B3. The helper writes phase `recovery-active` and field `operation_scope`;
+    LOCK_SCHEMA in validate.py allows neither, so a LEGITIMATE recovery makes
+    the worktree invalid with MALFORMED_LOCK. Two sides of a comparison
+    disagree and neither is authoritative - the same root pattern as B1.
+    Asserting round-trip acceptance is the durable fix for the whole class:
+    any future runtime field the static schema does not know about fails here
+    immediately, whichever side turns out to be wrong.
+    """
+    mark = report.mark()
+    with guard(report, RUNTIME_RELPATH, "LOCK_ROUNDTRIP_ABORT"):
+        helper = root / PurePosixPath(RUNTIME_RELPATH)
+        validator = root / ".opencode" / "schema" / "validate.py"
+        if not helper.is_file() or not validator.is_file():
+            report.bad(RUNTIME_RELPATH, "0", "INTERLOCK_HELPER_MISSING",
+                       "helper or validator absent; runtime/static lock agreement cannot be checked")
+            return
+        source = root / ".opencode" / "schema" / "fixtures" / "valid" / "root"
+        gen = (root / ".opencode" / "schema" / "fixtures" / "valid"
+               / "generation-roots" / "fictional-pac")
+        if not source.is_dir():
+            report.bad(".opencode/schema/fixtures/valid/root", "0", "LOCK_ROUNDTRIP_SETUP_FAILED",
+                       "the accepted fixture root is absent; there is no valid worktree to add a lock to")
+            return
+        stage_dir = Path(tempfile.mkdtemp(prefix="halucinator-lockrt-"))
+        workdir = stage_dir / "root"
+        try:
+            shutil.copytree(source, workdir)
+
+            def validate_now() -> tuple[int | None, str]:
+                cmd = [sys.executable, str(validator), str(workdir.resolve()),
+                       "--root", f"generation:fictional-pac={gen.resolve()}"]
+                try:
+                    proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True,
+                                          timeout=SUBPROCESS_TIMEOUT, encoding="utf-8", errors="replace")
+                except subprocess.TimeoutExpired:
+                    return None, f"validator timed out after {SUBPROCESS_TIMEOUT}s"
+                return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+            # Positive control: the untouched copy must validate, otherwise a
+            # later rejection would say nothing about the lock.
+            rc, out = validate_now()
+            if rc != 0:
+                report.bad(".opencode/schema/fixtures/valid/root", "0", "LOCK_ROUNDTRIP_SETUP_FAILED",
+                           f"the copied fixture root does not validate before any lock is written (rc={rc}); "
+                           f"the round-trip question cannot be posed: {_one_line(out, 240)}")
+                return
+            payload, problem = acquire_fixture_board(root, workdir)
+            if payload is None:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "LOCK_ROUNDTRIP_SETUP_FAILED", problem)
+                return
+            epoch, token = payload["lease_epoch"], payload["check_token"]
+            common = ["--stage", BOARD_FIXTURE_STAGE, "--board", BOARD_FIXTURE_ID,
+                      "--epoch", epoch, "--token", token]
+            rc, out = validate_now()
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, "acquire-board", "LOCK_NOT_VALIDATOR_CLEAN",
+                           f"a worktree carrying a freshly acquired runtime lock is REJECTED by validate.py "
+                           f"(rc={rc}). The helper and the static lock schema disagree about a record the helper "
+                           f"itself wrote: {_one_line(out, 300)}")
+            run_runtime(root, workdir, ["begin-board-recovery", *common])
+            starts = recovery_operation_commands(root, workdir)
+            if not starts:
+                report.bad(RUNTIME_RELPATH, "--help", "LOCK_ROUNDTRIP_SETUP_FAILED",
+                           "no recovery-operation command is advertised, so the recovery-phase lock shape cannot "
+                           "be produced and this agreement is unproven")
+                return
+            rcs, outs, _ = run_runtime(root, workdir, [
+                starts[0], *common, "--operation", "attach",
+                "--child-kind", "process-group", "--child-identity", "recovery-child"])
+            if rcs != 0:
+                report.bad(RUNTIME_RELPATH, starts[0], "LOCK_ROUNDTRIP_SETUP_FAILED",
+                           f"the recovery operation was refused (rc={rcs}), so the recovery-phase lock shape was "
+                           f"never written and is unchecked: {_one_line(outs, 200)}")
+                return
+            rc, out = validate_now()
+            if rc != 0:
+                report.bad(RUNTIME_RELPATH, starts[0], "LOCK_NOT_VALIDATOR_CLEAN",
+                           f"after a legitimate recovery operation the worktree is REJECTED by validate.py "
+                           f"(rc={rc}). A recovery that makes the repository invalid forces the operator to "
+                           f"choose between a clean tree and a safe board: {_one_line(out, 300)}")
+        finally:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+        report.ok("interlock-lock-validates",
+                  "a worktree carrying locks the runtime helper actually wrote - after acquisition and after a "
+                  "recovery-scoped operation - is still accepted by validate.py, with the untouched fixture root "
+                  "as a positive control. This binds two sides that had drifted: any runtime phase or field the "
+                  "static LOCK_SCHEMA does not know about now fails immediately. It does not decide WHICH side "
+                  "is right when they disagree; that is a design judgement for review", mark)
+
+
 
 
 STATE_RELPATH = "halucinator/state.toml"
@@ -7248,8 +7579,27 @@ INTERLOCK_RECOVERY: tuple[str, ...] = (
     "begin-board-recovery", "append-recovery-attempt", "verify-board-recovery",
 )
 
+# B4. Naming *a* recovery command is not enough. The reviewer found that the
+# operator-facing procedure omits the recovery-scoped OPERATION start entirely
+# while ordinary begin-board-operation is deliberately refused during
+# recovery - so the documented route from interrupted, through recovery, to
+# verified release is not executable, and the circularity that was fixed in
+# the schema survives in the prose an operator actually follows.
+#
+# The recovery leg is therefore required to be COMPLETE and ORDERED: enter,
+# perform a recovery-scoped operation, record attempts, verify. The
+# operation-start command is supplied by the caller from the helper's own
+# --help, so a rename follows automatically and no spelling is pinned here.
+INTERLOCK_RECOVERY_SEQUENCE: tuple[str, ...] = (
+    "begin-board-recovery",
+    "",                      # placeholder: the advertised recovery-operation start
+    "append-recovery-attempt",
+    "verify-board-recovery",
+)
 
-def analyze_interlock_procedure(relpath: str, text: str) -> list[tuple[str, str]]:
+
+def analyze_interlock_procedure(relpath: str, text: str,
+                                recovery_start: str | None = None) -> list[tuple[str, str]]:
     """Pure analyzer: the interlock protocol is named, and named in order."""
     out: list[tuple[str, str]] = []
     flat = norm_ws(text)
@@ -7281,6 +7631,36 @@ def analyze_interlock_procedure(relpath: str, text: str) -> list[tuple[str, str]
             "operation death; a procedure with no recovery leg leaves the board in an unknown state with no "
             "documented way out",
         ))
+        return out
+    # The recovery leg must be EXECUTABLE end to end, in order. A procedure
+    # that enters recovery and then tells the operator to run the ordinary
+    # operation command - which is refused during recovery - is a dead end.
+    sequence = [c if c else recovery_start for c in INTERLOCK_RECOVERY_SEQUENCE]
+    if recovery_start is None:
+        sequence = [c for c in sequence if c]
+    positions = {}
+    for cmd in sequence:
+        if cmd is None:
+            continue
+        at = flat.find(cmd)
+        if at < 0:
+            out.append((
+                "HARDWARE_INTERLOCK_RECOVERY_INCOMPLETE",
+                f"{relpath}: the recovery leg never names {cmd!r}, so an operator cannot get from interrupted, "
+                "through recovery, to verified release by following this procedure. The ordinary operation "
+                "command is refused while the board is unknown, so omitting the recovery-scoped one leaves "
+                "physical isolation or bypassing the interlock as the only routes",
+            ))
+        else:
+            positions[cmd] = at
+    ordered = [c for c in sequence if c in positions]
+    for earlier, later in zip(ordered, ordered[1:]):
+        if positions[earlier] > positions[later]:
+            out.append((
+                "HARDWARE_INTERLOCK_RECOVERY_ORDER",
+                f"{relpath}: the recovery leg describes {later!r} before {earlier!r}; recovery must be entered, "
+                "then performed, then recorded, then verified",
+            ))
     return out
 
 
@@ -7289,7 +7669,9 @@ _HW_GOOD = (
     "9. **Precheck.** Run before-board-op, then begin-board-operation to record the attempt and child session.\n"
     "10. **Run.** Load and run, then complete-board-operation once the child and its descendants have exited.\n"
     "11. **Teardown.** Collect the safe-state observation, then release-board.\n"
-    "If the holder died, declare the board unknown and use begin-board-recovery before any reconnect.\n"
+    "If the holder died, declare the board unknown and use begin-board-recovery, then "
+    "begin-recovery-operation to attach under recovery scope, then append-recovery-attempt for each action, "
+    "then verify-board-recovery before any release.\n"
 )
 
 _HW_CASES: tuple[tuple[str, str, str], ...] = (
@@ -7303,20 +7685,33 @@ _HW_CASES: tuple[tuple[str, str, str], ...] = (
      "HARDWARE_INTERLOCK_ORDER"),
     ("no recovery leg",
      _HW_GOOD.replace(
-         "If the holder died, declare the board unknown and use begin-board-recovery before any reconnect.\n", ""),
+         "If the holder died, declare the board unknown and use begin-board-recovery, then "
+         "begin-recovery-operation to attach under recovery scope, then append-recovery-attempt for each "
+         "action, then verify-board-recovery before any release.\n", ""),
      "HARDWARE_INTERLOCK_NO_RECOVERY"),
     ("release dropped",
      _HW_GOOD.replace("then release-board.", "then stop."), "HARDWARE_INTERLOCK_UNUSED"),
+    # B4: the exact shape the reviewer found in the live procedure.
+    ("recovery leg omits the recovery-scoped operation",
+     _HW_GOOD.replace("then begin-recovery-operation to attach under recovery scope, ", ""),
+     "HARDWARE_INTERLOCK_RECOVERY_INCOMPLETE"),
+    ("recovery leg verifies before it acts",
+     _HW_GOOD.replace(
+         "use begin-board-recovery, then begin-recovery-operation to attach under recovery scope, then "
+         "append-recovery-attempt for each action, then verify-board-recovery before any release.",
+         "use verify-board-recovery, then begin-board-recovery, then begin-recovery-operation to attach, then "
+         "append-recovery-attempt."),
+     "HARDWARE_INTERLOCK_RECOVERY_ORDER"),
 )
 
 
 def interlock_procedure_analyzer_failures() -> list[str]:
     problems: list[str] = []
-    clean = analyze_interlock_procedure("x.md", _HW_GOOD)
+    clean = analyze_interlock_procedure("x.md", _HW_GOOD, "begin-recovery-operation")
     if clean:
         problems.append(f"the conforming interlocked procedure was rejected with {[c for c, _ in clean]}")
     for name, text, expected in _HW_CASES:
-        codes = [c for c, _ in analyze_interlock_procedure("x.md", text)]
+        codes = [c for c, _ in analyze_interlock_procedure("x.md", text, "begin-recovery-operation")]
         if expected not in codes:
             problems.append(f"near-miss {name!r} was not caught by {expected} (got {codes or 'no findings'})")
     return problems
@@ -7344,21 +7739,33 @@ def check_hardware_procedure_uses_interlock(root: Path, report: Report) -> None:
                        "asserted against nothing")
             return
         scanned = 0
+        probe = Path(tempfile.mkdtemp(prefix="halucinator-hwhelp-"))
+        try:
+            starts = recovery_operation_commands(root, probe)
+        finally:
+            shutil.rmtree(probe, ignore_errors=True)
+        recovery_start = starts[0] if starts else None
+        if recovery_start is None:
+            report.bad(RUNTIME_RELPATH, "--help", "HARDWARE_INTERLOCK_NO_RECOVERY_ENTRY",
+                       "the helper advertises no recovery-operation command, so the procedure cannot name one "
+                       "and the recovery leg cannot be executable")
         for name in sorted(subjects):
             skill = paths[name]
             tree = [skill] + skill_reference_paths(root, skill)
             blob = "\n".join(read_text(p) for p in tree if p.is_file())
             relpath = rel(root, skill)
             scanned += 1
-            for code, message in analyze_interlock_procedure(relpath, blob):
+            for code, message in analyze_interlock_procedure(relpath, blob, recovery_start):
                 report.bad(relpath, "hardware-execution", code, message)
         report.ok("hardware-procedure-uses-interlock",
                   f"{scanned} tester-emitted skill tree(s) name the whole interlock protocol - acquire, "
-                  f"precheck, operation start, operation completion, release - in that order, and name a "
-                  f"recovery command (analyzer self-tested against {len(_HW_CASES)} near-misses). This asserts "
-                  "the PROCEDURE TEXT and its order only. It cannot prove an agent ran the commands, and a "
-                  "procedure that names them in the right order while describing the wrong actions between them "
-                  "passes", mark)
+                  f"precheck, operation start, operation completion, release - in that order, AND carry a "
+                  f"recovery leg that is executable end to end: enter recovery, perform a recovery-scoped "
+                  f"operation ({recovery_start!r}, read from the helper's own --help so a rename follows), "
+                  f"record attempts, verify - in that order (analyzer self-tested against {len(_HW_CASES)} "
+                  "near-misses). This asserts the PROCEDURE TEXT and its order only. It cannot prove an agent "
+                  "ran the commands, and a procedure that names them in the right order while describing the "
+                  "wrong actions between them passes", mark)
 
 
 # --- E: no-invented-hardware-in-corpus --------------------------------------
@@ -7751,6 +8158,8 @@ def main(argv: list[str]) -> int:
     check_hardware_procedure_uses_interlock(root, report)
     check_interlock_refuses_fabricated_evidence(root, report)
     check_interlock_recovery_can_reconnect(root, report)
+    check_interlock_recovery_child_sessions(root, report)
+    check_interlock_lock_validates(root, report)
     check_interlock_override_requires_ambiguity(root, report)
     check_state_publish_is_atomic(root, report)
     check_citation_path_tested(root, report)
