@@ -650,17 +650,26 @@ Verified as grep-absences across all agents and skills.
   raw-colon lock filename case is individually safe but not worth a separate
   mechanism before the operational tooling exists. Owner: M6, with F10/F11,
   which introduce that tooling.* *(Closed by M6.
-  **MECHANICALLY ENFORCED:** `.opencode/schema/runtime.py` is the production
-  helper and `.opencode/schema/test_runtime.py` drives it as a subprocess;
-  `runtime-protocol-tests` runs that suite in the self-check and requires all
-  eight named faults - post-create acquisition conflict, PID reuse against
-  process-birth identity, orphaned probe child, repeatedly interrupted recovery,
-  the check-use pause, Windows delete-sharing replacement failure, unsupported
-  directory `fsync`, and fresh-clone absence.
-  **DOCUMENTED ONLY:** coverage is derived from test names and docstrings, so a
-  test named for a fault it does not actually inject is invisible to the gate,
-  and the broker, cross-clone and physical-truth residuals are closed by nothing
-  in M6. They are carried as F15, F16 and F17.)*
+  **ENFORCED, over the constructed cases only:** `.opencode/schema/runtime.py`
+  is the production helper, `.opencode/schema/test_runtime.py` drives it as a
+  subprocess, and `runtime-protocol-tests` runs that suite inside the
+  self-check, requiring all eight named faults. Separately, black-box checks
+  drive the CLI in a throwaway directory and confirm the helper refuses absent
+  evidence, refuses an override without a record, refuses a live owner, and
+  performs a real compare-and-swap.
+  **HONOUR SYSTEM - operability beyond the paths actually constructed.**
+  Coverage is derived from test NAMES and DOCSTRINGS: a test named for a fault
+  it does not inject is invisible to the gate. More importantly, a green suite
+  is not a demonstration that the documented route works: this recheck found
+  two defects the suite did not - a second recovery operation that silently
+  dropped the first child session from the lock, so a probe that may still be
+  driving pins stops being recorded, and runtime-written locks that the static
+  validator rejects, so helper and validator disagreed about a legal worktree.
+  Both are being repaired in the helper and this entry deliberately claims
+  nothing about them until they land and are checked. **No recovery has been
+  taken end to end on real hardware.** Treat the path as specified and
+  unit-exercised, not as shown to work. The broker, cross-clone and
+  physical-truth residuals are closed by nothing in M6 - F15, F16, F17.)*
 - [x] **D18** Skill ownership text contradicts the agent contracts. M2 could
   not edit a `SKILL.md`, so nine verified conflicts remain, enumerated once
   in `README.md` and referenced by ID from each affected agent: skills still
@@ -726,7 +735,10 @@ Verified as grep-absences across all agents and skills.
   agent-authored extraction field. `citation-verification-corpus` holds the six
   E1 files to that story and rejects any that still routes evidence through an
   agent extraction, retains a retired v1 leaf, drops the remedy, or describes
-  the gate without stating what it cannot prove.
+  the gate without stating what it cannot prove - that last check is **corpus
+  wording only**, unlike the verifier above it, which genuinely derives text
+  from pinned bytes and is the one mechanism in this milestone that does what
+  its name says.
   **DOCUMENTED ONLY:** the gate proves normalized occurrence at the cited
   location, not visual contiguity, semantic entailment, OCR correctness, vendor
   truth, or that an agent ran the validator. Aggressive normalization can join
@@ -745,41 +757,48 @@ Verified as grep-absences across all agents and skills.
   `hal-driver.md:61-80` required, for arbitrary vendors, the shapes that are
   only MCXA examples - `Gate`, `enable_and_reset`, `PreEnableParts` and
   `WakeGuard`. The invariant is universal; those type names are an example. *(Closed by M6.
-  **MECHANICALLY ENFORCED:** `mcxa-example-boundary` reads twelve E3 files and
-  rejects any sentence naming an MCXA clock helper without example or optional
-  framing, requires `AGENTS.md` and `hal-architect.md` to state all eight
-  minimum lifecycle-contract elements - policy owner, acquisition, reset
-  arbitration, lifetime accounting or its explicit absence, teardown,
-  quiescence, frequency source, cancellation - and requires six files to say in
-  so many words that the MCXA names are examples. `HAL-RULE-04` is now the
-  universal invariant (do not duplicate clock, reset or power policy) and names
-  shared reset domains, reference-counted gates, always-on clocks, split
-  controllers and the no-lifetime-vote case as legitimate target forms.
-  **DOCUMENTED ONLY:** this is corpus wording. Nothing observes a generated HAL
-  that copies MCXA shapes anyway.)*
+  **LEXICALLY ENFORCED - corpus text, nothing more:** `mcxa-example-boundary`
+  scans a derived subject set of governed files and rejects a sentence
+  containing one of a small set of MCXA helper tokens unless that same sentence
+  also contains one of a small set of framing words; it requires two files to
+  contain eight literal contract terms and six to contain a
+  framed-mention phrase. That is the whole of what a program decides here.
+  **HONOUR SYSTEM - everything the item is actually about:** that the lifecycle
+  contract is *universal*, that a target's real ownership shape is stated, that
+  the eight terms are used rather than merely present, and that a generated HAL
+  does not copy MCXA topology under other names. The check's own PASS line says
+  so: a corpus mandating a `UniversalGate` and a required instance trio matches
+  no token and passes. Rewording satisfies this check; redesigning is what the
+  item asked for, and nothing verifies that. Carried as H17.)*
 - [x] **E4** Rule 7's "clear them in one write" (`AGENTS.md:319-321`,
   `hal-driver.md:89-92`) is destructive where flags span registers or mix
   W1C/W0C/read-only/control bits. The operation must derive from cited
   per-register semantics. *(Closed by M6.
-  **MECHANICALLY ENFORCED:** `error-clear-semantics` rejects "in one write",
-  "clear all error flags" and "read all error flags" across the six E4 files and
-  requires read-to-clear, preserve, recoverable and latched in each, with the
-  W1C and W0C conventions named somewhere in the group. `HAL-RULE-07` now reads
-  as an obligation to account for every relevant condition under cited
-  read/clear semantics, and explicitly declines to mandate a universal snapshot.
-  **DOCUMENTED ONLY:** no driver is compiled or executed by this check.)*
+  **LEXICALLY ENFORCED - corpus text, nothing more:** `error-clear-semantics`
+  rejects three literal phrases in six named files and requires four literal
+  terms in each, plus W1C and W0C somewhere in the group. A file can satisfy
+  every one of those string tests while describing the wrong procedure.
+  **HONOUR SYSTEM - everything the item is actually about:** that a driver
+  observes every relevant condition, preserves unrelated and control bits, and
+  leaves nothing recoverable latched. No driver is compiled, no register is
+  read, and no cited per-register semantics are checked against any manual.
+  Carried as H17.)*
 - [x] **E5** `hal-driver.md:102-105` tells the agent to read the MCXA
   implementation *before* target analysis, priming NXP register
   assumptions into a model about to interpret a different vendor's PDF.
-  *(Closed by M6. **MECHANICALLY ENFORCED:** `target-first-driver-order` asserts
+  *(Closed by M6. **STRUCTURALLY ENFORCED in one file:**
+  `target-first-driver-order` asserts
   the four reading-order anchors in `hal-driver.md` - validate payload and write
   the target capability/invariant inventory first, then skill selection, then
   profile applicability, then "only now" the live `embassy-mcxa` references -
   requires `## What you do` to be renamed `## Conditional implementation
   obligations` and placed after them, and rejects any `embassy-mcxa/`
   implementation path appearing before the inventory bullet ends.
-  **DOCUMENTED ONLY:** this asserts document order; it cannot observe what an
-  agent actually reads first.)*
+  **HONOUR SYSTEM:** this asserts the ORDER OF SENTENCES IN ONE MARKDOWN FILE.
+  The defect was an agent reading another vendor's implementation before
+  analysing its own target, and nothing observes what an agent reads, in what
+  order, or whether it read the inventory bullet at all. Reordering a document
+  is not reordering a behavior. Carried as H17.)*
 - [~] **E6** No transitive invalidation. Every record says dependent
   evidence must be invalidated, but it is manual and local
   (`scaffold-record.md:88-90`, `driver-record.md`,
@@ -835,7 +854,8 @@ Verified as grep-absences across all agents and skills.
   because "before anything else, classify" outranks a dispatch instruction - even
   one explicitly authorizing it as the non-HAL agent the remedy names. The guard
   opened with a bare imperative and named no subject. *(Closed.
-  **MECHANICALLY ENFORCED:** `checkout-context-guard` now requires two distinct
+  **LEXICALLY ENFORCED - guard TEXT, not guard BEHAVIOR:**
+  `checkout-context-guard` requires two distinct
   sentences in `AGENTS.md` and in each of the eight `hal-*` guard blocks - one
   tying the `hal-*` HAL-workflow family to the classification obligation, and a
   separate one releasing a non-HAL maintenance agent - matched as sentence-level
@@ -843,8 +863,10 @@ Verified as grep-absences across all agents and skills.
   explicitly refuses to accept the operator-facing remedy sentence as the
   release. The `hal-*` refusal is unchanged: terminal, no retry, no lock, no
   state publication, no write, no subdispatch.
-  **DOCUMENTED ONLY:** no check can prove an agent honours the scoping
-  correctly. In particular the check cannot distinguish a correctly scoped
+  **HONOUR SYSTEM - the classification itself:** no classification is executed
+  by any check. Nothing observes an agent classifying a checkout, refusing,
+  returning without a retry, or declining to subdispatch; the eight files are
+  read as strings. In particular the check cannot distinguish a correctly scoped
   exclusion from one worded so broadly that a `hal-*` agent reads itself out of
   the guard, so the corpus carries that weight in prose: the exclusion is
   settled by agent identity alone and never by an agent's own judgement of its
@@ -852,14 +874,18 @@ Verified as grep-absences across all agents and skills.
   satisfy the check and reintroduce E8. This is a review obligation.)*
 - [x] **E9** The install commands overwrite a destination `AGENTS.md`
   (`README.md:66-82`) despite the prose saying "or merge" (`:59-64`).
-  *(Closed by M6. **MECHANICALLY ENFORCED:** `install-no-overwrite` rejects the
-  "overwrite matching files" announcement, requires a
-  `[ ! -e ... ] || exit 1` guard in every POSIX copy block and a
-  `Test-Path -LiteralPath` ... `throw` guard in every PowerShell one, and
-  forbids `-Force` anywhere. The README now describes install as a fresh-install
-  operation and sends an existing destination to a manual diff/merge path.
-  **DOCUMENTED ONLY:** this asserts the shipped command text. A user who edits
-  or ignores the command is outside it.)*
+  *(Closed by M6. **ENFORCED, PER BLOCK - not per destination:**
+  `install-no-overwrite` rejects the "overwrite matching files" announcement,
+  forbids `-Force` anywhere, and requires that a fenced block containing a copy
+  also contain **at least one** absence guard - `[ ! -e ... ] || exit 1` for
+  POSIX, `Test-Path -LiteralPath` ... `throw` for PowerShell.
+  **HONOUR SYSTEM - guard-to-copy correspondence.** The check's own PASS line
+  admits it: a block that guards its first destination and then copies three
+  more unguarded **passes**. Establishing one-to-one guard-before-copy ordering
+  needs a shell parser this harness does not have. The README's blocks do guard
+  every destination today, and that is a fact about the current bytes, checked
+  by a human, not a property the check maintains. A user who edits or ignores
+  the commands is outside it either way. Carried as H17.)*
 - [ ] **E10** `.opencode/schema/validate.py` does not invoke
   `git check-attr`; it requires the mandated `.gitattributes` lines
   literally at the destination root, because the fixture roots live
@@ -913,27 +939,29 @@ Verified as grep-absences across all agents and skills.
   recovery command anywhere in either tester-emitted skill tree. The entire
   F3/F4/F5 safety claim rested on a helper that the only procedure needing it
   walked straight past. *(Closed.
-  **MECHANICALLY ENFORCED:** `no-invented-hardware-in-corpus` allows exactly one
-  example target - the fictional fixture - in any `halucinator/docs|pac` segment,
-  rejects a part-number-shaped token standing within 160 characters of a citation
-  marker unless it is the north-star hardware this toolkit genuinely cites, and
-  rejects the retired schema-1 citation leaves; its analyzer is self-tested
-  against six pieces of legitimate material so it cannot forbid citing
-  `embassy-mcxa`, a pinned upstream URL or a real tool name.
-  `hardware-procedure-uses-interlock` requires every tester-emitted skill tree
-  to name the whole protocol in acquisition-before-operation,
-  release-after-teardown order, plus a recovery command.
-  **DOCUMENTED ONLY:** both are text. No check proves an agent ran
-  `acquire-board`, and a procedure naming the commands in the right order while
-  describing the wrong actions between them passes. Nor is there any lexical
-  test that separates a real part number from an invented one - `MCXA256` exists
-  and `AX100` does not, and they are the same shape - so the target-segment and
-  retired-leaf halves are decidable from the corpus's own rules while the
-  citation-subject half rests on a small hand-maintained allowlist. The three
-  safety properties the wiring now states - holder death is not operation death,
-  device state is declared unknown before reconnecting, and the safe-state
-  ordering before human contact with the fixture - are **documented**, not
-  enforced.)*
+  **ENFORCED, and only this narrowly.** Two halves of
+  `no-invented-hardware-in-corpus` are genuinely decidable from the corpus's own
+  rules and need no hardware knowledge: exactly one target/vendor segment is
+  permitted under `halucinator/docs|pac`, so any other segment is invented by
+  construction; and the retired schema-1 citation leaves are a pure schema fact.
+  Those two are solid. `hardware-procedure-uses-interlock` decides that the
+  documented command sequence is present and correctly ordered.
+  **HONOUR SYSTEM - the rest, which is most of it.**
+  *Invented hardware:* there is no lexical test separating a real part number
+  from an invented one - `MCXA256` exists, `AX100` does not, and they are the
+  same shape - so the citation-subject half is only as good as a small
+  **hand-maintained allowlist** of citable families, and an invented part
+  resembling one passes. Worse for the item's actual purpose: a fabricated
+  register offset, bit position, reset value or field encoding in prose matches
+  **nothing here at all**. The check finds invented *targets* and retired
+  *leaves*; it does not find invented *facts*, which is what Rule 1 is about.
+  *Interlock usage:* the check reads procedure text. Nothing proves an agent
+  ran `acquire-board`, and a procedure naming every command in the right order
+  while describing the wrong actions between them passes - its own PASS line
+  says exactly that. The three safety properties the wiring states - holder
+  death is not operation death, device state declared unknown before
+  reconnecting, and the safe-state ordering before human contact with the
+  fixture - are **prose an agent may ignore**. Carried as H17.)*
 
 
 ---
@@ -1069,12 +1097,19 @@ Zero concurrency vocabulary exists across all agents and skills:
   reset/halt, probe - each with a disposition, an observation method and
   evidence, an `operator_confirmation` FileRef wherever observation depends on
   physical action, and an `outstanding_human_actions` list that prevents a safe
-  classification when nonempty. It is bound to board identity and to verified
-  `02-facts` assertion IDs through `SafeStateProcedureRef`, and the ordered
-  sequence before human contact with the fixture is written down. The record
-  layer is enforced; **whether the procedure is physically sufficient, and
-  whether the observations are true, is reviewed, not proved.** A complete set
-  of FileRefs is not electrical safety. Owner: post-M7 for the physical
+  classification when nonempty, and the ordered sequence before human contact
+  with the fixture is written down. `SafeStateProcedureRef` binds the record to
+  one board identity and to assertion IDs in a ready `02-facts` handoff.
+  **That binding is structural, and it is weaker than it sounds.** What is
+  enforced is that the named IDs *resolve* in a handoff that *passed* the
+  citation gate. The gate proves an excerpt occurs at a cited location - it does
+  not prove the excerpt supports the claim, and a procedure can therefore cite
+  verified assertions that do not establish what the procedure needs them to.
+  "Founded on verified facts" means "references IDs that resolve", nothing more.
+  **Whether the procedure is physically sufficient, and whether the
+  observations are true, is reviewed, not proved.** A complete set of FileRefs
+  is not electrical safety, and no such record has yet been produced by a real
+  run on real hardware. Owner: post-M7 for the physical
   residual.* *M6 review correction: the ordered safe-state sequence existed only
   in the schema prose, not in the procedure a tester actually follows; the
   hardware-execution reference still said "follow the documented safe teardown"
@@ -1247,10 +1282,10 @@ Zero concurrency vocabulary exists across all agents and skills:
 - [x] **G5** Terminology drift: stage / phase / step / milestone used
   interchangeably; target / chip / part / exact-MCU for overlapping
   identities; `type-state` (`README.md:146`) vs `Typestate`
-  (`AGENTS.md:93-98`); British `behaviour` / `normalise` /
+  (`AGENTS.md:93-98`); British `behavior` / `normalise` /
   `initialisation` in agents vs American in skills. *(Closed by the canon
   in `.opencode/schema/terminology.md`; mechanical enforcement covers only
-  the five unambiguous tokens `type-state`, `Typestate`, `behaviour`,
+  the five unambiguous tokens `type-state`, `Typestate`, `behavior`,
   `normalise`, and `initialisation`; migration of legacy occurrences is
   M3/M7.)*
 - [ ] **G6** `AGENTS.md` at 360 lines does four jobs: design philosophy
@@ -1456,6 +1491,26 @@ Asserted capabilities with no procedure sufficient to perform them.
   scope and change what those files must say. The owner declined that for M6 as
   scope creep rather than repair, which is the right call for a safety
   milestone, and it is recorded here so the decision is not lost. Owner:
+  post-M7.
+
+- [ ] **H17** Seven M6 obligations are enforced only as **corpus text**, and
+  narrowing the wording is all M6 could honestly do about it. The M6 compliance
+  review found them presented as "mechanically enforced" when what a program
+  decides is the presence, absence or ordering of literal strings in named
+  Markdown files. They are now relabelled - `E3` lifecycle universality, `E4`
+  error-clearing semantics, `E5` target-first reading order, `E8` agent checkout
+  behavior, the invented-hardware rule outside its two decidable halves, the
+  interlock-usage rule, and `E9` install guarding, which is per code **block**
+  and not per destination. Each is real as far as it goes and none of them
+  reaches the property the item was raised about: a corpus can satisfy every
+  string test while a driver clears the wrong flags, an agent reads another
+  vendor's implementation first, a `hal-*` agent loops in a toolkit checkout, a
+  fabricated register offset ships, nobody calls `acquire-board`, or three of
+  four destinations are overwritten. Closing this needs an observer of agent
+  and driver BEHAVIOR - a runtime that records what an agent read and in what
+  order, a compiled driver exercised against cited register semantics, or an
+  external attester - none of which exists and none of which is a wording fix.
+  Recorded so the gap has an ID rather than only a softer sentence. Owner:
   post-M7.
 
 
