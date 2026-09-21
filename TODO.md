@@ -1282,11 +1282,13 @@ Zero concurrency vocabulary exists across all agents and skills:
 - [x] **G5** Terminology drift: stage / phase / step / milestone used
   interchangeably; target / chip / part / exact-MCU for overlapping
   identities; `type-state` (`README.md:146`) vs `Typestate`
-  (`AGENTS.md:93-98`); British `behavior` / `normalise` /
+  (`AGENTS.md:93-98`); British `behaviour` / `normalise` /
   `initialisation` in agents vs American in skills. *(Closed by the canon
   in `.opencode/schema/terminology.md`; mechanical enforcement covers only
-  the five unambiguous tokens `type-state`, `Typestate`, `behavior`,
-  `normalise`, and `initialisation`; migration of legacy occurrences is
+  the five unambiguous tokens `type-state`, `Typestate`, `behaviour`,
+  `normalise`, and `initialisation` - each quoted here inside backticks,
+  because `terminology` blanks inline code spans, so a citation of a rejected
+  token is representable and a bare use is not; migration of legacy occurrences is
   M3/M7.)*
 - [ ] **G6** `AGENTS.md` at 360 lines does four jobs: design philosophy
   (`:23-105`), pipeline (`:109-170`), artifact policy (`:172-283`), hard
