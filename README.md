@@ -30,12 +30,15 @@ handoff; it does not claim that the toolkit has built a HAL.
 | Ownership registry | `.opencode/ownership.toml`, 46 file classes |
 | Example root config | `docs/opencode.json`, `default_agent: hal-coordinator` |
 | Skills | 13 written |
-| Repository self-checks | 56 PASS |
+| Repository self-checks | 59 PASS |
 
 These counts are projections of the live tree, not a claim that the pipeline
 has run end to end. Run `python tools/selfcheck.py` from this repository: its
 `topology`, `skill-discovery-closure`, `ownership`, and
-`selfcheck-doc-parity` PASS lines report the corresponding counts.
+`selfcheck-doc-parity` PASS lines report the corresponding counts. The
+`readme-live-counts` check derives those same four numbers from the live tree
+and fails if this table drifts from them, so the table is kept honest by the
+harness rather than by hand.
 
 ## Prerequisite
 

@@ -8075,6 +8075,642 @@ def check_citation_path_tested(root: Path, report: Report) -> None:
                   "right ones", mark)
 
 
+# ===========================================================================
+# M7 checks - the user-facing documentation set
+# ===========================================================================
+#
+# M7 added four root-level user documents. They were placed at the repository
+# ROOT rather than under docs/ for a specific reason: governed_markdown()
+# discovers root *.md, so `links` and `no-invented-hardware-in-corpus` govern
+# them the moment they land, with no new code and no new discovery path. That
+# is regression-only coverage inherited by placement, and it is deliberate.
+#
+# Three invariants were NOT inherited and are implemented below.
+
+
+# --- M7-A: markdown-anchor-targets ------------------------------------------
+#
+# `links` resolves the FILE half of a relative Markdown link and stops there:
+# its own contract says "Anchor existence is out of scope". So
+# `AGENTS.md#artifact-storage-and-handoff` is checked only as far as AGENTS.md
+# existing, and renaming the heading breaks the link silently. M7 made that
+# live risk rather than theoretical - AGENTS.md grew a "Start here" navigation
+# table and is now the target of nine distinct anchors from three documents.
+#
+# Every analyzer here is a pure function of text so it can be self-tested
+# against near-misses before the live corpus is trusted.
+
+ATX_HEADING_RE = re.compile(r"^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*(?:#+[ \t]*)?$")
+FENCE_LINE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
+
+
+def blank_fenced_blocks(text: str) -> str:
+    """Blank fenced code blocks, preserving line count and INLINE code spans.
+
+    Deliberately not strip_code(). strip_code also blanks inline code spans,
+    which destroys exactly the heading text the anchors are computed from:
+    `### 1. \x60embassy-mcxa\x60 - the north star` would slug to a row of
+    hyphens and every correct link into it would be reported broken. Headings
+    inside a fenced block are still not headings, so the fences must go.
+    """
+    out: list[str] = []
+    fence: str | None = None
+    for line in text.split("\n"):
+        m = FENCE_LINE_RE.match(line)
+        if fence is None:
+            if m:
+                fence = m.group(1)[0] * 3
+                out.append("")
+                continue
+        else:
+            if m and m.group(1)[0] * 3 == fence:
+                fence = None
+            out.append("")
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
+def github_slug(heading: str) -> str:
+    """GitHub's heading-anchor slug, as understood here.
+
+    Lowercase; inline HTML dropped; a Markdown link reduced to its text;
+    backticks, emphasis and strikethrough markers stripped; every remaining
+    character outside [0-9a-z _-] DELETED; spaces then become hyphens.
+
+    The deletion-before-substitution order is what produces a DOUBLE hyphen
+    from a spaced em dash: the dash itself vanishes and each flanking space
+    survives to become a hyphen. That is why `#1-embassy-mcxa--the-north-star`
+    is the correct anchor for `1. \x60embassy-mcxa\x60 - the north star` and
+    not a typo.
+    """
+    s = heading.strip().lower()
+    s = re.sub(r"<[^>]*>", "", s)
+    s = re.sub(r"\[([^\]\[]*)\]\([^)]*\)", r"\1", s)
+    s = re.sub(r"[`*_~]", "", s)
+    s = re.sub(r"[^0-9a-z \-_]", "", s)
+    return s.replace(" ", "-")
+
+
+def heading_anchors(text: str) -> list[str]:
+    """Every anchor a Markdown document offers, in document order.
+
+    Repeated slugs are disambiguated the way GitHub does it: the first
+    occurrence keeps the bare slug and the nth gets a `-<n-1>` suffix.
+    """
+    seen: dict[str, int] = {}
+    out: list[str] = []
+    for line in blank_fenced_blocks(text).split("\n"):
+        m = ATX_HEADING_RE.match(line)
+        if not m:
+            continue
+        base = github_slug(m.group(2))
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        out.append(base if n == 0 else f"{base}-{n}")
+    return out
+
+
+# (heading line, expected anchor). Each row is a shape the live corpus
+# actually contains; a slugger that gets any of them wrong would report
+# correct links as broken, which is the expensive failure for this check.
+_ANCHOR_SLUG_CASES: tuple[tuple[str, str], ...] = (
+    ("## Artifact storage and handoff", "artifact-storage-and-handoff"),
+    ("### 1. `embassy-mcxa` \u2014 the north star", "1-embassy-mcxa--the-north-star"),
+    ("### 2. \"Making Smaller Things\" \u2014 the design discipline",
+     "2-making-smaller-things--the-design-discipline"),
+    ("### Why `hal-tester` is blindfolded", "why-hal-tester-is-blindfolded"),
+    ("## Known skill/agent ownership conflicts", "known-skillagent-ownership-conflicts"),
+    ("# target-id", "target-id"),
+    ("###### Deep  spacing", "deep--spacing"),
+    ("## Trailing hashes ##", "trailing-hashes"),
+)
+
+# Text samples whose anchor SET is asserted, for the rules a single heading
+# cannot express: duplicate disambiguation, and fenced content that only looks
+# like a heading.
+_ANCHOR_DOC_CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("duplicate headings are disambiguated", "## Notes\n\n## Notes\n\n## Notes\n",
+     ("notes", "notes-1", "notes-2")),
+    ("a fenced shell comment is not a heading", "```sh\n# not a heading\n```\n\n## Real\n",
+     ("real",)),
+    ("inline code survives into the slug", "## The `Gate` contract\n", ("the-gate-contract",)),
+    ("a link in a heading keeps only its text", "## See [the pipeline](AGENTS.md#the-pipeline)\n",
+     ("see-the-pipeline",)),
+)
+
+
+def anchor_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    for heading, expected in _ANCHOR_SLUG_CASES:
+        got = heading_anchors(heading + "\n")
+        if got != [expected]:
+            problems.append(f"heading {heading!r} slugged to {got} rather than [{expected!r}]")
+    for name, text, expected in _ANCHOR_DOC_CASES:
+        got = tuple(heading_anchors(text))
+        if got != expected:
+            problems.append(f"sample {name!r} produced anchors {got} rather than {expected}")
+    # Non-vacuity: the slugger must actually discriminate. A function that
+    # returned its input, or the empty string, would satisfy nothing above by
+    # accident, but assert it anyway - a self-test that cannot fail is decor.
+    if github_slug("## A") == github_slug("## B"):
+        problems.append("the slugger maps distinct headings to one anchor; it discriminates nothing")
+    return problems
+
+
+def fragment_links(text: str) -> list[tuple[int, str, str, str]]:
+    """(line, raw target, path part, fragment) for every relative link with a fragment.
+
+    Link extraction runs over strip_code() output, exactly as `links` does, so
+    a link inside a fenced example is not a link. External schemes and
+    protocol-relative targets are skipped for the same reason `links` skips
+    them: nothing here can resolve them.
+    """
+    out: list[tuple[int, str, str, str]] = []
+    for lineno, line in enumerate(strip_code(text).split("\n"), start=1):
+        for m in LINK_RE.finditer(line):
+            target = m.group(1).strip()
+            if "#" not in target:
+                continue
+            low = target.lower()
+            if low.startswith(IGNORED_SCHEMES) or low.startswith("//"):
+                continue
+            if (re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", target)
+                    and not target.startswith("./") and not target.startswith("../")):
+                continue
+            bare, fragment = target.split("#", 1)
+            if not fragment:
+                continue
+            out.append((lineno, target, bare.split("?", 1)[0], fragment))
+    return out
+
+
+MAX_ANCHOR_SUGGESTIONS = 6
+
+
+def check_markdown_anchor_targets(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, "tools/selfcheck.py", "ANCHOR_ABORT"):
+        for problem in anchor_analyzer_failures():
+            report.bad("tools/selfcheck.py", "github_slug", "ANCHOR_SLUG_FIXTURE",
+                       f"the anchor slugger failed its in-memory fixtures: {problem}")
+        files = [p for p in governed_markdown(root) if not is_fixture_payload(root, p)]
+        if not files:
+            report.bad(".opencode", "0", "ANCHOR_NO_TARGETS",
+                       "no governed non-fixture Markdown discovered; anchor resolution is asserted against nothing")
+            return
+        anchors: dict[Path, list[str] | None] = {}
+
+        def anchors_of(p: Path) -> list[str] | None:
+            if p not in anchors:
+                try:
+                    anchors[p] = heading_anchors(read_text(p)) if p.is_file() else None
+                except OSError:
+                    anchors[p] = None
+            return anchors[p]
+
+        total = 0
+        same_file = 0
+        checked = 0
+        for path in files:
+            r = rel(root, path)
+            try:
+                text = read_text(path)
+            except OSError as exc:
+                report.bad(r, "0", "ANCHOR_UNREADABLE", f"cannot read file: {exc}")
+                continue
+            checked += 1
+            for lineno, target, bare, fragment in fragment_links(text):
+                if not bare:
+                    resolved = path
+                    same_file += 1
+                elif bare.startswith("/"):
+                    resolved = (root / urllib.parse.unquote(bare).lstrip("/")).resolve()
+                else:
+                    resolved = (path.parent / urllib.parse.unquote(bare)).resolve()
+                try:
+                    resolved.relative_to(root.resolve())
+                except ValueError:
+                    # `links` owns this diagnostic; reporting it twice would
+                    # only make one defect look like two.
+                    continue
+                available = anchors_of(resolved)
+                if available is None:
+                    # Missing or unreadable target file. `links` already fails
+                    # on it with LINK_BROKEN; do not double-report.
+                    continue
+                total += 1
+                if urllib.parse.unquote(fragment) in available:
+                    continue
+                near = [a for a in available
+                        if a.startswith(fragment[:8]) or fragment.startswith(a[:8])][:MAX_ANCHOR_SUGGESTIONS]
+                hint = f"; closest existing anchor(s): {', '.join(near)}" if near else (
+                    f"; that file offers {len(available)} anchor(s)")
+                report.bad(r, str(lineno), "ANCHOR_BROKEN",
+                           f"link {target!r} names no heading in {rel(root, resolved)}. The file resolves, so "
+                           f"`links` passes it; the fragment does not{hint}")
+        # Fail CLOSED on an empty subject set, in the idiom the rest of this
+        # harness uses. Having discovered Markdown is not the same as having
+        # discovered something to assert about: if every fragment link were
+        # deleted, or fragment_links() silently stopped matching, `total`
+        # would be zero and a PASS line claiming that all such links resolve
+        # would be asserting over the empty set. That is the exact shape of
+        # vacuity the M4 discovery-closure work exists to prevent.
+        if total == 0:
+            report.bad(".opencode", "0", "ANCHOR_NO_LINKS",
+                       f"no relative Markdown link carrying a fragment was discovered across {checked} governed "
+                       "non-fixture file(s); anchor resolution is asserted against nothing. Either the corpus "
+                       "genuinely stopped cross-referencing headings, or link extraction has stopped matching")
+            return
+        report.ok("markdown-anchor-targets",
+                  f"{total} relative Markdown links carrying a fragment across {checked} governed non-fixture "
+                  f"files ({same_file} of them same-file `#anchor` links, which `links` skips entirely) name a "
+                  f"heading that exists in the file they resolve to, with duplicate headings disambiguated the "
+                  f"way GitHub disambiguates them (slugger self-tested against {len(_ANCHOR_SLUG_CASES)} heading "
+                  f"shapes and {len(_ANCHOR_DOC_CASES)} document samples; the check fails closed rather than "
+                  f"passing when the fragment-link set is empty). LIMITS: this implements GITHUB'S slug "
+                  "algorithm AS UNDERSTOOD HERE and nothing standardizes it - another renderer may slug the same "
+                  "heading differently, so a green run here is not a promise the anchor works everywhere. Only ATX "
+                  "(`#`) headings are anchors to it: a setext heading, an explicit HTML `id=`, or a renderer that "
+                  "emits anchors for non-heading elements is invisible. And an anchor that resolves is not an "
+                  "anchor that says what the citing sentence claims it says - that stays with review", mark)
+
+
+# --- M7-B: readme-live-counts (backlog G13) ---------------------------------
+#
+# README.md's Status table hard-codes counts of things the tree already knows.
+# Before M7 it claimed 6 skills and 45 ownership classes against a live 13 and
+# 46 - drift in the one table a reader checks first. Each displayed count is
+# compared against a value DERIVED from the tree, never against a literal in
+# this harness: the self-check count in particular comes from the same
+# AST-derived invoked-check registry `selfcheck-doc-parity` uses, so adding a
+# check to main() moves the expectation automatically. A literal here would be
+# precisely the drift the check exists to prevent.
+
+README_RELPATH = "README.md"
+README_STATUS_HEADING = "Status"
+
+# (derived-count key, row-label pattern, human name). The label patterns
+# select TABLE ROWS, not skills or agents, so nothing here is a subject
+# selector in the sense skill-subject-derivation guards.
+README_COUNT_ROWS: tuple[tuple[str, str, str], ...] = (
+    ("agents", r"^agents$", "agent definitions under .opencode/agents/*.md"),
+    ("skills", r"^skills$", "skills discovered as .opencode/skills/*/SKILL.md"),
+    ("ownership file classes", r"^ownership registry$", "[[file_classes]] in .opencode/ownership.toml"),
+    ("self-checks", r"^repository self-?checks$", "checks main() invokes"),
+)
+
+
+def status_section(text: str) -> str | None:
+    """The body of README's `## Status` section, up to the next H2."""
+    lines = blank_fenced_blocks(text).split("\n")
+    start = None
+    for i, line in enumerate(lines):
+        m = ATX_HEADING_RE.match(line)
+        if m and len(m.group(1)) == 2 and m.group(2).strip() == README_STATUS_HEADING:
+            start = i + 1
+            break
+    if start is None:
+        return None
+    for j in range(start, len(lines)):
+        m = ATX_HEADING_RE.match(lines[j])
+        if m and len(m.group(1)) <= 2:
+            return "\n".join(lines[start:j])
+    return "\n".join(lines[start:])
+
+
+def table_rows(section: str) -> list[tuple[str, str]]:
+    """(normalized label, raw value) for every two-column row, header/rule dropped."""
+    out: list[tuple[str, str]] = []
+    for line in section.split("\n"):
+        s = line.strip()
+        if not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) != 2:
+            continue
+        label = norm_ws(cells[0]).lower()
+        if not label or set(label) <= set("-: "):
+            continue
+        if label == "component":
+            continue
+        out.append((label, cells[1]))
+    return out
+
+
+def analyze_readme_counts(section: str, derived: dict[str, int]) -> list[tuple[str, str]]:
+    """Pure comparison of a Status table against counts derived from the tree."""
+    findings: list[tuple[str, str]] = []
+    rows = table_rows(section)
+    for key, pattern, what in README_COUNT_ROWS:
+        matched = [value for label, value in rows if re.match(pattern, label)]
+        if not matched:
+            findings.append(("README_COUNT_ROW_MISSING",
+                             f"the Status table has no row for {key!r}; the live tree has "
+                             f"{derived[key]} {what} and the table claims nothing"))
+            continue
+        if len(matched) > 1:
+            findings.append(("README_COUNT_ROW_DUPLICATE",
+                             f"the Status table has {len(matched)} rows matching {key!r}; one of them can drift "
+                             "while the other stays right, and a reader cannot tell which is authoritative"))
+            continue
+        digits = re.findall(r"\d+", matched[0])
+        if len(digits) != 1:
+            findings.append(("README_COUNT_ROW_MALFORMED",
+                             f"the Status row for {key!r} carries {len(digits)} integers ({matched[0]!r}); "
+                             "exactly one is required or there is nothing unambiguous to compare"))
+            continue
+        shown = int(digits[0])
+        if shown != derived[key]:
+            findings.append(("README_COUNT_MISMATCH",
+                             f"the Status table says {shown} for {key!r}; the live tree has {derived[key]} "
+                             f"({what}). Update the table - this harness derives the count and will not be "
+                             "taught a literal"))
+    return findings
+
+
+_README_SAMPLE_ROWS: tuple[tuple[str, str, str], ...] = (
+    ("agents", "Agents", "{n} written"),
+    ("skills", "Skills", "{n} written"),
+    ("ownership file classes", "Ownership registry", "`.opencode/ownership.toml`, {n} file classes"),
+    ("self-checks", "Repository self-checks", "{n} PASS"),
+)
+_README_SAMPLE_DERIVED = {"agents": 8, "skills": 13, "ownership file classes": 46, "self-checks": 59}
+
+
+def _render_status_sample(counts: dict[str, int], drop: tuple[str, ...] = (),
+                          duplicate: tuple[str, ...] = (), blank: tuple[str, ...] = ()) -> str:
+    lines = ["| Component | State |", "|---|---|", "| `AGENTS.md` | written |"]
+    for key, label, template in _README_SAMPLE_ROWS:
+        if key in drop:
+            continue
+        value = "several written" if key in blank else template.format(n=counts[key])
+        lines.append(f"| {label} | {value} |")
+        if key in duplicate:
+            lines.append(f"| {label} | {value} |")
+    lines.append("| Example root config | `docs/opencode.json` |")
+    return "\n".join(lines) + "\n"
+
+
+def readme_count_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    derived = dict(_README_SAMPLE_DERIVED)
+    clean = analyze_readme_counts(_render_status_sample(derived), derived)
+    if clean:
+        problems.append(f"a conforming Status table was rejected with {[c for c, _ in clean]}")
+    # Mutate each displayed count INDIVIDUALLY. A comparison that accidentally
+    # keys every row off one value would pass three of these four.
+    for key, _label, _template in _README_SAMPLE_ROWS:
+        drifted_table = _render_status_sample({**derived, key: derived[key] + 1})
+        codes = [c for c, _ in analyze_readme_counts(drifted_table, derived)]
+        if "README_COUNT_MISMATCH" not in codes:
+            problems.append(f"a table whose {key!r} count was off by one was accepted (got {codes or 'no findings'})")
+        elif len(codes) != 1:
+            problems.append(f"a table whose only defect was the {key!r} count produced {len(codes)} findings; "
+                            "one mutated row must implicate one row")
+    for key, _label, _template in _README_SAMPLE_ROWS:
+        for mutation, expected in (("drop", "README_COUNT_ROW_MISSING"),
+                                   ("duplicate", "README_COUNT_ROW_DUPLICATE"),
+                                   ("blank", "README_COUNT_ROW_MALFORMED")):
+            table = _render_status_sample(derived, **{mutation: (key,)})
+            codes = [c for c, _ in analyze_readme_counts(table, derived)]
+            if expected not in codes:
+                problems.append(f"near-miss {mutation!r} on row {key!r} was not caught by {expected} "
+                                f"(got {codes or 'no findings'})")
+    return problems
+
+
+def check_readme_live_counts(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, README_RELPATH, "README_COUNT_ABORT"):
+        for problem in readme_count_analyzer_failures():
+            report.bad("tools/selfcheck.py", "analyze_readme_counts", "README_COUNT_FIXTURE",
+                       f"the Status-table analyzer failed its in-memory near-misses: {problem}")
+        path = root / README_RELPATH
+        if not path.is_file():
+            report.bad(README_RELPATH, "0", "README_COUNT_MISSING", "README.md is absent; its Status table is the "
+                       "first thing a reader checks and there is nothing to compare")
+            return
+        registry = load_registry(root, report)
+        if registry is None:
+            return
+        classes = registry.get("file_classes")
+        if not isinstance(classes, list):
+            report.bad(".opencode/ownership.toml", "file_classes", "README_COUNT_UNDERIVABLE",
+                       "the registry has no [[file_classes]] array, so the displayed class count is comparable "
+                       "with nothing")
+            return
+        try:
+            source = Path(__file__).read_text(encoding="utf-8")
+        except OSError as exc:
+            report.bad("tools/selfcheck.py", "0", "README_COUNT_UNDERIVABLE",
+                       f"cannot read this harness to derive its own invoked-check count: {exc}")
+            return
+        invoked = invoked_check_names(source)
+        if not invoked:
+            report.bad("tools/selfcheck.py", "main", "README_COUNT_UNDERIVABLE",
+                       "no invoked check names could be derived from main()'s AST; the displayed self-check count "
+                       "would be compared against zero")
+            return
+        derived = {
+            "agents": len(agent_paths(root)),
+            "skills": len(skill_paths(root)),
+            "ownership file classes": len(classes),
+            "self-checks": len(invoked),
+        }
+        empty = sorted(k for k, v in derived.items() if v == 0)
+        if empty:
+            report.bad(README_RELPATH, README_STATUS_HEADING, "README_COUNT_UNDERIVABLE",
+                       f"derived {', '.join(empty)} count(s) are zero; discovery found nothing and the comparison "
+                       "would be vacuous")
+            return
+        section = status_section(read_text(path))
+        if section is None:
+            report.bad(README_RELPATH, README_STATUS_HEADING, "README_COUNT_NO_SECTION",
+                       f"README.md has no '## {README_STATUS_HEADING}' section; the counted table cannot be located")
+            return
+        for code, message in analyze_readme_counts(section, derived):
+            report.bad(README_RELPATH, README_STATUS_HEADING, code, message)
+        report.ok("readme-live-counts",
+                  f"README.md's Status table shows exactly one row each for agents, skills, ownership file classes "
+                  f"and repository self-checks, and every displayed integer equals a count DERIVED from the live "
+                  f"tree - {derived['agents']} agents, {derived['skills']} skills, "
+                  f"{derived['ownership file classes']} file classes, {derived['self-checks']} checks, the last "
+                  f"from the same AST-derived invoked-check registry selfcheck-doc-parity reads, so adding a check "
+                  f"moves the expectation and no literal count lives in this harness (analyzer self-tested against "
+                  f"{len(_README_SAMPLE_ROWS) * 4} near-misses: each count off by one, and each row dropped, "
+                  "duplicated and made non-numeric). LIMITS: this proves the NUMBERS agree, not that the things "
+                  "counted are the right things - eight agent files that are all empty count as eight - and it "
+                  "says nothing about any other prose in the table or the document", mark)
+
+
+# --- M7-C: glossary-terms-grounded ------------------------------------------
+#
+# GLOSSARY.md defines the toolkit's vocabulary. A glossary that drifts into
+# defining words the corpus no longer uses is worse than no glossary, because
+# a reader trusts it. The term list is parsed from the glossary's own entry
+# structure - one H2 per term - so adding an entry enrolls it automatically.
+
+GLOSSARY_RELPATH = "GLOSSARY.md"
+MAX_GLOSSARY_TERMS = 500
+
+
+def glossary_terms(text: str) -> list[str]:
+    """Every defined term, read from the glossary's own H2 entry structure."""
+    out: list[str] = []
+    for line in blank_fenced_blocks(text).split("\n"):
+        m = ATX_HEADING_RE.match(line)
+        if m and len(m.group(1)) == 2:
+            term = m.group(2).strip()
+            if term:
+                out.append(term)
+    return out
+
+
+def ground_key(s: str) -> str:
+    """Fold a term or a document to a space-delimited token stream, padded.
+
+    Case, inline markup, dashes and punctuation are all legitimate variation
+    between a glossary heading and the prose that uses the term: the corpus
+    writes `north-star`, `North star` and `north star` for one concept. Folding
+    all three to one key is what keeps this check from producing false alarms
+    it would then have to be weakened to silence.
+
+    The leading and trailing space are load-bearing, not cosmetic. Because
+    every token in both the term and the corpus is surrounded by spaces, a
+    plain `in` test between two padded keys is a TOKEN/PHRASE match rather
+    than a substring match: ` pac ` does not occur inside ` the package `.
+    Padding both sides is also what makes a term at the very start or end of
+    the corpus match.
+    """
+    s = s.replace("\u2014", " ").replace("\u2013", " ").replace("\u2019", "'")
+    s = re.sub(r"[`*_~]", "", s.lower())
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return " " + " ".join(s.split()) + " "
+
+
+def ungrounded_terms(terms: list[str], corpus_key: str) -> list[str]:
+    """Terms whose every slash-separated part is absent from the folded corpus.
+
+    Matching is on whole folded tokens, not raw substrings. The earlier
+    revision compared `ground_key(part).strip()` against the corpus, which
+    grounded `PAC` on the word "package" and `Handoff` on anything containing
+    those letters - the PASS line said the term *occurs* and containment is
+    not occurrence. Comparing the PADDED keys makes the claim true as written.
+
+    A compound heading such as `Functional core / imperative shell` names one
+    concept written two ways; both halves must occur, because half a compound
+    occurring is not evidence the compound is in use.
+    """
+    out: list[str] = []
+    for term in terms:
+        parts = [p for p in (part.strip() for part in term.split("/")) if p]
+        if not parts:
+            continue
+        missing = [p for p in parts if ground_key(p) not in corpus_key]
+        if missing:
+            out.append(term)
+    return out
+
+
+_GLOSSARY_SAMPLE_CORPUS = (
+    "The north-star crate is `embassy-mcxa`. A handoff carries `target-id` and a typed verdict.\n"
+    "Functional core, imperative shell: the functional core is host-testable and the imperative "
+    "shell pokes registers. Typed verdicts gate acceptance.\n"
+    "A package of recorded transforms is an input; unhandoffed drafts are not.\n"
+)
+
+_GLOSSARY_GROUNDED_CASES: tuple[str, ...] = (
+    "North star",
+    "`target-id`",
+    "Typed verdict",
+    "Functional core / imperative shell",
+    "HANDOFF",
+    # A term that IS a whole token must still match when neighbouring words
+    # merely contain it: the tightening must not overshoot into rejecting
+    # legitimate occurrences.
+    "gate",
+)
+
+_GLOSSARY_UNGROUNDED_CASES: tuple[tuple[str, str], ...] = (
+    ("a term nothing uses", "Quiescent flange"),
+    ("only half a compound occurs", "Functional core / orbital mechanics"),
+    ("a plausible near-word", "north stars and stripes"),
+    # The two cases that motivated the tightening. Under the earlier substring
+    # comparison both of these were reported GROUNDED, which is precisely the
+    # gap between "occurs" and "is contained in".
+    ("a short term buried inside a longer word", "PAC"),
+    ("a term that is only ever a prefix of another", "Handoffed"),
+)
+
+
+def glossary_analyzer_failures() -> list[str]:
+    problems: list[str] = []
+    corpus = ground_key(_GLOSSARY_SAMPLE_CORPUS)
+    grounded = list(_GLOSSARY_GROUNDED_CASES)
+    rejected = ungrounded_terms(grounded, corpus)
+    if rejected:
+        problems.append(f"terms the sample corpus plainly uses were reported ungrounded: {rejected}; "
+                        "a check that cries wolf on case, backticks or a hyphen is a check that gets deleted")
+    for name, term in _GLOSSARY_UNGROUNDED_CASES:
+        if not ungrounded_terms([term], corpus):
+            problems.append(f"near-miss {name!r} ({term!r}) was accepted as grounded")
+    if not ungrounded_terms(grounded, ground_key("")):
+        problems.append("every term was accepted against an EMPTY corpus; the match would pass vacuously")
+    return problems
+
+
+def check_glossary_terms_grounded(root: Path, report: Report) -> None:
+    mark = report.mark()
+    with guard(report, GLOSSARY_RELPATH, "GLOSSARY_ABORT"):
+        for problem in glossary_analyzer_failures():
+            report.bad("tools/selfcheck.py", "ungrounded_terms", "GLOSSARY_FIXTURE",
+                       f"the grounding analyzer failed its in-memory fixtures: {problem}")
+        path = root / GLOSSARY_RELPATH
+        if not path.is_file():
+            report.bad(GLOSSARY_RELPATH, "0", "GLOSSARY_MISSING",
+                       "the glossary is absent; the documents that link to it define the toolkit's vocabulary "
+                       "nowhere")
+            return
+        terms = glossary_terms(read_text(path))
+        if not terms:
+            report.bad(GLOSSARY_RELPATH, "0", "GLOSSARY_NO_TERMS",
+                       "no '## <term>' entries were parsed from the glossary; the grounding rule is asserted "
+                       "against nothing")
+            return
+        if len(terms) > MAX_GLOSSARY_TERMS:
+            report.bad(GLOSSARY_RELPATH, "0", "GLOSSARY_TOO_LARGE",
+                       f"the glossary defines {len(terms)} terms, above the {MAX_GLOSSARY_TERMS} bound")
+            return
+        others = [p for p in governed_markdown(root)
+                  if not is_fixture_payload(root, p) and p.resolve() != path.resolve()]
+        if not others:
+            report.bad(GLOSSARY_RELPATH, "0", "GLOSSARY_NO_CORPUS",
+                       "no governed Markdown outside the glossary itself; every term would be reported ungrounded")
+            return
+        corpus_key = ground_key(" \n ".join(read_text(p) for p in others))
+        for term in ungrounded_terms(terms, corpus_key):
+            report.bad(GLOSSARY_RELPATH, term, "GLOSSARY_TERM_UNGROUNDED",
+                       f"the glossary defines {term!r} but the token occurs nowhere in the {len(others)} other "
+                       "governed Markdown files. Either the corpus stopped using the term and the entry is stale, "
+                       "or the entry is spelled differently from the prose it is meant to explain")
+        report.ok("glossary-terms-grounded",
+                  f"all {len(terms)} terms parsed from the glossary's own H2 entry structure occur as whole "
+                  f"folded tokens somewhere in the {len(others)} governed non-fixture Markdown files outside it, "
+                  f"matched after folding away case, backticks and emphasis, dashes and punctuation, with a "
+                  f"compound `a / b` heading requiring BOTH halves (analyzer self-tested against "
+                  f"{len(_GLOSSARY_UNGROUNDED_CASES)} near-misses, {len(_GLOSSARY_GROUNDED_CASES)} legitimate "
+                  "spellings that must not trip, and an empty corpus that must reject everything). The match is "
+                  "on token and phrase boundaries, not raw substrings: `PAC` is grounded by `PAC` and NOT by "
+                  "\"package\". LIMITS: OCCURRENCE IS STILL NOT USAGE-CONSISTENCY. A term that appears somewhere "
+                  "is not thereby a term used as the glossary defines it, and this check will never notice a "
+                  "definition that has quietly become wrong - a sentence using `Canonical` in its ordinary "
+                  "English sense grounds the entry just as well as one using it in this toolkit's sense. Folding "
+                  "punctuation away also means a term is grounded by any spelling that folds to the same tokens, "
+                  "and inflections are NOT matched: a corpus that only ever wrote \"handoffs\" would leave "
+                  "`Handoff` ungrounded. The converse is not checked at all: a term the corpus uses heavily and "
+                  "the glossary omits is invisible here", mark)
+
 
 def main(argv: list[str]) -> int:
     args = [a for a in argv[1:]]
@@ -8163,6 +8799,12 @@ def main(argv: list[str]) -> int:
     check_interlock_override_requires_ambiguity(root, report)
     check_state_publish_is_atomic(root, report)
     check_citation_path_tested(root, report)
+
+    # M7. The user-documentation set. Pure corpus/tree analyzers, no
+    # subprocess, so they cost nothing and are invoked last before parity.
+    check_markdown_anchor_targets(root, report)
+    check_readme_live_counts(root, report)
+    check_glossary_terms_grounded(root, report)
 
     check_selfcheck_doc_parity(root, report)
     return report.emit()
