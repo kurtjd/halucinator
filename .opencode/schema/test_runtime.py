@@ -46,6 +46,7 @@ ATTEMPT_1 = "halucinator/evidence/recovery/1.toml"
 ATTEMPT_2 = "halucinator/evidence/recovery/2.toml"
 PROCEDURE = "halucinator/docs/fictional/notes/SAFE-STATE-PROCEDURE.md"
 FACTS_HANDOFF = "halucinator/handoff/02-facts.toml"
+ASSERTION_ID = "fact.fixture.safe-state"
 RAW_EVIDENCE = "halucinator/evidence/raw/probe-log.txt"
 OPERATOR_CONFIRMATION = "halucinator/evidence/raw/operator-confirmation.txt"
 OVERRIDE_RECORD = "halucinator/evidence/recovery/override.toml"
@@ -142,12 +143,40 @@ class Worktree:
         return self.put(AUTHORIZATION,
                         FICTIONAL_NOTE + "Board authorization for the fixture board.\n")
 
-    def write_support_files(self) -> None:
+    def write_support_files(self, facts_ready: bool = True,
+                            citations_verified: bool = True) -> None:
         self.put(RAW_EVIDENCE, FICTIONAL_NOTE + "Invented probe transcript.\n")
         self.put(OPERATOR_CONFIRMATION,
                  FICTIONAL_NOTE + "Operator confirmed the invented fixture state.\n")
         self.put(PROCEDURE, FICTIONAL_NOTE + "Invented safe-state procedure.\n")
-        self.put(FACTS_HANDOFF, FICTIONAL_NOTE + "Invented facts handoff stand-in.\n")
+        self.write_facts_handoff(ready=facts_ready, verified=citations_verified)
+
+    def write_facts_handoff(self, ready: bool = True, verified: bool = True) -> str:
+        """A minimal but REAL ready 02-facts handoff carrying one assertion.
+
+        The helper parses this now, so a plain-text stand-in would be refused -
+        which is the point of M1. `checks` is a bare top-level key emitted
+        BEFORE any table header: after `[facts]` opens it would land in
+        `facts.checks` and the helper would correctly see no verified check.
+        Everything here is the fictional fixture target; nothing describes real
+        silicon.
+        """
+        lines = [
+            'checks=[{id="citations-verified",status="%s"}]'
+            % ("passed" if verified else "unrun"),
+            "[handoff]",
+            "schema=2",
+            'stage="extract-facts"',
+            'status="%s"' % ("ready" if ready else "partial"),
+        ]
+        if not ready:
+            lines.append("can_progress=true")
+        lines += [
+            "[facts]",
+            'citations=[{assertion_id="%s",claim="The invented fixture board reports '
+            'zero in every invented field after a fixture reset."}]' % ASSERTION_ID,
+        ]
+        return self.put(FACTS_HANDOFF, "\n".join(lines) + "\n")
 
     def write_safe_state(self, relpath: str, epoch: str, attempt: int,
                          unknown_hazard: str | None = None,
@@ -163,7 +192,8 @@ class Worktree:
             'observed_at = "2024-01-01T00:05:00Z"',
             "outstanding_human_actions = [%s]"
             % ", ".join('"%s"' % a for a in outstanding),
-            "procedure = {board_id=\"%s\",facts_handoff=%s,assertion_ids=[\"fact.fixture.safe-state\"],procedure=%s}"
+            ("procedure = {board_id=\"%s\",facts_handoff=%s,assertion_ids=[\""
+             + ASSERTION_ID + "\"],procedure=%s}")
             % (BOARD, self.ref(FACTS_HANDOFF), self.ref(PROCEDURE)),
         ]
         hazards = []
@@ -839,6 +869,146 @@ def test_unpinned_nested_reference_is_refused(tree: Worktree) -> None:
     expect(lock["board_state"] == "unknown", "the board must stay unknown")
 
 
+def test_second_recovery_operation_never_orphans_the_first_child(tree: Worktree) -> None:
+    """A second recovery operation must not silently replace an active child.
+
+    Start `attach` for child-one, then - before completing it - start `reset`
+    for child-two. The first probe may still be driving pins or transferring,
+    so replacing its record would leave it unreapable while the system believed
+    nothing was in flight: holder-death-is-not-operation-death arriving by a
+    different door.
+
+    This helper REFUSES the second start. Tracking both would also be sound;
+    what is not sound is accepting the second and losing the first.
+    """
+    stage = "write-tests:alpha"
+    code, payload = acquire(tree, stage)
+    expect(code == EXIT_OK, "acquisition failed: %r" % payload)
+    epoch, token = payload["lease_epoch"], payload["check_token"]
+    common = ["--stage", stage, "--epoch", epoch, "--token", token]
+    code, _ = tree.run("begin-board-recovery", *common)
+    expect(code == EXIT_OK, "entering recovery was refused")
+
+    code, first = tree.run("begin-recovery-operation", *common, "--operation", "attach",
+                           "--child-kind", "process-group", "--child-identity", "child-one")
+    expect(code == EXIT_OK, "the first recovery operation was refused: %r" % first)
+    lock_name = [n for n in tree.files() if n.endswith(".lock")][0]
+    expect(tree.locks()[lock_name]["child_session"]["identity"] == "child-one",
+           "the first child must be recorded, or it can never be reaped")
+
+    code, second = tree.run("begin-recovery-operation", *common, "--operation", "reset",
+                            "--child-kind", "process-group", "--child-identity", "child-two")
+    expect(code != EXIT_OK,
+           "a second recovery operation started while the first child is in flight "
+           "must be refused: %r" % second)
+    lock = tree.locks()[lock_name]
+    expect(lock["child_session"]["identity"] == "child-one",
+           "the first child session was replaced: %r" % lock["child_session"])
+    expect(lock["operation_id"] == first["operation_id"],
+           "the in-flight operation ID was replaced")
+
+    # Completing the first releases the constraint, so this is a discipline,
+    # not a dead end.
+    code, _ = tree.run("complete-board-operation", *common,
+                       "--operation-id", first["operation_id"])
+    expect(code == EXIT_OK, "completing the first recovery operation failed")
+    code, third = tree.run("begin-recovery-operation", *common, "--operation", "reset",
+                           "--child-kind", "process-group", "--child-identity", "child-two")
+    expect(code == EXIT_OK,
+           "after the first child was reaped the next operation must be permitted: %r"
+           % third)
+
+
+def test_entering_recovery_preserves_an_unreaped_child(tree: Worktree) -> None:
+    """begin-board-recovery never claims nothing is in flight while a child is.
+
+    Re-entering recovery used to flip the phase and drop the scope while
+    keeping the operation ID and child record - a contradictory state that let
+    the next start overwrite the child. The record is now preserved, reported,
+    and still blocks the next start.
+    """
+    stage = "write-tests:alpha"
+    code, payload = acquire(tree, stage)
+    expect(code == EXIT_OK, "acquisition failed")
+    epoch, token = payload["lease_epoch"], payload["check_token"]
+    common = ["--stage", stage, "--epoch", epoch, "--token", token]
+    tree.run("begin-board-recovery", *common)
+    code, first = tree.run("begin-recovery-operation", *common, "--operation", "attach",
+                           "--child-identity", "child-one")
+    expect(code == EXIT_OK, "the recovery operation was refused: %r" % first)
+
+    code, again = tree.run("begin-board-recovery", *common)
+    expect(code == EXIT_OK, "re-entering recovery must always be permitted: %r" % again)
+    expect(again["unreaped_child"] is not None,
+           "re-entry must report the child that was never confirmed finished")
+    expect(again["unreaped_child"]["identity"] == "child-one",
+           "the reported child is wrong: %r" % again["unreaped_child"])
+    code, blocked = tree.run("begin-recovery-operation", *common, "--operation", "reset",
+                             "--child-identity", "child-two")
+    expect(code != EXIT_OK,
+           "an unreaped child must still block the next start after re-entry: %r"
+           % blocked)
+
+
+def test_inspect_reports_unreadable_locks(tree: Worktree) -> None:
+    """An operator must be able to see WHY the board refuses to be acquired.
+
+    Acquisition fails closed on a lock it cannot read. If inspect then showed
+    an empty worktree the operator would be told the board is busy with no way
+    to find out by what.
+    """
+    os.makedirs(tree.run_dir, exist_ok=True)
+    with open(os.path.join(tree.run_dir, "other.lock"), "w",
+              encoding="utf-8", newline="\n") as handle:
+        handle.write("this is not = valid toml [[[\n")
+    code, payload = tree.run("inspect")
+    expect(code == EXIT_OK, "inspect must still succeed: %r" % payload)
+    expect(payload["unreadable_locks"] != [],
+           "inspect showed nothing while a corrupt lock blocks the board: %r" % payload)
+    entry = payload["unreadable_locks"][0]
+    expect(entry["name"] == "other.lock", "the wrong file was reported: %r" % entry)
+    expect("TOML" in entry["reason"] or "toml" in entry["reason"],
+           "the reason must say why it cannot be read: %r" % entry)
+    code, refused = acquire(tree, "write-tests:alpha")
+    expect(code != EXIT_OK, "acquisition must still be refused: %r" % refused)
+
+
+def test_safe_state_requires_a_real_verified_facts_handoff(tree: Worktree) -> None:
+    """The procedure must bind to a READY 02-facts handoff, not to any pinned file.
+
+    Three degradations, each refused: a plain-text file that is not a handoff
+    at all; a handoff that is not ready; and a handoff whose citations were
+    never verified. A hash pin proves bytes did not change, never that the file
+    is what it is claimed to be.
+    """
+    stage = "write-tests:alpha"
+    code, payload = acquire(tree, stage)
+    expect(code == EXIT_OK, "acquisition failed")
+    epoch, token = payload["lease_epoch"], payload["check_token"]
+    common = ["--stage", stage, "--epoch", epoch, "--token", token]
+    lock_name = [n for n in tree.files() if n.endswith(".lock")][0]
+
+    for label, build in (
+        ("a plain-text file that is not a handoff",
+         lambda: tree.put(FACTS_HANDOFF,
+                          FICTIONAL_NOTE + "Invented facts handoff stand-in.\n")),
+        ("a handoff that is not ready", lambda: tree.write_facts_handoff(ready=False)),
+        ("a handoff whose citations were never verified",
+         lambda: tree.write_facts_handoff(verified=False)),
+    ):
+        tree.write_safe_state(SAFE_STATE, epoch, attempt=0)
+        build()
+        tree.write_recovery_attempt(ATTEMPT_1, epoch, 1, "verified", lock_name,
+                                    safe_state=SAFE_STATE)
+        build()
+        code, refused = tree.run("set-board-state", *common, "--state", "safe",
+                                 "--safe-state", SAFE_STATE)
+        expect(code != EXIT_OK,
+               "a safe board state was accepted against %s: %r" % (label, refused))
+        expect(tree.locks()[lock_name]["board_state"] != "safe",
+               "the board was marked safe against %s" % label)
+
+
 CASES = [
     test_simultaneous_post_create_acquisition_conflict,
     test_pid_reuse_process_birth_mismatch_is_interrupted,
@@ -852,6 +1022,10 @@ CASES = [
     test_unreadable_lock_blocks_acquisition,
     test_recovery_permits_observation_but_not_test_work,
     test_unpinned_nested_reference_is_refused,
+    test_second_recovery_operation_never_orphans_the_first_child,
+    test_entering_recovery_preserves_an_unreaped_child,
+    test_inspect_reports_unreadable_locks,
+    test_safe_state_requires_a_real_verified_facts_handoff,
     test_windows_replace_delete_sharing_violation_fails_closed,
     test_unsupported_directory_fsync_blocks_operations,
     test_fresh_clone_absence_is_not_evidence,

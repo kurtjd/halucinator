@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -56,10 +57,33 @@ HEARTBEAT_AMBIGUOUS_SECONDS = 120
 REPLACE_RETRY_DELAYS_MS = (50, 100, 200, 400)
 MAX_SCAN_FILES = 4096
 
-PHASES = ("acquired", "preparing", "active", "teardown",
-          "recovery-pending", "recovery-verified")
-OPERATIONS = ("none", "attach", "reset", "load-ram", "program-flash", "run",
-              "halt", "detach", "power-change", "fixture-change")
+# The lock vocabulary is DEFINED in validate.py's LOCK_SCHEMA and imported
+# here. Restating it was how this helper came to write `recovery-active` and
+# `operation_scope` into a lock that its own static validator then rejected
+# with MALFORMED_LOCK: two spellings of one enum, neither authoritative. The
+# schema is authoritative; this file reads it.
+_SCHEMA_MODULE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                   "validate.py")
+
+
+def _load_lock_schema_module():
+    spec = importlib.util.spec_from_file_location("halucinator_lock_schema",
+                                                  _SCHEMA_MODULE_PATH)
+    if spec is None or spec.loader is None:
+        raise Refusal(EXIT_USAGE,
+                      "cannot load the lock schema from %r; the helper refuses to "
+                      "write a lock whose vocabulary it cannot check against the "
+                      "validator" % _SCHEMA_MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_SCHEMA = _load_lock_schema_module()
+
+PHASES = _SCHEMA.LOCK_OPERATION_PHASES
+OPERATIONS = _SCHEMA.LOCK_OPERATIONS
+OPERATION_SCOPES = _SCHEMA.LOCK_OPERATION_SCOPES
 
 # Operations an OPERATOR NEEDS in order to find out whether a board is safe.
 # Recovery has to be completable without bypassing the helper: if every target
@@ -540,7 +564,7 @@ HAZARD_KINDS = ("outputs", "dma", "interrupts", "external-loads", "reset-halt", 
 # Hazards whose observation depends on physical actions no tooling can see.
 PHYSICAL_HAZARDS = ("external-loads", "probe")
 TERMINATION_DISPOSITIONS = ("confirmed-terminated", "physically-isolated")
-RECOVERY_OUTCOMES = ("interrupted", "failed", "verified")
+RECOVERY_OUTCOMES = _SCHEMA.LOCK_RECOVERY_OUTCOMES
 
 
 def resolve_evidence(root: str, relpath: str, what: str) -> tuple[str, bytes, str]:
@@ -651,6 +675,67 @@ def bind_to_lock(record: dict, lock: dict, relpath: str, what: str,
                 % (what, relpath, record.get("operation_attempt"), attempt))
 
 
+def load_facts_handoff(root: str, relpath: str, what: str) -> set:
+    """Parse a bound `02-facts` handoff and return its verified assertion IDs.
+
+    A hash pin proves only that some bytes did not change. It does not make the
+    file a handoff, let alone a READY one whose citations were verified - and
+    `07-tests.md` claims the procedure is bound "to verified assertions in a
+    ready 02-facts handoff", which is exactly what makes a SafeStateObservation
+    mean anything. So the handoff is parsed here: right stage, ready status, a
+    passed `citations-verified` check, and real assertion IDs.
+
+    What this still cannot do: it proves the cited assertions were VERIFIED as
+    occurrences at their cited locations. It cannot prove they entail that the
+    procedure makes this board safe. That stays with review.
+    """
+    _abs, raw, _digest = resolve_evidence(root, relpath, what)
+    try:
+        data = tomllib.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise Refusal(EXIT_RECOVERY,
+                      "%s: %r is not a well-formed UTF-8 TOML handoff: %s"
+                      % (what, relpath, exc))
+    handoff = data.get("handoff")
+    if not isinstance(handoff, dict):
+        raise Refusal(
+            EXIT_RECOVERY,
+            "%s: %r has no [handoff] table, so it is not a handoff at all. A "
+            "hash-pinned file is not evidence of its own kind." % (what, relpath))
+    if handoff.get("schema") != SCHEMA:
+        raise Refusal(EXIT_RECOVERY,
+                      "%s: %r declares handoff schema %r, not %d"
+                      % (what, relpath, handoff.get("schema"), SCHEMA))
+    if handoff.get("stage") != "extract-facts":
+        raise Refusal(
+            EXIT_RECOVERY,
+            "%s: %r is a %r handoff, not the 02-facts handoff the procedure must bind "
+            "to" % (what, relpath, handoff.get("stage")))
+    if handoff.get("status") != "ready":
+        raise Refusal(
+            EXIT_RECOVERY,
+            "%s: %r is %r, not ready. A procedure may not rest on facts their own "
+            "producer has not finished." % (what, relpath, handoff.get("status")))
+    verified = None
+    for entry in data.get("checks", []) or []:
+        if isinstance(entry, dict) and entry.get("id") == "citations-verified":
+            verified = entry.get("status")
+    if verified != "passed":
+        raise Refusal(
+            EXIT_RECOVERY,
+            "%s: %r records citations-verified as %r, not 'passed'. Unverified "
+            "citations are quotations nobody derived from the source bytes."
+            % (what, relpath, verified))
+    available = set()
+    for citation in data.get("facts", {}).get("citations", []) or []:
+        if isinstance(citation, dict) and isinstance(citation.get("assertion_id"), str):
+            available.add(citation["assertion_id"])
+    if not available:
+        raise Refusal(EXIT_RECOVERY,
+                      "%s: %r carries no verified citations" % (what, relpath))
+    return available
+
+
 def load_safe_state_observation(root: str, relpath: str, lock: dict) -> tuple[dict, str]:
     """A SafeStateObservation covering all six hazards, bound to this epoch."""
     what = "safe-state observation"
@@ -679,7 +764,16 @@ def load_safe_state_observation(root: str, relpath: str, lock: dict) -> tuple[di
         raise Refusal(EXIT_RECOVERY,
                       "%s: %r binds no verified fact assertion IDs; the procedure must "
                       "rest on cited facts, not on prose" % (what, relpath))
-    resolve_ref(root, procedure.get("facts_handoff"), what + " facts handoff")
+    handoff_path, _d = resolve_ref(root, procedure.get("facts_handoff"),
+                                   what + " facts handoff")
+    available = load_facts_handoff(root, handoff_path, what + " facts handoff")
+    missing = sorted(set(assertion_ids) - available)
+    if missing:
+        raise Refusal(
+            EXIT_RECOVERY,
+            "%s: %r names assertion ID(s) %s that do not resolve in the bound facts "
+            "handoff %r. An assertion ID nobody can look up is a string, not a cited "
+            "fact." % (what, relpath, ", ".join(missing), handoff_path))
     resolve_ref(root, procedure.get("procedure"), what + " procedure record")
 
     hazards = data.get("hazards")
@@ -876,6 +970,36 @@ def new_lock(stage: str, board_id: str, authorization: dict | None, adapters: Ad
     return lock
 
 
+def child_in_flight(lock: dict) -> dict | None:
+    """The recorded child session that has not been confirmed finished, if any.
+
+    A child is "in flight" from the moment an operation starts it until
+    `complete-board-operation` records that it and its descendants terminated
+    and the observation channel went quiet. Until then it may still be driving
+    pins or transferring, which is why it must never be overwritten.
+    """
+    session = lock.get("child_session")
+    if isinstance(session, dict) and not session.get("completed_at"):
+        return session
+    return None
+
+
+def refuse_if_child_in_flight(lock: dict, what: str) -> None:
+    session = child_in_flight(lock)
+    if session is None:
+        return
+    raise Refusal(
+        EXIT_RECOVERY,
+        "%s: operation %r is still in flight with child session %r (%s, started %s) "
+        "and its completion has not been recorded. Starting another would REPLACE "
+        "that record, leaving a probe that may still be driving pins or transferring "
+        "with no way to reap it or confirm it quiescent - the system would believe "
+        "nothing is in flight. Run complete-board-operation --operation-id %s first, "
+        "or enter recovery for it."
+        % (what, lock.get("last_operation"), session.get("identity"),
+           session.get("kind"), session.get("started_at"), lock.get("operation_id")))
+
+
 def require_epoch(lock: dict, epoch: str, token: str) -> None:
     if lock.get("lease_epoch") != epoch or lock.get("check_token") != token:
         raise Refusal(
@@ -929,7 +1053,15 @@ def cmd_inspect(args, store: Store, adapters: Adapters) -> dict:
     now = adapters.now()
     local_host = adapters.host()
     locks = []
-    for name, lock in store.read_all():
+    unreadable = []
+    for name, lock, why in store.scan():
+        if lock is None:
+            # Acquisition fails closed on these, so an operator who cannot see
+            # them here is told the board is busy with no way to find out why.
+            unreadable.append({"name": name, "reason": why,
+                               "effect": "blocks acquisition of every board until it "
+                                         "is repaired or deliberately removed"})
+            continue
         pid = lock.get("pid")
         birth = adapters.process_birth(int(pid)) if isinstance(pid, int) else ("unavailable", "")
         locks.append({
@@ -944,8 +1076,11 @@ def cmd_inspect(args, store: Store, adapters: Adapters) -> dict:
             "recovery_attempts": lock.get("recovery_attempts", []),
         })
     return {"command": "inspect", "locks": locks,
+            "unreadable_locks": unreadable,
             "note": "worktree-local and single-operator; another clone or operator is "
-                    "invisible here"}
+                    "invisible here. An unreadable lock is listed separately and still "
+                    "blocks acquisition: its resources cannot be read, so it may hold "
+                    "any board."}
 
 
 def cmd_acquire_board(args, store: Store, adapters: Adapters) -> dict:
@@ -961,8 +1096,13 @@ def cmd_acquire_board(args, store: Store, adapters: Adapters) -> dict:
     # bare path is recorded and `begin-board-operation` refuses until it does:
     # acquisition itself is not a target-affecting operation, and the lock is
     # born recovery-pending with the board unknown either way.
-    authorization: dict | None = {"path": args.authorization}
-    authorization_state = "recorded-unresolved"
+    # A lock never carries a reference the helper did not verify. If the
+    # authorization cannot be resolved now it is simply absent, and
+    # `begin-board-operation` refuses on that absence; recording an unpinned
+    # FileRef would both overstate what was checked and write a lock the static
+    # schema rejects.
+    authorization: dict | None = None
+    authorization_state = "absent-until-resolved"
     try:
         _abs, _raw, digest = resolve_evidence(args.root, args.authorization,
                                               "board authorization")
@@ -1072,6 +1212,7 @@ def cmd_begin_board_operation(args, store: Store, adapters: Adapters) -> dict:
                       "under")
     _path, auth_digest = resolve_ref(args.root, authorization, "board authorization")
     lock["authorization"] = file_ref(str(authorization["path"]), auth_digest)
+    refuse_if_child_in_flight(lock, "begin-board-operation")
     lock["operation_attempt"] = int(lock.get("operation_attempt", 0)) + 1
     lock["operation_id"] = secrets.token_hex(16)
     lock["last_operation"] = args.operation
@@ -1128,6 +1269,7 @@ def cmd_begin_recovery_operation(args, store: Store, adapters: Adapters) -> dict
             "phase %r does not permit a recovery operation; run begin-board-recovery "
             "first so the board is explicitly declared unknown before anything "
             "reconnects to it" % phase)
+    refuse_if_child_in_flight(lock, "begin-recovery-operation")
     lock["operation_attempt"] = int(lock.get("operation_attempt", 0)) + 1
     lock["operation_id"] = secrets.token_hex(16)
     lock["last_operation"] = args.operation
@@ -1201,6 +1343,12 @@ def cmd_begin_board_recovery(args, store: Store, adapters: Adapters) -> dict:
     name, lock = load_own(store, args)
     # Entry needs no produced evidence. Requiring evidence to enter recovery
     # would be circular: evidence can only be produced from inside recovery.
+    # Entry is always permitted and needs no produced evidence. What it must
+    # NOT do is claim nothing is in flight while still holding an operation ID
+    # and an unreaped child record: that contradiction is what let a second
+    # operation quietly overwrite the first child. The record is preserved and
+    # reported, and the next operation start refuses until it is completed.
+    pending = child_in_flight(lock)
     lock["operation_phase"] = "recovery-pending"
     lock["board_state"] = "unknown"
     if "safe_state" in lock:
@@ -1210,6 +1358,13 @@ def cmd_begin_board_recovery(args, store: Store, adapters: Adapters) -> dict:
     store.replace(name, serialize_lock(lock))
     return {"command": "begin-board-recovery", "lock": name,
             "recovery_scoped_operations": list(RECOVERY_SCOPED_OPERATIONS),
+            "unreaped_child": None if pending is None else {
+                "identity": pending.get("identity"), "kind": pending.get("kind"),
+                "started_at": pending.get("started_at"),
+                "operation_id": lock.get("operation_id"),
+                "note": "this child was never confirmed finished. No further operation "
+                        "may start until complete-board-operation records that it and "
+                        "its descendants terminated, or it is physically isolated."},
             "operation_phase": "recovery-pending", "board_state": "unknown",
             "note": "declare the board unknown BEFORE reconnecting; identify and "
                     "terminate the recorded child session and confirm quiescence, or "

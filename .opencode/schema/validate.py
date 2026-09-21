@@ -612,6 +612,31 @@ SCOPE_SCHEMA = {
     "reason": (STR, True),
 }
 
+# --------------------------------------------------------------------------
+# Lock vocabulary - the SINGLE source for both sides.
+#
+# `runtime.py` imports these rather than restating them. Two independent
+# spellings of the same enum is how a legitimate recovery came to write a lock
+# that this validator rejected: the helper knew about `recovery-active` and
+# `operation_scope`, `layout.md` documented both, and LOCK_SCHEMA had never
+# heard of either. Whoever adds a phase or a field now adds it here, and the
+# writer picks it up automatically.
+# --------------------------------------------------------------------------
+
+LOCK_OPERATION_PHASES = (
+    "acquired", "preparing", "active", "teardown",
+    "recovery-pending", "recovery-active", "recovery-verified",
+)
+# A recovery-scoped operation may observe and isolate; it may never load,
+# program or run. The scope is recorded so ordinary test work and release stay
+# refused while it is in flight.
+LOCK_OPERATION_SCOPES = ("recovery", "test")
+LOCK_OPERATIONS = (
+    "none", "attach", "reset", "load-ram", "program-flash", "run",
+    "halt", "detach", "power-change", "fixture-change",
+)
+LOCK_RECOVERY_OUTCOMES = ("interrupted", "failed", "verified")
+
 LOCK_SCHEMA = {
     "schema": (S("int"), True),
     "stage": (STR, True),
@@ -640,14 +665,11 @@ LOCK_SCHEMA = {
         "scheme": (S("enum", values=[
             "windows-filetime", "linux-startticks", "unavailable"]), True),
         "value": (S("str", allow_empty=True), False)}), False),
-    "operation_phase": (S("enum", values=[
-        "acquired", "preparing", "active", "teardown",
-        "recovery-pending", "recovery-verified"]), False),
+    "operation_phase": (S("enum", values=list(LOCK_OPERATION_PHASES)), False),
+    "operation_scope": (S("enum", values=list(LOCK_OPERATION_SCOPES)), False),
     "operation_attempt": (S("int"), False),
     "operation_id": (S("hex", width=32), False),
-    "last_operation": (S("enum", values=[
-        "none", "attach", "reset", "load-ram", "program-flash", "run",
-        "halt", "detach", "power-change", "fixture-change"]), False),
+    "last_operation": (S("enum", values=list(LOCK_OPERATIONS)), False),
     "child_session": (S("struct", fields={
         "kind": (S("enum", values=["windows-job", "process-group", "external"]), True),
         "identity": (STR, True),
@@ -656,6 +678,12 @@ LOCK_SCHEMA = {
     "safe_state": (FILEREF, False),
     "recovery_attempts": (S("array", items=FILEREF), False),
     "override_record": (FILEREF, False),
+    # Live bookkeeping the helper keeps on its own lock. These are local to
+    # `.run` and never appear in a published handoff, but the lock is a schema
+    # artifact the validator reads, so they are declared here rather than being
+    # fields only one side knows about.
+    "last_recovery_outcome": (S("enum", values=list(LOCK_RECOVERY_OUTCOMES)), False),
+    "last_verified_safe_state": (PATHREF, False),
 }
 
 # A repository-root destination crate is exactly one path segment named
