@@ -287,7 +287,7 @@ consumer:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "generate-pac"
 status = "ready"
 inputs = [

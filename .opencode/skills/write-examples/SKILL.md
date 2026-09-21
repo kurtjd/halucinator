@@ -382,7 +382,7 @@ because `tests.name` is `uart-loopback`:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "write-tests"
 status = "ready"
 inputs = [
@@ -412,6 +412,19 @@ owned_files = [
 ]
 setup_record = { path = "halucinator/test-candidates/uart-loopback/evidence/hardware-admission.md", sha256 = "a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091" }
 review_input_manifest = { path = "halucinator/test-candidates/uart-loopback/INVENTORY.md", sha256 = "b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2" }
+recovery_attempts = []
+
+[tests.board_interlock]
+board_id = "fictional-fixture-board-01"
+lease_epoch = "0123456789abcdef0123456789abcdef"
+check_token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+authorization = { path = "halucinator/test-candidates/uart-loopback/evidence/authorization.md", sha256 = "e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5" }
+
+[tests.safe_state_procedure]
+board_id = "fictional-fixture-board-01"
+facts_handoff = { path = "halucinator/handoff/02-facts.toml", sha256 = "f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6" }
+assertion_ids = ["fixture.uart.reset-value", "fixture.uart.safe-output-state"]
+procedure = { path = "halucinator/test-candidates/uart-loopback/evidence/safe-state-procedure.md", sha256 = "08192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f7" }
 
 [[tests.dependencies]]
 crate = "embassy-unobtainium"
@@ -433,6 +446,11 @@ reason = "The public configuration surface cannot express a parity mismatch on a
 [[tests.hardware_runs]]
 test_case = "uart_loopback::blocking_echo"
 status = "passed"
+lease_epoch = "0123456789abcdef0123456789abcdef"
+operation_attempt = 1
+operation_id = "89abcdef0123456789abcdef01234567"
+pre_safe_state = { path = "halucinator/test-candidates/uart-loopback/evidence/safe-state/0123456789abcdef0123456789abcdef-0.toml", sha256 = "192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708" }
+post_safe_state = { path = "halucinator/test-candidates/uart-loopback/evidence/safe-state/0123456789abcdef0123456789abcdef-1.toml", sha256 = "2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f70819" }
 evidence = { path = "halucinator/test-candidates/uart-loopback/evidence/run-001.log", sha256 = "d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4" }
 teardown = "Probe detached and target power removed by the user; fixture wiring left in the documented safe state."
 

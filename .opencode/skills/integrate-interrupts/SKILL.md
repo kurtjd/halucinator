@@ -281,7 +281,7 @@ clock-slice snapshot as its input:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "scaffold-hal"
 status = "partial"
 can_progress = true

@@ -200,7 +200,7 @@ not. Never bridge either gap with raw register access or an invented constant.
 5. **Record the selected profile and the classification rationale.** Record the
    selected profile, the positive finding that selected it, the rejected
    alternatives and their reasons in a hashed Markdown record referenced from
-   `handoff.notes`. This guard is **advisory, not mechanical**: `schema = 1` is
+   `handoff.notes`. This guard is **advisory, not mechanical**: the typed schema is
    frozen and no `06-driver` leaf can encode a profile discriminator —
    `driver.capabilities` and `driver.public_api` are free-form string arrays and
    `driver.scope_kind` is only `full` or `scaffold-support` — so no validator can
@@ -375,7 +375,7 @@ The emitted handoff:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "write-driver"
 status = "ready"
 inputs = [
@@ -493,7 +493,7 @@ sentinel word.
 | Validator | `python .opencode/schema/validate.py <repository-root> --kind all`, before consumption and after each handoff write |
 | Review gate | Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
 | Ready | empty incomplete, complete equals included scope, `can_progress` absent, empty blockers, applicable checks `passed`, accepting review |
-| Deferred | a profile discriminator in the typed schema, `schema = 1` being frozen |
+| Deferred | a profile discriminator in the typed schema |
 
 ## Common mistakes
 

@@ -260,10 +260,16 @@ names the exact `06-driver-*` handoff by path.
     Follow the documented safe teardown for successful and failing runs alike,
     and `release-board` only after the safe-state record exists. If the run was
     interrupted, declare the board state unknown **before** reconnecting and use
-    `begin-board-recovery`, appending an attempt for every try with
-    `append-recovery-attempt` until `verify-board-recovery` accepts a matching
-    safe-state observation; never infer teardown from a process exit or from
-    elapsed time. Discharge `hardware-execution` from **whether the
+    `begin-board-recovery`; then authorize each observation through
+    `begin-recovery-operation`, which is the only command that permits an
+    operation while the board is unknown - ordinary `begin-board-operation`
+    keeps refusing, so without it recovery cannot be completed at all. It is
+    narrow, not a general unlock: observation operations only, never a load,
+    program or run, and completing one leaves the board still unknown. Close
+    each with `complete-board-operation` and its `--operation-id`, append an
+    attempt for every try with `append-recovery-attempt`, and continue until
+    `verify-board-recovery` accepts a matching safe-state observation; never
+    infer teardown from a process exit or from elapsed time. Discharge `hardware-execution` from **whether the
     execution procedure itself ran correctly** — authorized operations only, on
     the reconfirmed board, within the deadlines, with teardown performed and raw
     observations preserved. A successful load, empty output or a zero exit is
@@ -401,7 +407,7 @@ yet been obtained, so the handoff is `partial`:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "write-tests"
 status = "partial"
 can_progress = true
@@ -433,6 +439,19 @@ owned_files = [
 dependencies = [{ crate = "embassy-unobtainium", identity = "fixture-rev-1", features = ["uc-not-a-real-mcu-0001"] }]
 setup_record = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/debug-hardware-admission.md", sha256 = "6666666666666666666666666666666666666666666666666666666666666666" }
 review_input_manifest = { path = "halucinator/test-candidates/schema-demo-debug-001/INVENTORY.md", sha256 = "7777777777777777777777777777777777777777777777777777777777777777" }
+recovery_attempts = []
+
+[tests.board_interlock]
+board_id = "fictional-fixture-board-01"
+lease_epoch = "0123456789abcdef0123456789abcdef"
+check_token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+authorization = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/authorization.md", sha256 = "9999999999999999999999999999999999999999999999999999999999999999" }
+
+[tests.safe_state_procedure]
+board_id = "fictional-fixture-board-01"
+facts_handoff = { path = "halucinator/handoff/02-facts.toml", sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+assertion_ids = ["fixture.schema-demo.reset-value", "fixture.schema-demo.safe-output-state"]
+procedure = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/safe-state-procedure.md", sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
 
 [[tests.coverage]]
 id = "SCHEMA-01"
@@ -443,6 +462,11 @@ evidence = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/
 [[tests.hardware_runs]]
 test_case = "schema-demo-debug-reproduction"
 status = "failed"
+lease_epoch = "0123456789abcdef0123456789abcdef"
+operation_attempt = 1
+operation_id = "89abcdef0123456789abcdef01234567"
+pre_safe_state = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/safe-state/0123456789abcdef0123456789abcdef-0.toml", sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" }
+post_safe_state = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/safe-state/0123456789abcdef0123456789abcdef-1.toml", sha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
 evidence = { path = "halucinator/test-candidates/schema-demo-debug-001/evidence/debug-hardware-execution.log", sha256 = "8888888888888888888888888888888888888888888888888888888888888888" }
 teardown = "The fictional fixture runner returned the target to its documented safe state."
 

@@ -308,7 +308,7 @@ candidate linked and its ELF was inspected:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "scaffold-hal"
 status = "partial"
 can_progress = true

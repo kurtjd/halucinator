@@ -376,7 +376,7 @@ with a reason. The link and the review are still outstanding, so the handoff is
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "write-driver"
 status = "partial"
 can_progress = true

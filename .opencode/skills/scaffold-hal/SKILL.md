@@ -157,7 +157,7 @@ The slice chain is `write-clocks`, then `integrate-interrupts`, then
 `integrate-runtime-linker`. Each is `partial`, and each pins its own predecessor
 snapshot in `handoff.inputs`, so the ordered chain is recoverable from the final
 snapshot by following those pins. Nothing mechanical enforces the order or the
-chain: no `05-platform` leaf carries a slice discriminator, `schema = 1` is
+chain: no `05-platform` leaf carries a slice discriminator, the typed schema is
 frozen, and repeatable `05` snapshot filenames are not validator-visible. The
 chain walk below is therefore discipline plus hashes, and no reader may treat it
 as enforcement.
@@ -407,7 +407,7 @@ chain behind it. The emitted handoff:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "scaffold-hal"
 status = "ready"
 inputs = [

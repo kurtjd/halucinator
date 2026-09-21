@@ -221,6 +221,12 @@ establishes safety.
 ```sh
 python .opencode/schema/runtime.py begin-board-recovery --root <repository-root> \
   --stage <stage> --epoch <lease_epoch> --token <check_token>
+python .opencode/schema/runtime.py begin-recovery-operation --root <repository-root> \
+  --stage <stage> --epoch <lease_epoch> --token <check_token> \
+  --operation <attach|reset|halt|detach|power-change|fixture-change>
+python .opencode/schema/runtime.py complete-board-operation --root <repository-root> \
+  --stage <stage> --epoch <lease_epoch> --token <check_token> \
+  --operation-id <operation_id>
 python .opencode/schema/runtime.py append-recovery-attempt --root <repository-root> \
   --stage <stage> --epoch <lease_epoch> --token <check_token> \
   --attempt-file <attempt-fileref> --attempt-number <n> \
@@ -229,6 +235,17 @@ python .opencode/schema/runtime.py verify-board-recovery --root <repository-root
   --stage <stage> --epoch <lease_epoch> --token <check_token> \
   --safe-state <safe-state-fileref>
 ```
+
+`begin-recovery-operation` is the one command that makes this route completable.
+Ordinary `begin-board-operation` keeps refusing while the board is unknown, by
+design, so without it recovery is a room with no door: you could enter
+`recovery-pending` and never observe anything. It is a narrow authorization, not
+a general unlock - it permits only the observation operations above, never a
+load, a program or a run; it marks the lock `operation_scope = "recovery"` so
+`release-board` also keeps refusing; and completing one returns the interlock to
+`recovery-pending` with the board **still unknown**. A recovery operation never
+advances toward release on its own. Close each with `complete-board-operation`
+and its `--operation-id`, exactly as for an ordinary operation.
 
 Entering `recovery-pending` needs no produced evidence, deliberately: requiring
 proof before recovery may begin is circular. Identify the recorded child

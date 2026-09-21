@@ -291,7 +291,7 @@ The emitted handoff for the fictional fixture target
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "extract-facts"
 status = "ready"
 inputs = [

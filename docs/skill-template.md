@@ -201,7 +201,8 @@ the three must be **mutually exclusive**, restating the rules in
 ### `## Application example`
 
 At least one ` ```toml ` fence, one of which is **the handoff this skill
-emits**: a `[handoff]` table with `schema = 1` and `stage` equal to the
+emits**: a `[handoff]` table with `schema = 2` - the validator's current
+version, `SCHEMA_VERSION_CURRENT` - and `stage` equal to the
 contract's `stage`. Every field path in that block must be a real schema leaf of
 the emitted kind. Invented or abbreviated field names are rejected, because an
 example that drifts from the contract is the first place a future author copies
@@ -376,7 +377,7 @@ followed immediately by the contract fence, then the ten sections. The
 ```
 
 and the emitted handoff appears under `## Application example` as a ` ```toml `
-fence whose `[handoff]` table carries `schema = 1` and the contract's `stage`.
+fence whose `[handoff]` table carries `schema = 2` and the contract's `stage`.
 
 ## Quick reference
 

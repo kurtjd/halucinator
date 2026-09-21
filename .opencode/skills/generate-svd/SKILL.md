@@ -288,7 +288,7 @@ The emitted handoff for a supplied vendor SVD with one cited correction:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "generate-svd"
 status = "ready"
 inputs = [

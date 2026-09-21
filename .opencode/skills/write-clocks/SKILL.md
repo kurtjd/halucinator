@@ -161,7 +161,8 @@ session before its mutable baseline is read.
    lost. On contention, abandon the stale baseline and restart from a freshly
    read one. The naming rule is in [`layout.md`](../../schema/layout.md) and the
    worked form in [`hal-integrator.md`](../../agents/hal-integrator.md); the
-   session is cooperative and procedural, with no fencing token in `schema = 1`.
+   session is cooperative and procedural, with no fencing token in the typed
+schema.
 4. **Load the facts, the PAC leaves and the design contract.** Load the exact
    `04-pac` leaves through the admission mapping above, and separately the
    coordinator-owned target, roots, hashed `ARCHITECTURE.md` and hashed
@@ -297,7 +298,7 @@ The emitted handoff:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "scaffold-hal"
 status = "partial"
 can_progress = true
@@ -406,7 +407,7 @@ not evidence.
 | Review gate | belongs to final consolidation: Only review.verdict=ready accepts; ready-with-fixes and not-ready do not. |
 | Ready | unreachable here; only the final consolidator publishes a platform `ready` |
 | Reserved to the consolidator | composite evidence, independent review, canonical placement, `ready`, state update |
-| Deferred | fencing tokens and durable multi-agent leases; the session is cooperative in `schema = 1` |
+| Deferred | fencing tokens and durable multi-agent leases; the session is cooperative in the typed schema |
 
 ## Common mistakes
 

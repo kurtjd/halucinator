@@ -323,7 +323,7 @@ emitted handoff:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "review"
 status = "ready"
 inputs = [

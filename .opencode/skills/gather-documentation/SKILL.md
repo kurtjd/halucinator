@@ -251,7 +251,7 @@ and whose SVD search completed without a usable vendor file:
 
 ```toml
 [handoff]
-schema = 1
+schema = 2
 stage = "gather-documentation"
 status = "ready"
 inputs = []
