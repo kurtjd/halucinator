@@ -7,6 +7,11 @@ This file is the durable record of every known gap. It is also the risk
 register: a deferred item must stay visible here rather than silently
 riding to the end.
 
+Current handover state: the toolkit has typed schemas, procedures, fixtures,
+and repository self-checks, but it has never been run against a real Embassy
+checkout or real hardware, and no HAL has been built with it. A green local
+self-check proves only the bounded properties named by each check.
+
 ## Legend
 
 | Mark | Meaning |
@@ -264,8 +269,8 @@ tokens and loses fields.
   this entry was waiting on has landed — and it still carries categories and
   citations rather than a typed peripheral inventory. The scope IDs and
   coordinator decisions remain the procedural substitute. M5 did not violate
-  `schema = 1` to fake the field. Owner: M6, with A22's schema-version
-  transition.*
+  `schema = 1` to fake the field. Owner: post-M7 handover, with A22's
+  schema-version transition.*
 - [ ] **A22** No typed peripheral-taxonomy or profile discriminator.
   `write-driver` selects a GPIO, Embassy-time-service or bus profile, and
   that choice determines its architecture, lifecycle and scheduling rules —
@@ -279,7 +284,7 @@ tokens and loses fields.
   absent, selection remains hashed prose plus review, and `write-dma` adds
   another driver shape to the set the discriminator would have to span.
   Closing it needs the schema-version transition in
-  `.opencode/schema/handoff-common.md`. Owner: M6.*
+  `.opencode/schema/handoff-common.md`. Owner: post-M7 handover.*
 - [ ] **A23** Platform slice lineage is typed only at the boundary. M5 split
   platform work into three partial-view slices — `write-clocks`,
   `integrate-interrupts`, `integrate-runtime-linker` — consumed in order and
@@ -465,7 +470,7 @@ Verified as grep-absences across all agents and skills.
   installation/exposure handoff, so the toolkit now says two different
   things depending on which stage you are in. Remaining: audit and
   standardize the remedy wording across the pre-M5 procedures before
-  closing. Owner: M6.*
+  closing. Owner: post-M7 handover.*
 - [x] **C6** The roadmap file is required
   (`hal-architect.md:158-160`, `scaffold-hal/SKILL.md:73-76`,
   `scaffold-record.md:25`) with no filename and no default path, while
@@ -648,7 +653,7 @@ Verified as grep-absences across all agents and skills.
   implementing compare-and-swap exists. Operational tests written now would
   embed the algorithms under test and prove only the test code. The Windows
   raw-colon lock filename case is individually safe but not worth a separate
-  mechanism before the operational tooling exists. Owner: M6, with F10/F11,
+  mechanism before the operational tooling exists. Owner: post-M7 handover, with F10/F11,
   which introduce that tooling.* *(Closed by M6.
   **ENFORCED, over the constructed cases only:** `.opencode/schema/runtime.py`
   is the production helper, `.opencode/schema/test_runtime.py` drives it as a
@@ -695,14 +700,15 @@ Verified as grep-absences across all agents and skills.
   `.opencode/schema/layout.md`'s `08-review-<artifact>.toml`. They are
   consistent with the run layouts the references already mandate and fall
   under owned roots, but remain conventions rather than ratified layout.
-  *Owner: M6, with the layout work.*
+  *Owner: post-M7 handover, with the layout work.*
 - [ ] **D20** `README.md`'s conflict inventory is annotated, not audited.
   M3 annotated which of the eleven listed skill/agent conflicts the retrofit
   resolved in the skill layer, retaining every ID and identifying text so
   the agents' declared ID sets still match. That classification came from
   M3's scope rather than a per-conflict audit, and the entries' line-range
-  citations are now stale. A per-conflict audit and citation refresh are
-  restructuring work. *Owner: M7.*
+  citations are now stale. M7 did not perform the required per-conflict audit
+  or refresh those citations; the item remains open rather than being inferred
+  closed from the surrounding documentation work. *Owner: post-M7 handover.*
 
 ---
 
@@ -722,7 +728,7 @@ Verified as grep-absences across all agents and skills.
   The skill explicitly disclaims mechanical verification rather than
   implying it, which is the right disclosure and not a fix. A fabricated
   locator with a fabricated excerpt still passes every check in the suite.
-  Owner: M6, with E2.* *(Closed by M6.
+  Owner: post-M7 handover, with E2.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** schema 2 replaces the independently-membered
   source list with a `sources.documents` binding of source ID to hash-pinned
   bytes; the v2 `CitationRef` carries `assertion_id`, `scope_item`, `claim`,
@@ -820,7 +826,7 @@ Verified as grep-absences across all agents and skills.
 - [ ] **E7** No mechanism makes a false verification claim detectable.
   Records are ordinary Markdown written by the same agent doing the work.
   *Unchanged by M4: hashing the driver record improves stale-evidence
-  detection, not claim truthfulness. Owner: M6, with E6's residual.*
+  detection, not claim truthfulness. Owner: post-M7 handover, with E6's residual.*
   *M6 disposition: **DOCUMENTED, not closed.** `claim-truth-limit` mechanically
   requires `validate.md`, `hal-coordinator`, `hal-integrator`, `hal-reviewer`,
   `hal-tester` and `docs/skill-template.md` to disclose that a claimant may have
@@ -891,13 +897,14 @@ Verified as grep-absences across all agents and skills.
   literally at the destination root, because the fixture roots live
   inside this repository's worktree. Git precedence and nested overrides
   are therefore unevaluated, and portable hash policy is unverified
-  against effective Git attributes. *Owner: M3.*
+  against effective Git attributes. *Owner: post-M7 handover.*
 - [ ] **E11** The driver `independent-review` artifact-equality path has no
   fixture; `06-driver`'s check is `unrun` in the valid set, so the
-  implemented set-comparison is unexercised surface. *Owner: M3.*
+  implemented set-comparison is unexercised surface. *Owner: post-M7 handover.*
 - [ ] **E12** Implemented but unexercised validator surface: resource
   limits, reparse-point refusal, Windows reserved-name rejection, and
-  live-lock classification. No fixture reaches any of them. *Owner: M3.*
+  live-lock classification. No fixture reaches any of them. *Owner: post-M7
+  handover.*
 - [x] **E13** Fixture assertion strength is not uniform. M4 gave the fixture
   harness **opt-in exact-diagnostic assertion** — code plus file plus field,
   and no extra diagnostics — and uses it for the three new multi-driver
@@ -908,7 +915,7 @@ Verified as grep-absences across all agents and skills.
   the older fixtures assert less than they appear to. Tightening them means
   auditing each multi-code case and recording the full expected set, which is
   a separate normalization pass rather than a side effect of any milestone's
-  feature work. *Owner: M6.* *(Closed by M6.
+  feature work. *Owner: post-M7 handover.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** the legacy contains-code mode is gone. Every
   invalid fixture root declares one
   `Expected diagnostic: <file>|<field>|<code>` line per expected diagnostic, and
@@ -988,7 +995,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   N concurrent drivers now contend for the same shared clock files.
   Per-driver candidate path locking reduces cooperative overlap but converts
   what was a crash window into an **active writer race** on
-  `embassy-*/src/clocks/**`. Still open. Owner: M6.*
+  `embassy-*/src/clocks/**`. Still open. Owner: post-M7 handover.*
   *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
   is a real worktree-local, single-operator interlock with exact `path:` and
   `board:` resources, and `runtime-protocol-tests` drives it through eight
@@ -1008,7 +1015,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   retrofitted skills defer to the `global:hal-integration` lock, frozen
   candidate order and committed candidate roots and no longer assign CI
   wiring to the tester. Residual: durable journalling, owner fencing and
-  cross-clone crash markers are still required. Owner: M6.*
+  cross-clone crash markers are still required. Owner: post-M7 handover.*
   *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
   is a real worktree-local, single-operator interlock with exact `path:` and
   `board:` resources, and `runtime-protocol-tests` drives it through eight
@@ -1026,7 +1033,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   physical, not a merge conflict. *Progress: `.opencode/schema/layout.md`
   reserves a `board:<board_id>` lease keyed by physical device rather than
   by stage, but M1 implements no reader, so no exclusion is enforced yet.
-  Owner: M6.* *M6 disposition: **PARTIALLY ENFORCED, still open.** A reader now
+  Owner: post-M7 handover.* *M6 disposition: **PARTIALLY ENFORCED, still open.** A reader now
   exists. `runtime.py` acquires, prechecks and releases a `board:<board_id>`
   resource with an unpredictable `lease_epoch` and a revalidated `check_token`,
   any post-create rescan conflict makes the new claimant remove only its own
@@ -1144,7 +1151,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   *Progress: `.run/<stage>.lock` now marks canonical PAC integration, but
   it is gitignored and therefore detects interruption only within one
   worktree; a durable committed transaction marker is still required.
-  Owner: M6.*
+  Owner: post-M7 handover.*
 - [ ] **F9** Scaffold edits production files in place with no candidate
   tree or checkpoint; `SCAFFOLD.md` can lag the code. *Progress: a candidate
   tree now exists and is committed rather than hidden —
@@ -1160,7 +1167,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   required. M4 makes this worse for the same reason as F1: one `write-driver`
   dispatch per peripheral means N concurrent drivers, and per-driver candidate
   path locking turns the shared clock-file crash window into an active writer
-  race rather than removing it. Still open. Owner: M6.*
+  race rather than removing it. Still open. Owner: post-M7 handover.*
   *M6 disposition: **PARTIALLY ENFORCED, still open.** `.opencode/schema/runtime.py`
   is a real worktree-local, single-operator interlock with exact `path:` and
   `board:` resources, and `runtime-protocol-tests` drives it through eight
@@ -1174,14 +1181,14 @@ Zero concurrency vocabulary exists across all agents and skills:
 - [ ] **F10** Locks are gitignored, so crash evidence does not survive a
   fresh clone or a second machine. `.opencode/schema/layout.md` states
   this limitation explicitly; a durable record outside `.run/` is
-  required for cross-clone recovery. *Owner: M6.*
+  required for cross-clone recovery. *Owner: post-M7 handover.*
 - [ ] **F11** The M6-only lock fields reserve identities only. Board lease
   and HIL recovery still need operation phase, last-attempted operation,
   board recovery detail (active image, RAM/flash mode, reset/halt state,
   probe session, safe-state procedure, teardown evidence), an owner
   fencing token, and PAC baseline/candidate manifests. Adding them
   requires the schema-version transition defined in
-  `.opencode/schema/handoff-common.md`. *Owner: M6.* *M6 correction: the
+  `.opencode/schema/handoff-common.md`. *Owner: post-M7 handover.* *M6 correction: the
   "reserve identities only" sentence above is **obsolete**. The `schema = 2`
   transition landed the structural fields it asks for - `operation_phase`,
   `operation_attempt`, `operation_id`, `last_operation`, `child_session`,
@@ -1210,7 +1217,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   indistinguishable from one that never started. This generalizes F8 from the
   PAC to every canonical mutation and needs F10's cross-clone durability and
   F11's phase and fencing fields; it is not a separate mechanism, and closing
-  it requires the `schema = 2` transition. *Owner: M6, with F8/F10/F11.*
+  it requires the `schema = 2` transition. *Owner: post-M7 handover, with F8/F10/F11.*
   *M6 disposition: **deliberately deferred, documented only.** M6 added no
   journal fields and no journal diagnostics. The scaffold record now says that
   canonical copy is serialized by the worktree interlock and an immediate
@@ -1228,7 +1235,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   enumerates every expected `write-driver:<name>` dispatch, so a returned
   handoff can be tied to the dispatch that asked for it — but more
   concurrent named drivers make a missing durable dispatch record **more
-  frequent**, not less. Still open. *Owner: M6, with F10/F11.*
+  frequent**, not less. Still open. *Owner: post-M7 handover, with F10/F11.*
   *M6 disposition: **deliberately deferred, documented only.** ROADMAP and locks
   remain procedural evidence; no typed pre-dispatch publication exists. Carried
   forward as F19. Owner: post-M7.*
@@ -1236,7 +1243,7 @@ Zero concurrency vocabulary exists across all agents and skills:
   only. An uncooperative writer can overwrite it with valid TOML and a
   plausible generation, and the validator cannot reconstruct the prior
   value. Recorded in `.opencode/schema/validate.md` limits. *Unchanged by
-  M4. Owner: M6.*
+  M4. Owner: post-M7 handover.*
 - [~] **F15** A hardware-operation broker process is deferred to post-M7; closing the check-use race requires one long-lived broker to own the probe/runner handle and execute every target-affecting operation after epoch validation. Owner: post-M7.
 - [~] **F16** Cross-clone and concurrent-operator board exclusion is deferred to post-M7; closing it requires an external shared lease authority with atomic acquisition, renewable ownership and fencing honored by the hardware broker. Owner: post-M7.
 - [~] **F17** A durable cross-clone board-active marker is deferred to post-M7; closing it requires a shared durable authority updated before hardware operations and recoverable independently of one worktree. A fresh clone currently cannot know that a previous run died with the board active. Owner: post-M7.
@@ -1258,12 +1265,22 @@ Zero concurrency vocabulary exists across all agents and skills:
 
 ## G. Documentation
 
-- [ ] **G1** No getting-started tutorial. The path dead-ends after
+- [x] **G1** No getting-started tutorial. The path dead-ends after
   restart (`README.md:96-99`) and "hal-architect is the entry point"
-  (`:150-151`) with no prompt to type and no expected response.
-- [ ] **G2** No worked artifact set. Templates exist
+  (`:150-151`) with no prompt to type and no expected response. *(Closed in
+  `WALKTHROUGH.md`: a first-time user gets the literal first message to send,
+  the intake exchange, artifact shape, validator command, admission semantics,
+  and a real stopping point at a validated `01-sources` handoff. It explicitly
+  does not present that checkpoint as a complete HAL or as an observed run.)*
+- [x] **G2** No worked artifact set. Templates exist
   (`source-list-format.md:81-164`); completed examples do not. Nobody can
-  see what good output looks like.
+  see what good output looks like. *(Closed by making the existing complete
+  hand-written set at `.opencode/schema/worked-examples.md` and its generated,
+  byte-verified `.opencode/schema/fixtures/valid/` tree discoverable from
+  `README.md` and `WALKTHROUGH.md`. M7 deliberately did not author a second set:
+  two copies that can drift are worse than one authoritative worked set. The
+  artifacts are fictional schema examples, not hardware evidence or a recorded
+  workflow run.)*
 - [x] **G3** No `opencode.json` anywhere. Nothing sets `default_agent`, so
   a user who follows the install gets the built-in `build` agent.
   *(Closed by the root `opencode.json` setting
@@ -1290,35 +1307,84 @@ Zero concurrency vocabulary exists across all agents and skills:
   because `terminology` blanks inline code spans, so a citation of a rejected
   token is representable and a bare use is not; migration of legacy occurrences is
   M3/M7.)*
-- [ ] **G6** `AGENTS.md` at 360 lines does four jobs: design philosophy
+- [x] **G6** `AGENTS.md` at 360 lines does four jobs: design philosophy
   (`:23-105`), pipeline (`:109-170`), artifact policy (`:172-283`), hard
-  rules (`:287-360`). Philosophy precedes action.
+  rules (`:287-360`). Philosophy precedes action. *(Closed by restructuring
+  `AGENTS.md` in place around a `Start here` navigation map rather than splitting
+  it. This is the deliberate outcome: `AGENTS.md` is loaded into every agent's
+  context, so moving the checkout guard or hard rules to a sibling file would
+  remove them from automatic context, and a split would also require installer
+  changes. The goal was navigability, and the map supplies it.
+  **MECHANICALLY ENFORCED:** `markdown-anchor-targets` resolves every governed
+  relative fragment link to an ATX heading, handles repeated heading slugs, and
+  now fails closed when the fragment-link set is empty; the original vacuous
+  pass was found by adversarial review and fixed. **DOCUMENTED ONLY / LIMITS:**
+  it implements GitHub-style slugs only as understood by the harness, does not
+  cover setext or explicit HTML anchors, and cannot prove that the target
+  heading supports the linking sentence.)*
 - [x] **G7** Hard rules have no stable IDs, so skills and review findings
   must restate their prose to cite them. *(Closed by adding
   `HAL-RULE-01`…`HAL-RULE-12` inline to `AGENTS.md`.)*
-- [ ] **G8** No glossary. SVD, PAC, metapac, chiptool, teleprobe, HIL,
+- [x] **G8** No glossary. SVD, PAC, metapac, chiptool, teleprobe, HIL,
   DEVGUIDE, typestate, `Gate`, `WaitCell`, `OnDrop` all appear undefined.
-- [ ] **G9** No prerequisite matrix. Embassy checkout (`README.md:28-38`),
+  *(Closed in `GLOSSARY.md`.
+  **MECHANICALLY ENFORCED:** `glossary-terms-grounded` derives entries from the
+  glossary's H2 headings and requires every slash-separated term part to occur
+  as a whole folded token or phrase elsewhere in governed non-fixture Markdown.
+  Review found that its first substring matcher let `PAC` be grounded by
+  "package"; token and phrase boundaries now reject that near-miss.
+  **DOCUMENTED ONLY / LIMITS:** occurrence is not usage consistency. The check
+  cannot prove that a definition is correct, detect a missing glossary entry,
+  or distinguish toolkit-specific use from ordinary English.)*
+- [x] **G9** No prerequisite matrix. Embassy checkout (`README.md:28-38`),
   `pdftotext` (`:193-196`), chiptool, XML validators, Rust targets, probe
-  and runner are scattered across five documents.
-- [ ] **G10** No `CONTRIBUTING.md`. The repo explains how agents build
-  HALs, not how to add a skill or agent.
+  and runner are scattered across five documents. *(Closed in
+  `PREREQUISITES.md`, which records each prerequisite, why it is needed, and the
+  first workflow stage that needs it. `pdftotext -layout` is explicitly
+  load-bearing for aligned extraction and schema-2 PDF citation verification;
+  when required and absent, verification fails closed rather than becoming
+  not-applicable.)*
+- [x] **G10** No `CONTRIBUTING.md`. The repo explains how agents build
+  HALs, not how to add a skill or agent. *(Closed in `CONTRIBUTING.md`, covering
+  repository orientation, the verification loop, and the coupled steps for
+  changing skills, agents, schemas, fixtures, and self-checks.)*
 - [x] **G11** No skill template document. *(Closed by the canonical
   `docs/skill-template.md`, whose structure is mechanically enforced by the
   five skill-template checks named in D3.)*
-- [ ] **G12** `embassy-mcxa` is cited narrowly. `src/i2c/` is the standing
+- [x] **G12** `embassy-mcxa` is cited narrowly. `src/i2c/` is the standing
   fallback; the whole crate is the north star and the concern map
-  (`AGENTS.md:41-52`) should be the entry point.
-- [ ] **G13** README manually counts six agents and seven skills
-  (`:14-26`) — drift-prone.
-- [ ] **G14** License is `TBD` (`README.md:203-205`) while the install
-  procedure copies the toolkit into other repositories.
-- [~] **G15** No changelog or versioning story for skills. *Deferred.*
+  (`AGENTS.md:41-52`) should be the entry point. *(Closed in `AGENTS.md` and
+  `README.md`: start with the concern map and read the part of the north-star
+  crate matching the work; `src/i2c/` remains the reference for peripheral
+  driver anatomy, not the fallback for every concern.)*
+- [x] **G13** README manually carried stale counts — 6 skills and 45 ownership
+  classes against a live 13 and 46 — and was drift-prone. *(Closed twice over:
+  the Status table now reports
+  the live 8 agents, 13 skills, 46 ownership classes, and 59 self-checks, and
+  `readme-live-counts` guards all four rows.
+  **MECHANICALLY ENFORCED:** the check derives each count from the live tree,
+  including the check count from the same AST-derived invocation registry used
+  by self-check parity; no expected count literal lives in the implementation.
+  **DOCUMENTED ONLY / LIMITS:** it checks only the four known rows, so a fifth
+  counted row added later would be unchecked, and matching numbers do not prove
+  the counted artifacts are valid.)*
+- [ ] **G14** No license is declared while the install procedure copies the
+  toolkit into other repositories. `README.md` now states the open question
+  explicitly instead of leaving a bare `TBD`, but M7 was not authorized to
+  choose a license. The decision remains the maintainer's. *Owner: post-M7
+  handover.*
+- [~] **G15** No changelog or versioning story for skills. *Deferred. Owner:
+  post-M7 handover.*
 - [~] **G16** Quoted DEVGUIDE section names are not exact current
-  headings (`AGENTS.md:44,104`). *Deferred: fix when the concern map is
-  next revalidated.*
+  headings (`AGENTS.md:44,104`). *Deferred, but the prior trigger has arguably
+  fired: M7 reframed the concern map without revalidating the quoted section
+  names against the live headings. This toolkit checkout does not contain
+  `embassy-mcxa`, so M7 could not perform that validation honestly. Revalidate
+  the quoted headings in a live Embassy checkout before treating the map as
+  current. Owner: post-M7 handover.*
 - [~] **G17** Global install copies `.opencode/node_modules`
-  (present in this checkout). *Deferred: packaging concern.*
+  (present in this checkout). *Deferred: packaging concern. Owner: post-M7
+  handover.*
 
 ---
 
@@ -1382,11 +1448,11 @@ Asserted capabilities with no procedure sufficient to perform them.
 - [ ] **H9** The `.gitattributes` byte policy specified in
   `.opencode/schema/validate.md` is not installed anywhere. Raw-byte
   SHA-256 hashes are stable only where `core.autocrlf=false`; a clone
-  configured otherwise breaks every hash. *Owner: M3.*
+  configured otherwise breaks every hash. *Owner: post-M7 handover.*
 - [x] **H10** The 944-file fixture tree was generated by a script that
   lives outside the repository. The fixtures are committed and
   self-sufficient, but nothing in-tree can regenerate them and no owner is
-  named. *Owner: M3 or M7.* *(Closed by M6.
+  named. *Owner: post-M7 handover.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** `tools/generate_schema_fixtures.py` and its
   declarative input `tools/schema-fixtures.toml` are committed, stdlib-only and
   deterministic; `--write` regenerates both valid roots and every invalid root
@@ -1405,7 +1471,7 @@ Asserted capabilities with no procedure sufficient to perform them.
   no M3 text describes the wiring as runtime enforcement. *Unchanged by M4:
   `write-driver` and the validation profiles wire the validator at the same
   required points and disclose the same limit, and retiring the allowlist
-  changed coverage, not enforcement. Owner: M6.*
+  changed coverage, not enforcement. Owner: post-M7 handover.*
   *M6 disposition: **DOCUMENTED, not closed, and structurally unclosable here.**
   `skill-validator-wiring` now binds every publication step and requires each of
   the 13 skills to state the honor-system limit and that `validate.py` cannot
@@ -1423,7 +1489,7 @@ Asserted capabilities with no procedure sufficient to perform them.
   can therefore lose its immediate validation while the check stays green.
   Binding every publishing step is not a check-only fix: it needs 7 of the
   13 skills to name the command stem at their final gate rather than only
-  `--kind all`, which is a change to skill text. *Owner: M6.* *(Closed by M6.
+  `--kind all`, which is a change to skill text. *Owner: post-M7 handover.* *(Closed by M6.
   **MECHANICALLY ENFORCED:** `skill-validator-wiring` now derives every
   handoff-publishing step and requires a `validate.py` invocation at **each** of
   them, in addition to one before the first and the `--kind all` gate at or
@@ -1443,7 +1509,7 @@ Asserted capabilities with no procedure sufficient to perform them.
   `startswith`/`endswith`/regex predicates. Its own PASS text describes it
   correctly as a regression guard over those forms, not as proof that every
   check derives its subjects — the honest framing is the point, and it does
-  not make the blind spots smaller. *Owner: M6.*
+  not make the blind spots smaller. *Owner: post-M7 handover.*
 - [ ] **H14** The composite-evidence marker rule is a bounded structural
   tripwire. Three rounds of lexical patching were each defeated by a
   reviewer-constructed bypass, so `skill-platform-slices` was rebuilt
@@ -1459,8 +1525,8 @@ Asserted capabilities with no procedure sufficient to perform them.
   the consolidator-count assertion and human review — the tripwire raises
   the cost of the cheap mechanical violation and nothing more. Same posture,
   and the same limits, as the `DRIVER_API_LEAK` and
-  `validation-guidance-isolation` tripwires. *Owner: M6 if it is to be
-  strengthened.*
+  `validation-guidance-isolation` tripwires. *Owner: post-M7 handover if it is
+  to be strengthened.*
 - [ ] **H15** Self-check mutation coverage is incomplete and non-durable.
   M5 ran a mutation proof that bound 14 of 36 checks to the new skills and
   confirmed that all five new review-gated skills trip
@@ -1473,7 +1539,7 @@ Asserted capabilities with no procedure sufficient to perform them.
   A check that has only been shown to fail closed has been shown to reject
   garbage, not to accept the corpus for the right reason. Add an in-tree
   mutation matrix, or a committed record of exercised versus unexercised
-  checks. *Owner: M6, with H10.*
+  checks. *Owner: post-M7 handover.*
 - [~] **H16** Two self-check subject lists remain hand-maintained, and whether
   they should exist at all is an open specification question. The M6 recheck
   eliminated the third one: `mcxa-example-boundary` no longer reads a file list,
@@ -1514,6 +1580,17 @@ Asserted capabilities with no procedure sufficient to perform them.
   external attester - none of which exists and none of which is a wording fix.
   Recorded so the gap has an ID rather than only a softer sentence. Owner:
   post-M7.
+
+- [ ] **H18** Low severity: the pre-existing `links` self-check can pass
+  vacuously one level below Markdown discovery. It reports how many relative
+  links it extracted, but has no empty-set guard and nothing watches that count;
+  if extraction regressed to find no links, the check would report a smaller
+  number rather than fail. **PARTIALLY ENFORCED, still open:** for every relative
+  link it does extract, `links` requires the target to remain inside the
+  repository and resolve to an existing regular file. It does not prove that
+  extraction found any links, validate fragments, or establish that a resolved
+  file supports the citing sentence; `markdown-anchor-targets` owns fragments
+  and now fails closed on its own empty subject set. Owner: post-M7 handover.
 
 
 ---
