@@ -150,18 +150,26 @@ Copy-Item -Recurse -Path halucinator\.opencode\* -Destination D:\path\to\embassy
 Or install the agents and skills globally, for every project:
 
 ```sh
-[ ! -e ~/.config/opencode/opencode.json ] || exit 1
+[ ! -e ~/.config/opencode ] || exit 1
 mkdir -p ~/.config/opencode
 cp -R halucinator/.opencode/. ~/.config/opencode/
 cp halucinator/docs/opencode.json ~/.config/opencode/opencode.json
 ```
 
 ```powershell
-if (Test-Path -LiteralPath "$HOME\.config\opencode\opencode.json") { throw "global config exists; diff and merge manually" }
-New-Item -ItemType Directory -Path "$HOME\.config\opencode" -ErrorAction SilentlyContinue
+if (Test-Path -LiteralPath "$HOME\.config\opencode") { throw "global OpenCode directory exists; diff and merge manually" }
+New-Item -ItemType Directory -Path "$HOME\.config\opencode"
 Copy-Item -Recurse -Path halucinator\.opencode\* -Destination "$HOME\.config\opencode\"
 Copy-Item halucinator\docs\opencode.json "$HOME\.config\opencode\opencode.json"
 ```
+
+These guarded snippets are not atomic. If a copy is interrupted, the partial
+destination remains and rerunning the fresh-install commands refuses it; diff
+and merge the partial install manually before continuing.
+
+The checkout context guard identifies an Embassy checkout independently of a
+local or global halucinator install. A global install does not require copying
+`.opencode/ownership.toml` into every Embassy clone.
 
 Restart opencode afterwards. Config is read once at startup and is not
 hot-reloaded.
@@ -190,6 +198,8 @@ treats the rule as non-negotiable.
 ```
 gather-documentation  →  hal-datasheet
         ↓
+extract-hardware-facts → hal-datasheet
+        ↓
 generate-svd          →  hal-svd
         ↓
 generate-pac          →  hal-svd
@@ -198,11 +208,13 @@ scaffold-hal          →  hal-architect (design)
                          hal-driver    (clocks, startup semantics)
                          hal-integrator (shared files, manifests, wiring)
         ↓
-peripheral drivers    →  hal-driver   (one per peripheral, repeated)
+peripheral drivers
+  write-driver        →  hal-driver   (one per peripheral, repeated)
+  write-dma           →  hal-driver   (shared DMA subsystem)
         ↓
-examples & HIL tests  →  hal-tester   (black-box logic and evidence)
-        ↓                 hal-integrator (placement, manifests, CI)
-        ↓                 write-examples
+examples & HIL tests
+  write-examples      →  hal-tester   (black-box logic and evidence)
+                         hal-integrator (placement, manifests, CI)
         ↓
 review                →  hal-reviewer (typed verdict on a frozen candidate)
 ```
@@ -212,11 +224,12 @@ both gates. Stages are not strictly serial — a driver regularly sends you
 back to the manual — but the dependency direction never reverses. You cannot
 write a driver for a register the PAC does not expose.
 
-The peripheral-drivers row runs on one generic per-peripheral procedure,
-[write-driver](.opencode/skills/write-driver/SKILL.md): it applies the
-universal driver obligations to every peripheral and then selects a GPIO,
-Embassy-time-service or bus profile for the subsystem at hand, so a bus shape
-is never treated as universal.
+The peripheral-drivers row has two procedures. The shared-DMA subsystem uses
+[write-dma](.opencode/skills/write-dma/SKILL.md). Every ordinary peripheral
+uses [write-driver](.opencode/skills/write-driver/SKILL.md), which applies the
+universal driver obligations and then selects a GPIO, Embassy-time-service or
+bus profile for the subsystem at hand, so a bus shape is never treated as
+universal.
 
 ## The agents
 
@@ -230,9 +243,9 @@ a projection of it.
 | `hal-architect` | subagent | Design specifications only: module boundaries, APIs, trait shapes, startup and clock contracts, invariants, failure modes | `notes/ARCHITECTURE.md` only — no HAL, PAC, test, generated, manifest, linker or runtime code |
 | `hal-datasheet` | subagent | Vendor source bytes, extraction, cited fact notes, contradictions and unknowns, and the `01`/`02` handoffs | `docs/<target-id>/sources/**`, `extracted/**`, `notes/FACTS.md` and `notes/facts/**`, its two handoffs |
 | `hal-svd` | subagent | Machine-readable SVD, chiptool transforms, metapac and interrupt metadata, PAC generation, and the `03`/`04` handoffs | `halucinator/pac/**`, `notes/SVD.md`, `notes/PAC.md`, its two handoffs |
-| `hal-driver` | subagent | One peripheral or hardware-semantic subsystem end to end, including clocks, its host functional-core tests, record delta content, and the `06` handoff | `embassy-*/src/**` and `halucinator/candidates/driver-*/src/**`, excluding `lib.rs`, `chips/**` and `_generated.rs`; its handoff |
+| `hal-driver` | subagent | One peripheral or hardware-semantic subsystem end to end, including clocks, its host functional-core tests, record delta content, and the `06` handoff | `embassy-*/src/**` and `halucinator/candidates/driver-*/src/**`, excluding `lib.rs` and `chips/**`; its handoff |
 | `hal-tester` | subagent | Black-box test logic, setup guidance, authorized run evidence, and the `07` handoff; no canonical HAL or test file | `halucinator/test-candidates/**` and its handoff only. Read-blinded from HAL source; `cargo fmt` denied |
-| `hal-integrator` | subagent | Sole writer of shared and crate-level files, durable records, `SOURCES.md`, canonical test files — and **sole committer** | `embassy-*/Cargo.toml`, `build.rs`, `memory.x`, `link*.x`, `src/lib.rs`, `src/chips/**`, `src/_generated.rs`, `examples/*/**`, `tests/*/**`, `ci.sh`, `rust-toolchain.toml`, `rustfmt.toml`, `.gitattributes`, `.gitignore`, the durable records, and the `05` handoff |
+| `hal-integrator` | subagent | Sole writer of shared and crate-level files, durable records, `SOURCES.md`, canonical test files — and **sole committer** | `embassy-*/Cargo.toml`, `build.rs` and its code-generation setup, `memory.x`, `link*.x`, `src/lib.rs`, `src/chips/**`, `examples/*/**`, `tests/*/**`, `ci.sh`, `rust-toolchain.toml`, `rustfmt.toml`, `.gitattributes`, `.gitignore`, the durable records, and the `05` handoff |
 | `hal-reviewer` | subagent | Findings and the `08` typed verdict | Its own verdict handoff and **nothing else**. It never edits, fixes, or commits an artifact it reviews |
 
 ### Entry point and dispatch

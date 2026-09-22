@@ -25,7 +25,7 @@ register on the target MCU can be known from here.
 Read, in the executing checkout:
 
 - `embassy-mcxa/DEVGUIDE.md`, at minimum the sections "Type Erasure and
-  Constructors", "Configuration", "Error types", "Bringing Up Clocks and
+  Constructors", "Configuration: Defaults and Validation", "Error types", "Bringing Up Clocks and
   Resets", "Checking Errors", "Implementing Upstream Trait Contracts",
   "Asynchronous (Interrupt-Driven) Drivers" and "Shared Static State and DMA".
 - `embassy-mcxa/src/i2c/`, the reference implementation of a bus driver, and

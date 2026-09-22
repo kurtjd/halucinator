@@ -60,9 +60,9 @@ it blocks, not as a sentinel value in a typed field.
   wiring, and each in-scope supporting subsystem
 - Missing unrelated PAC coverage, clearly marked non-blocking
 - Temporary fork state. A fork permits disposable candidate work and prevents a
-  `ready` handoff. Record its replacement by a permitted upstream release or
-  revision, the rechecked coverage and the rerun evidence; preserve the history
-  without treating it as permanent taint.
+  `ready` handoff. Record its replacement by an accepted upstream commit pinned
+  by immutable revision, the rechecked coverage and the rerun evidence; preserve
+  the history without treating it as permanent taint.
 
 Any missing in-scope foundation register, accessor, interrupt or metadata item
 blocks all scaffold implementation, including the structural files. Record that

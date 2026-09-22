@@ -412,6 +412,9 @@ tokens and loses fields.
   `hal-architect` no longer mentions it, and the generated mapping file
   `embassy-*/src/_generated.rs` is `hal-integrator`'s `build-generation`
   class.)*
+  *(Correcting the stale path claim previously recorded here: `_generated.rs`
+  is an `OUT_DIR` build output in every Embassy HAL, not a committed source
+  file; `build-generation` was narrowed to `embassy-*/build.rs`.)*
 - [x] **B14** No dispatch policy protecting against generic-agent
   fallback. A request like "add UART support" can route to `coder`,
   `general`, or `integrator` and bypass every specialist constraint.
@@ -444,6 +447,10 @@ Verified as grep-absences across all agents and skills.
   creates it never names it. *(Closed by the `build-generation` class,
   owned by `hal-integrator`, which overrides the broad
   `peripheral-modules` pattern so the driver cannot write it.)*
+  *(Correcting the stale ownership claim previously recorded here:
+  `_generated.rs` is an `OUT_DIR` build output in every Embassy HAL, not a
+  committed source file; `build-generation` was narrowed to
+  `embassy-*/build.rs`.)*
 - [x] **C3** `ci.sh` the file. Zero hits in scaffold; it only *reads* CI
   (`:119`) and *requests* wiring from the tester (`:177-179`).
   `hal-tester.md:8` claims "the `ci.sh` wiring",
@@ -1392,6 +1399,17 @@ Zero concurrency vocabulary exists across all agents and skills:
 - [~] **G17** Global install copies `.opencode/node_modules`
   (present in this checkout). *Deferred: packaging concern. Owner: post-M7
   handover.*
+- [ ] **G18** The installation procedure is neither transactional nor limited
+  to a declared distribution. An interruption leaves a partial installation
+  whose existing destinations make the fresh-install commands refuse a retry;
+  no backup, rollback or resume path is documented. The snippets also copy the
+  developer's entire `.opencode/` working tree rather than a manifest of
+  distributable files, so ignored local dependencies and the committed fixture
+  corpus travel with the toolkit. `README.md` now discloses the interrupted-
+  install residual, but it does not disclose the undeclared distribution or
+  limit what is copied. Disclosure alone would not make the procedure
+  recoverable or define a package.
+  *Owner: post-M7 handover.*
 
 ---
 
@@ -1598,6 +1616,127 @@ Asserted capabilities with no procedure sufficient to perform them.
   extraction found any links, validate fragments, or establish that a resolved
   file supports the citing sentence; `markdown-anchor-targets` owns fragments
   and now fails closed on its own empty subject set. Owner: post-M7 handover.
+
+H19-H27 share a recurring failure shape: a check reports success while its
+subject, assertion, diagnostic, fixture or examined set is absent, empty or
+never examined. The individual entries retain the narrower evidence and remedy
+rather than treating that pattern as closure.
+
+- [ ] **H19** `checkout-context-guard` asserts no EMBASSY predicate.
+  `tools/selfcheck.py:5723-5959` pins the refusal sentence, four TOOLKIT markers,
+  three classification names and no-retry/no-subdispatch vocabulary, but never
+  requires the evidence that distinguishes an Embassy checkout. That omission
+  let the guard demand a root `Cargo.toml` that the live `embassy-rs/embassy`
+  tree does not have while every self-check remained green. The check should
+  require exactly `embassy-mcxa/DEVGUIDE.md` for EMBASSY classification and
+  reject a root `Cargo.toml`, `ci.sh` or checkout-local ownership registry as an
+  EMBASSY marker. This would assert the predicate's text, not prove that an agent
+  evaluated it. *Owner: post-M7 handover.*
+- [ ] **H20** The nine checkout-guard copies are not compared. The block lives
+  in `AGENTS.md` and all eight `.opencode/agents/*.md`, yet no check requires
+  byte equality, so two agents can classify the same checkout differently while
+  the corpus still passes. Add an equality assertion over the complete blocks;
+  longer term, generate the eight agent copies from one canonical definition
+  rather than maintaining nine authorities. *Owner: post-M7 handover.*
+- [ ] **H21** Checkout-root resolution and refusal diagnostics are unasserted.
+  The guard now requires marker inspection at a resolved repository root and a
+  report containing the classification, resolution result and each marker's
+  present, missing or inspection-failed state, with the mandated refusal
+  sentence first. `checkout-context-guard` requires none of those properties,
+  so deleting or reordering the diagnostic contract does not make the check
+  fail. The repeated marker-observation stanza at `AGENTS.md:120-131` also has
+  no depth or output-size bound. A twelve-level fallback produces roughly
+  thirteen stanzas and 105-120 lines. Traversal remains finite at the Git or
+  filesystem root, so this is a usability limit rather than a hang, but the
+  evidence must not be silently truncated. An eventual remedy needs either a
+  maximum depth that fails AMBIGUOUS with a stated reason or a compact table
+  retaining every observation. A lexical assertion would preserve the
+  documented contract only; it still would not observe an agent following it.
+  *Owner: post-M7 handover.*
+- [ ] **H22** The checkout guard has no behavioral predicate fixtures. Nothing
+  exercises a normal clone, a subdirectory invocation, TOOLKIT precedence when
+  `embassy-mcxa/DEVGUIDE.md` is vendored, a sparse checkout missing that file, a
+  non-Git export, unavailable Git, an inspection failure, a submodule, a linked
+  worktree or an unrelated enclosing repository. Before the amended guard, Git
+  success and bounded parent fallback classified a toolkit nested in an Embassy
+  tree oppositely; the new nested-toolkit veto repairs the prose, but the harness
+  does not execute it. The Git-success path at `AGENTS.md:55-70` evaluates the
+  EMBASSY predicate only at the Git-reported root. A complete non-Git Embassy
+  export nested inside an unrelated Git worktree therefore classifies AMBIGUOUS
+  with Git available but EMBASSY under the fallback at `AGENTS.md:71-87` when
+  Git is absent. This deliberate false refusal fails closed. Broadening the
+  EMBASSY search was rejected because an unrelated repository containing a
+  stray `DEVGUIDE.md` could then be admitted; `AGENTS.md:141-145` instead
+  declares the nested-export layout unsupported in Recovery text rather than
+  handling it in the classifier. The three-valued marker semantics at
+  `AGENTS.md:35-43` are also only prose: nothing maps operating-system errors to
+  true, false or indeterminate, including the distinction between observed
+  absence and inaccessible input. An agent unable to distinguish those cases
+  must use the mandated safe response at `AGENTS.md:88-91` and report an
+  inspection failure. The complexity was judged warranted but remains
+  unexercised; behavioral coverage is missing, not a simpler predicate. Because
+  the guard is prose for an LLM rather than executable agent control flow,
+  fixtures can exercise only an extracted classification predicate; they cannot
+  prove that an agent used it, refused, or returned without retrying. *Owner:
+  post-M7 handover.*
+- [ ] **H23** `runtime-protocol-tests` does not prove that any runtime case ran.
+  `tools/selfcheck.py:6656-6712` rejects a missing suite, syntax failure, timeout
+  and nonzero exit, but does not inspect successful output or require a case
+  count. A no-op file retaining the expected function names and docstrings can
+  exit zero and pass. Parse the suite's success footer and require its count to
+  equal the case list derived statically by the check; names and docstrings still
+  would not prove that each named test injects the claimed fault. *Owner:
+  post-M7 handover.*
+- [ ] **H24** `citation-path-tested` counts discovered files rather than tests
+  that ran. `tools/selfcheck.py:8046-8075` reports `len(modules)` from a
+  `test_*.py` glob as modules run green under discovery, while rejecting only a
+  total `Ran 0 tests`. `test_runtime.py` therefore increases the reported count
+  despite contributing no discovered tests, which allowed documentation to
+  claim both suites ran. Restrict discovery to the citation module or derive
+  per-module test counts, and do not label globbed files as executed modules.
+  *Owner: post-M7 handover.*
+- [ ] **H25** `install-no-overwrite` is weaker than the contract it was used to
+  support. `tools/selfcheck.py:5962-6086`, with the decision at `:6081-6086`,
+  requires one absence guard per copying block rather than one guard per
+  destination, so guarding one path and overwriting three others passes. The
+  documentation now states that limit, but the check remains open. Because the
+  procedure has four fixed snippets, a narrow parser can normalize each copy
+  destination and pair it with a preceding destination-specific guard without
+  pretending to parse arbitrary shell. *Owner: post-M7 handover.*
+- [ ] **H26** The published pipeline is not compared with the graph the harness
+  already derives. `tools/selfcheck.py:2115-2122`, `:2193-2204` and
+  `:2247-2260` know that `extract-hardware-facts` emits `02-facts`, that
+  `generate-svd` consumes it, and that `write-dma` is a second `06-driver`
+  emitter. No check compares those facts with the diagrams in `AGENTS.md` and
+  `README.md` or with README's driver-row prose. Deriving the documented graph
+  from the same registry would have rejected omission of a validator-enforced
+  stage; matching diagrams still would not prove the procedures work. *Owner:
+  post-M7 handover.*
+- [ ] **H27** `permissions` checks required allows but not unjustified allows.
+  `tools/selfcheck.py:1621-1633` requires every owned pattern to have an allow
+  rule, yet an allow whose pattern is justified by no owned file class survives
+  silently. That makes stale authority invisible after ownership narrows, a live
+  risk now that `build-generation` covers less than before. Reject allow rules
+  that cannot be derived from the agent's current ownership classes, while
+  preserving separately justified operational permissions. *Owner: post-M7
+  handover.*
+- [ ] **H28** Driver-order validation conflates an identity marker with an
+  implementation path. `MCXA_PATH_RE = re.compile(r"embassy-mcxa/",
+  re.IGNORECASE)` in `tools/selfcheck.py` is used by `analyze_driver_order` and
+  matches the checkout guard's own Embassy marker. Canonically spelling that
+  marker therefore forces the guard below `## How you work` in
+  `.opencode/agents/hal-driver.md`, contradicting the guard-first contract. This
+  pass worked around the collision by phrasing the marker without a slash. The
+  check should target actual implementation paths or explicitly exclude the
+  guard, gain a negative fixture proving that the guard may use the canonical
+  spelling, and assert that the guard precedes `## How you work`. *Owner:
+  post-M7 handover.*
+- [ ] **H29** The pinned refusal sentence cannot carry a context-correct remedy.
+  `tools/selfcheck.py:5725-5726` pins one first-line remedy — "install
+  halucinator into an Embassy checkout" — which is wrong for a sparse checkout
+  and unnecessary for a global install. The Recovery section now corrects the
+  advice, but the harness should allow a stable refusal prefix followed by
+  classification-specific recovery text. *Owner: post-M7 handover.*
 
 
 ---
